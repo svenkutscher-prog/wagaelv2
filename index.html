@@ -94,6 +94,10 @@
         <input id="loginCode" inputmode="numeric" autocomplete="one-time-code" maxlength="10" class="input input-bordered w-full text-center tracking-[.4em] text-lg" placeholder="Code">
         <button id="loginVerify" class="btn btn-primary btn-outline w-full">Mit Code anmelden</button>
       </div>
+      <div class="divider text-xs opacity-60 my-0">oder</div>
+      <label><span class="text-xs opacity-70 block mb-1">Passwort (ohne E-Mail-Versand)</span>
+        <input id="loginPw" type="password" autocomplete="current-password" class="input input-bordered w-full" placeholder="Passwort"></label>
+      <button id="loginPwBtn" class="btn btn-outline w-full">Mit Passwort anmelden</button>
       <div id="loginMsg" class="text-sm"></div>
     </div>
   </div>
@@ -1481,6 +1485,16 @@
     if (error) loginMsg(germanAuthError(error), "err");
   });
   $("logout").addEventListener("click", async () => { await sb.auth.signOut(); });
+  $("loginPwBtn").addEventListener("click", async () => {
+    const email = $("loginEmail").value.trim(), password = $("loginPw").value;
+    if (!email || !password) return loginMsg("Bitte E-Mail und Passwort eingeben.", "warn");
+    loginMsg("Melde an …");
+    const { error } = await sb.auth.signInWithPassword({ email, password });
+    if (error) return loginMsg(/invalid/i.test(error.message) ? "E-Mail oder Passwort falsch." : germanAuthError(error), "err");
+    try { localStorage.setItem("wagael_login_email", email); } catch (e) {}
+    loginMsg("");
+  });
+  $("loginPw").addEventListener("keydown", (e) => { if (e.key === "Enter") $("loginPwBtn").click(); });
   try { $("loginEmail").value = localStorage.getItem("wagael_login_email") || ""; } catch (e) {}
 
   sb.auth.onAuthStateChange((_ev, session) => { setTimeout(() => applySession(session), 0); });
