@@ -445,6 +445,25 @@
       </tr>`).join("") : `<tr><td colspan="7" class="empty">Noch keine Daten – ab der zweiten Erfassung erscheint der Verbrauch.</td></tr>`;
   }
 
+  // ---------- Token-Countdown im Kopf (Std:Min bis zum Ablauf) ----------
+  let tokenState = null;
+  function tokenBadge() {
+    const b = $("autoBadge"), s = tokenState; if (!b || !s) return;
+    const rest = s.expires_at ? new Date(s.expires_at).getTime() - Date.now() : 0;
+    let cls = "badge-success", txt;
+    if (!s.saved_at) { cls = "badge-error"; txt = "Kein Token"; }
+    else if (s.expired_at || rest <= 0) { cls = "badge-error"; txt = "Token abgelaufen"; }
+    else {
+      const min = Math.floor(rest / 6e4);
+      txt = `Token noch ${Math.floor(min / 60)}:${String(min % 60).padStart(2, "0")}`;
+      if (rest < 2 * 36e5) cls = "badge-warning";
+    }
+    b.className = "badge badge-sm sm:badge-md tabular-nums " + cls;
+    b.textContent = txt;
+    b.title = s.expires_at ? `Läuft ab ca. ${new Date(s.expires_at).toLocaleString("de-DE", { weekday: "short", hour: "2-digit", minute: "2-digit" })}` : "";
+  }
+  setInterval(tokenBadge, 30000);
+
   // ---------- Automatik-Status ----------
   async function loadAuto() {
     const el = $("auto");
@@ -465,9 +484,7 @@
         el.innerHTML = `<span class="warn">● Automatik aus</span> · noch kein Token eingetragen`;
       }
       if (s.last_error) el.innerHTML += `<br><span class="err">Letzter Fehler: ${s.last_error}</span>`;
-      const b = $("autoBadge");
-      if (b) { b.className = "badge badge-sm sm:badge-md " + (s.active ? "badge-success" : "badge-warning");
-        b.textContent = s.active ? `Automatik bis ${s.expires_at ? new Date(s.expires_at).toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit" }) : "?"}` : "Automatik pausiert"; }
+      tokenState = s; tokenBadge();
     } catch (e) {
       el.textContent = "Automatik-Status nicht abrufbar.";
     }
