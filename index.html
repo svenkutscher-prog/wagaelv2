@@ -63,6 +63,7 @@
     <nav role="tablist" class="tabs tabs-box tabs-sm sm:tabs-md order-last w-full overflow-x-auto flex-nowrap lg:order-none lg:w-auto lg:mx-auto" id="tabs">
       <a role="tab" class="tab whitespace-nowrap" data-tab="overview">Übersicht</a>
       <a role="tab" class="tab whitespace-nowrap" data-tab="history">Verlauf</a>
+      <a role="tab" class="tab whitespace-nowrap" data-tab="klima">Klima</a>
       <a role="tab" class="tab whitespace-nowrap" data-tab="diagnose">Diagnose</a>
       <a role="tab" class="tab whitespace-nowrap" data-tab="config">Konfigurator</a>
       <a role="tab" class="tab whitespace-nowrap" data-tab="plant">Anlage</a>
@@ -117,7 +118,7 @@
         <span id="stateAge" class="text-xs opacity-60"></span>
       </div>
       <div id="stateNow" class="rounded-box p-4 border border-base-300 bg-base-100 flex items-center gap-4"><div class="empty">Lade …</div></div>
-      <div id="stateGrid" class="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-7 gap-3"></div>
+      <div id="stateGrid" class="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-8 gap-3"></div>
       <details class="collapse collapse-arrow bg-base-100 border border-base-300">
         <summary class="collapse-title text-sm font-medium min-h-0 py-3">Wie erkenne ich Sommer- und Winterbetrieb?</summary>
         <div class="collapse-content text-sm space-y-2">
@@ -250,6 +251,28 @@
         <tbody id="energy"><tr><td colspan="7" class="empty">Lade …</td></tr></tbody>
       </table></div></div></div>
   </div>
+</section>
+
+<!-- ===================== KLIMA / HALLE ===================== -->
+<section data-panel="klima" class="space-y-4 lg:space-y-6 hidden">
+  <div class="flex flex-wrap items-center gap-2" id="kRanges">
+    <span class="font-semibold mr-2">🏠 Halle · Klimaanlage</span>
+    <button data-r="today" class="btn btn-sm on">Heute</button>
+    <button data-r="yesterday" class="btn btn-sm">Gestern</button>
+    <button data-r="168" class="btn btn-sm">7 Tage</button>
+    <input type="date" id="kDay" class="input input-bordered input-sm w-auto" title="Tag wählen">
+  </div>
+  <div id="kTiles" class="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-6 gap-3"><div class="empty">Lade …</div></div>
+  <div id="kVerdict"></div>
+  <div class="grid gap-4 lg:grid-cols-2">
+    <div class="card bg-base-200"><div class="card-body p-4">
+      <div class="ctitle">Temperatur Halle (°C) <span class="opacity-60">· grau hinterlegt = Klimaanlage läuft · „Außen“ per Klick in der Legende einblenden</span></div>
+      <div class="chart chart-lg"><canvas id="cHalleT"></canvas></div></div></div>
+    <div class="card bg-base-200"><div class="card-body p-4">
+      <div class="ctitle">Luftfeuchte Halle (%) <span class="opacity-60">· hell hinterlegt = Wohlfühlbereich 40–60 %</span></div>
+      <div class="chart chart-lg"><canvas id="cHalleH"></canvas></div></div></div>
+  </div>
+  <div class="text-xs opacity-70">Sensor im Innengerät der Klimaanlage, misst auch wenn sie aus ist · nur ganze Grad – daher zeigt die Linie den gleitenden 1-Std.-Mittelwert, die dünne Stufenlinie die Rohwerte · Werte alle 15 Min.</div>
 </section>
 
 <!-- ===================== DIAGNOSE ===================== -->
@@ -589,6 +612,27 @@
     return runs;
   }
 
+  // Zählermeldungen der Wärmepumpe (Beginn, Ende, Wh) – Ansicht hp_energy_reports
+  async function energyReports(fromISO, toISO) {
+    try {
+      const from = new Date(new Date(fromISO).getTime() - 2 * 3600e3).toISOString();   // Fenster, die in den Zeitraum hineinragen
+      const r = await restAll(`hp_energy_reports?select=p_start,p_end,wh&p_end=gte.${from}&p_start=lt.${toISO}&order=p_start.asc`);
+      return r.map(x => ({ s: new Date(x.p_start).getTime(), e: new Date(x.p_end).getTime(), wh: Number(x.wh) || 0 }));
+    } catch (e) { return null; }   // Ansicht noch nicht angelegt (07_energie_fenster.sql)
+  }
+  // Verbrauch (Wh) im Zeitraum [a, b]: Zählerfenster anteilig nach Überlappung
+  function energyBetween(reps, a, b) {
+    let wh = 0;
+    for (const r of reps) {
+      const len = Math.max(r.e - r.s, 60000);
+      const ov = Math.min(b, Math.max(r.e, r.s + 60000)) - Math.max(a, r.s);
+      if (ov > 0) wh += r.wh * Math.min(ov / len, 1);
+    }
+    return wh;
+  }
+  // kWh einer Warmwasser-Ladung: aus Zählerfenstern, sonst aus den Zählerständen
+  const runWh = (x, reps) => reps && reps.length ? energyBetween(reps, x.start - 2.5 * 60000, x.end + 2.5 * 60000) : x.wh;
+
   // Verdichter-Laufphasen (für die Taktung)
   function onRuns(rows) {
     const runs = []; let cur = null;
@@ -661,16 +705,17 @@
   // ---------- Verlauf ----------
   async function loadHistory() {
     const [from, to, short] = rangeBounds();
-    const [rowsRaw, cyc] = await Promise.all([hpRows(from.toISOString(), to.toISOString()), cycleRows(from.toISOString(), to.toISOString())]);
+    const [rowsRaw, cyc, reps] = await Promise.all([hpRows(from.toISOString(), to.toISOString()), cycleRows(from.toISOString(), to.toISOString()), energyReports(from.toISOString(), to.toISOString())]);
     const rows = withDeltas(rowsRaw);
     const lbl = (t) => short ? hhmm(t) : `${ddmm(t)} ${hhmm(t)}`;
+    const drAll = dhwRuns(rows);
     const cycRun = cyc.filter(c => (c.comp_hz ?? 0) > 0 && c.flow != null && c.ret != null);
     const spread = cycRun.length ? cycRun.reduce((a, c) => a + (c.flow - c.ret), 0) / cycRun.length : null;
     const lastCyc = cyc[cyc.length - 1];
 
     // Kennzahlen
     const whSum = rows.reduce((a, r) => a + r.dWh, 0);
-    const whTank = rows.filter(r => r.hp_valve === "tank").reduce((a, r) => a + r.dWh, 0);
+    const whTank = Math.min(drAll.reduce((a, x) => a + runWh(x, reps), 0), whSum || Infinity);
     const whNight = rows.filter(r => r.hour >= 22 || r.hour < 6).reduce((a, r) => a + r.dWh, 0);
     const running = rows.filter(r => r.on).length;
     const outs = rows.map(r => r.outdoor_temp).filter(v => v != null);
@@ -793,14 +838,14 @@
     });
 
     // Warmwasser-Ladungen
-    const dr = dhwRuns(rows);
+    const dr = drAll;
     $("dhw").innerHTML = dr.length ? dr.map(x => {
       const mins = Math.round((x.end - x.start) / 60000) + 5;
       const night = new Date(x.start).getHours() >= 22 || new Date(x.start).getHours() < 6;
       const legio = (x.peak ?? 0) >= 58;
       const notes = [night ? "nachts" : "", legio ? "Legionellen?" : "", x.booster ? "mit Heizstab" : ""].filter(Boolean).join(", ");
       return `<tr><td>${short ? "" : ddmm(x.start) + " "}${hhmm(x.start)}</td><td>~${mins} Min.</td>
-        <td>${fmt(x.startTemp)} → ${fmt(x.peak)} °C</td><td>${fmt(x.wh / 1000, 2)}</td><td>${notes || "–"}</td></tr>`;
+        <td>${fmt(x.startTemp)} → ${fmt(x.peak)} °C</td><td>${fmt(runWh(x, reps) / 1000, 2)}</td><td>${notes || "–"}</td></tr>`;
     }).join("") : `<tr><td colspan="5" class="empty">Keine Warmwasser-Ladung in diesem Zeitraum.</td></tr>`;
   }
 
@@ -862,8 +907,9 @@
 
       // 3) Warmwasser-Zeitpunkt
       const dr = dhwRuns(rows);
-      const whTank = dr.reduce((a, x) => a + x.wh, 0);
-      const whTankNight = dr.filter(x => { const h = new Date(x.start).getHours(); return h >= 22 || h < 6; }).reduce((a, x) => a + x.wh, 0);
+      const repsD = await energyReports(from.toISOString(), to.toISOString());
+      const whTank = dr.reduce((a, x) => a + runWh(x, repsD), 0);
+      const whTankNight = dr.filter(x => { const h = new Date(x.start).getHours(); return h >= 22 || h < 6; }).reduce((a, x) => a + runWh(x, repsD), 0);
       const nightShare = whTank ? whTankNight / whTank : 0;
       const starts = dr.map(x => hhmm(x.start)).slice(-6).join(", ");
       out.push(!dr.length
@@ -1433,6 +1479,7 @@
     const dm = DHW_MODE[dhwMode] || [dhwMode ?? "–", ""];
     const supported = m.airConditionerMode?.supportedAcModes?.value || Object.keys(DHW_MODE);
     const modeList = supported.map(x => x === dhwMode ? `<b class="text-base-content">${x.toUpperCase()}</b>` : x.toUpperCase()).join(" · ");
+    const halle = await halleNow().catch(() => null);
     $("stateGrid").innerHTML = [
       stateTile("⏻", "Anlage", plantOn ? "Eingeschaltet" : "Ausgeschaltet", plantOn ? "Hauptschalter an" : "", plantOn ? "ok" : "err"),
       stateTile(season === "Winterbetrieb" ? "❄️" : season === "Sommerbetrieb" ? "☀️" : "🔄", "Betriebsart", season, seasonSub, seasonTone),
@@ -1441,6 +1488,7 @@
       stateTile("🚿", "Warmwasser", `${fmt(hp.temperature)} °C`, `Ziel ${hp.setpoint ?? "?"} °C`, "info"),
       stateTile("🔌", "Heizstab", booster ? "Läuft" : "Aus", booster ? "teuer – 1 kWh Strom = 1 kWh Wärme" : "gut so", booster ? "warn" : "ok"),
       stateTile("🧳", "Abwesenheit", away ? "Aktiv" : "Aus", away ? "Anlage im Sparbetrieb" : "normaler Betrieb", away ? "warn" : "off"),
+      halleStateTile(halle),
     ].join("");
 
     if (!hp.captured_at) { $("stateAge").textContent = ""; return; }
@@ -1448,9 +1496,139 @@
     $("stateAge").textContent = `Stand ${new Date(hp.captured_at).toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit" })} · vor ${age} Min.${age > 30 ? " – Automatik prüfen" : ""}`;
   }
 
+  // ---------- Klima / Halle (Sensor der Raumklimaanlage) ----------
+  const AC_MODE = { cool: "Kühlen", heat: "Heizen", dry: "Entfeuchten", fan: "Lüften", auto: "Automatik" };
+  const AC_FILTER = "humidity=not.is.null";   // nur die Klimaanlage liefert Luftfeuchte
+  async function halleTarget() {
+    const st = await rest("hp_stammdaten?select=key,value").catch(() => []);
+    const g = (k) => numIn(st.find(x => x.key === k)?.value);
+    return { target: g("Raum-Wunschtemperatur") ?? 21, measured: g("Raumtemperatur gemessen") };
+  }
+  function tempTone(v, t) { if (v == null) return ["info", "–"]; const d = v - t;
+    return d > 1.5 ? ["err", "deutlich zu warm"] : d > 0.5 ? ["warn", "etwas zu warm"] : d < -1 ? ["warn", "zu kühl"] : ["ok", "passt"]; }
+  function humTone(h) { if (h == null) return ["info", "–"];
+    return h < 30 || h > 70 ? ["err", h < 30 ? "sehr trocken" : "sehr feucht"] : h < 40 || h > 60 ? ["warn", h < 40 ? "etwas trocken" : "etwas feucht"] : ["ok", "angenehm"]; }
+  function acRunning(r) { return r.switch_state === "on"; }
+  async function halleNow() {
+    const [[ac], tg] = await Promise.all([rest(`snapshots?select=captured_at,temperature,humidity,switch_state,mode,setpoint,energy_wh,raw&${AC_FILTER}&order=captured_at.desc&limit=1`), halleTarget()]);
+    return ac ? { ac, ...tg } : null;
+  }
+  function halleStateTile(h) {
+    if (!h) return "";
+    const [tone, txt] = tempTone(h.ac.temperature, h.target);
+    const acTxt = acRunning(h.ac) ? `Klima ${AC_MODE[h.ac.mode] ?? h.ac.mode} läuft` : "Klima aus";
+    return stateTile("🏠", "Halle", `${fmt(h.ac.temperature, 0)} °C · ${fmt(h.ac.humidity, 0)} %`, `${txt} (Wunsch ${fmt(h.target, 0)} °C) · ${acTxt}`, tone);
+  }
+
+  let kRange = "today";
+  const kDay = $("kDay");
+  kDay.value = new Date().toLocaleDateString("sv-SE");
+  function kBounds() {
+    const now = new Date(), sod = (d) => { const x = new Date(d); x.setHours(0, 0, 0, 0); return x; };
+    if (kRange === "today") { const f = sod(now); return [f, new Date(f.getTime() + 864e5), true]; }
+    if (kRange === "yesterday") { const t = sod(now); return [new Date(t.getTime() - 864e5), t, true]; }
+    if (kRange === "date") { const f = new Date(kDay.value + "T00:00:00"); return [f, new Date(f.getTime() + 864e5), true]; }
+    return [new Date(now.getTime() - 168 * 3600e3), now, false];
+  }
+  document.querySelectorAll("#kRanges button").forEach(b => b.addEventListener("click", () => {
+    document.querySelectorAll("#kRanges button").forEach(x => x.classList.remove("on"));
+    b.classList.add("on"); kRange = b.dataset.r; loadKlima();
+  }));
+  kDay.addEventListener("change", () => { document.querySelectorAll("#kRanges button").forEach(x => x.classList.remove("on")); kRange = "date"; loadKlima(); });
+
+  // Hintergrund-Bänder: Klimaanlage an (Index-Bereiche) bzw. Wohlfühlbereich (y-Bereich)
+  const bandPlugin = {
+    id: "bands",
+    beforeDatasetsDraw(chart, _a, o) {
+      const { ctx, chartArea: a, scales: { x, y } } = chart; if (!a) return;
+      ctx.save(); ctx.fillStyle = o.color || "rgba(128,128,128,.18)";
+      (o.xRanges || []).forEach(([i, j]) => {
+        const half = (x.getPixelForValue(1) - x.getPixelForValue(0)) / 2 || 0;
+        const l = Math.max(a.left, x.getPixelForValue(i) - half), r = Math.min(a.right, x.getPixelForValue(j) + half);
+        ctx.fillRect(l, a.top, r - l, a.bottom - a.top);
+      });
+      if (o.yRange) { const t = y.getPixelForValue(o.yRange[1]), b = y.getPixelForValue(o.yRange[0]);
+        ctx.fillRect(a.left, Math.max(a.top, t), a.right - a.left, Math.min(a.bottom, b) - Math.max(a.top, t)); }
+      ctx.restore();
+    },
+  };
+
+  async function loadKlima() {
+    const [from, to, short] = kBounds();
+    const [rowsRaw, now] = await Promise.all([
+      restAll(`snapshots?select=captured_at,temperature,humidity,switch_state,mode,setpoint,energy_wh,outdoor_temp&${AC_FILTER}&captured_at=gte.${from.toISOString()}&captured_at=lt.${to.toISOString()}&order=captured_at.asc`),
+      halleNow(),
+    ]);
+    const rows = rowsRaw.map(r => ({ ...r, t: new Date(r.captured_at).getTime() }));
+    const T = now?.target ?? 21;
+    const lbl = (t) => short ? hhmm(t) : `${ddmm(t)} ${hhmm(t)}`;
+    const temps = rows.map(r => r.temperature).filter(v => v != null);
+    const hums = rows.map(r => r.humidity).filter(v => v != null);
+    const avg = (a) => a.length ? a.reduce((x, y) => x + y, 0) / a.length : null;
+    const offRows = rows.filter(r => !acRunning(r) && r.temperature != null);
+    const avgOff = avg(offRows.map(r => r.temperature));
+    const onShare = rows.length ? rows.filter(acRunning).length / rows.length : 0;
+    const eRows = rows.filter(r => r.energy_wh != null);
+    const kwh = eRows.length > 1 ? (eRows[eRows.length - 1].energy_wh - eRows[0].energy_wh) / 1000 : null;
+
+    // Kacheln
+    const tiles = [];
+    if (now) {
+      const ac = now.ac, [tT, tTxt] = tempTone(ac.temperature, T), [hT, hTxt] = humTone(ac.humidity);
+      const age = Math.round((Date.now() - new Date(ac.captured_at).getTime()) / 60000);
+      const fl = ac.raw?.components?.main?.["custom.dustFilter"];
+      const fu = fl?.dustFilterUsage?.value, fc = fl?.dustFilterCapacity?.value;
+      tiles.push(stateTile("🌡️", "Jetzt", `${fmt(ac.temperature, 0)} °C`, `${tTxt} · Wunsch ${fmt(T, 0)} °C · vor ${age} Min.`, tT));
+      tiles.push(stateTile("💧", "Luftfeuchte jetzt", `${fmt(ac.humidity, 0)} %`, hTxt, hT));
+      tiles.push(stateTile("❄️", "Klimaanlage", acRunning(ac) ? `${AC_MODE[ac.mode] ?? ac.mode} läuft` : "Aus",
+        `Modus ${AC_MODE[ac.mode] ?? ac.mode ?? "–"} · Soll ${fmt(ac.setpoint, 0)} °C`, acRunning(ac) ? "warn" : "off"));
+      tiles.push(stateTile("🧽", "Filter", fu != null ? `${fu} Std.` : "–", fc ? `von ${fc} Std. · ${fu >= fc ? "reinigen!" : `noch ${fc - fu} Std.`}` : "", fu != null && fc && fu >= fc ? "warn" : "info"));
+    }
+    tiles.push(stateTile("📊", "Ø Zeitraum", temps.length ? `${fmt(avg(temps))} °C` : "–",
+      temps.length ? `min ${fmt(Math.min(...temps), 0)} · max ${fmt(Math.max(...temps), 0)} °C · Feuchte Ø ${fmt(avg(hums), 0)} %` : "keine Daten", temps.length ? tempTone(avg(temps), T)[0] : "info"));
+    tiles.push(stateTile("🔌", "Strom Klima", kwh != null ? `${fmt(kwh, 2)} kWh` : "–", `im Zeitraum · läuft ${fmt(onShare * 100, 0)} % der Zeit${eRows.length ? ` · Zähler ${fmt(eRows[eRows.length - 1].energy_wh / 1000, 0)} kWh` : ""}`, "info"));
+    $("kTiles").innerHTML = tiles.join("");
+
+    // Bewertung
+    let v = "";
+    if (offRows.length >= 8) {
+      const d = avgOff - T;
+      const meas = now?.measured, note = meas != null ? ` Dein Thermometer zeigte ${fmt(meas, 0)} °C – der Sensor der Klimaanlage weicht also evtl. etwas ab.` : "";
+      if (d > 1) v = verdict("warn", "Halle zu warm", `Ø ${fmt(avgOff)} °C`, `Im Schnitt ${fmt(d)} °C über deinem Wunsch (${fmt(T, 0)} °C), gemessen nur wenn die Klimaanlage aus war. Die Fußbodenheizung liefert mehr Wärme als nötig → Heizkurve um 1 °C senken (Reiter <b>Konfigurator</b> → Raumtemperatur), dann 2–3 Tage beobachten.${note}`);
+      else if (d < -1) v = verdict("warn", "Halle zu kühl", `Ø ${fmt(avgOff)} °C`, `Im Schnitt ${fmt(-d)} °C unter deinem Wunsch → Heizkurve um 1 °C anheben.${note}`);
+      else v = verdict("ok", "Halle passt", `Ø ${fmt(avgOff)} °C`, `Nah an deinem Wunsch von ${fmt(T, 0)} °C – an der Heizkurve nichts ändern.${note}`);
+    }
+    $("kVerdict").innerHTML = v ? `<div class="card bg-base-200"><div class="card-body p-4 sm:p-5">${v}</div></div>` : "";
+
+    // Grafiken
+    const labels = rows.map(r => lbl(r.t));
+    const roll = rows.map((r, i) => { const w = rows.slice(Math.max(0, i - 3), i + 1).map(x => x.temperature).filter(x => x != null); return w.length ? w.reduce((a, b) => a + b, 0) / w.length : null; });
+    const onRanges = []; let st = null;
+    rows.forEach((r, i) => { if (acRunning(r)) { if (st == null) st = i; } else if (st != null) { onRanges.push([st, i - 1]); st = null; } });
+    if (st != null) onRanges.push([st, rows.length - 1]);
+    const line = (d) => ({ borderWidth: 2, pointRadius: 0, pointHoverRadius: 4, spanGaps: true, ...d });
+    drawChart("cHalleT", {
+      type: "line",
+      data: { labels, datasets: [
+        line({ label: "Halle (Ø 1 Std.)", data: roll, borderColor: C.hz, backgroundColor: C.hz, tension: 0.3 }),
+        line({ label: "Halle Messwert", data: rows.map(r => r.temperature), borderColor: C.hz, backgroundColor: C.hz, borderWidth: 1, stepped: true, borderDash: [2, 3] }),
+        line({ label: "Außen Linnich", data: rows.map(r => r.outdoor_temp), borderColor: C.out, backgroundColor: C.out, tension: 0.2, hidden: true }),
+        line({ label: `Wunsch ${fmt(T, 0)} °C`, data: rows.map(() => T), borderColor: C.tick, backgroundColor: C.tick, borderWidth: 1, borderDash: [6, 4], pointHoverRadius: 0 }),
+      ] },
+      options: (() => { const o = baseOptions("°C"); o.plugins.bands = { xRanges: onRanges }; o.scales.y.suggestedMin = T - 3; o.scales.y.suggestedMax = T + 3; return o; })(),
+      plugins: [bandPlugin],
+    });
+    drawChart("cHalleH", {
+      type: "line",
+      data: { labels, datasets: [line({ label: "Luftfeuchte", data: rows.map(r => r.humidity), borderColor: C.ww, backgroundColor: C.ww, stepped: true })] },
+      options: (() => { const o = baseOptions("%"); o.scales.y.suggestedMin = 30; o.scales.y.suggestedMax = 70; o.plugins.bands = { yRange: [40, 60], color: "rgba(27,175,122,.12)" }; o.plugins.legend.display = false; return o; })(),
+      plugins: [bandPlugin],
+    });
+  }
+
   async function loadData() {
     applyPalette();
-    try { await Promise.all([loadTiles(), loadEnergy(), loadHistory(), loadAuto(), loadDiagnose(), loadMonth(), loadCurve(), loadBench(), loadAnlage(), loadState()]); }
+    try { await Promise.all([loadTiles(), loadEnergy(), loadHistory(), loadAuto(), loadDiagnose(), loadMonth(), loadCurve(), loadBench(), loadAnlage(), loadState(), loadKlima()]); }
     catch (e) { setMsg("Daten konnten nicht geladen werden: " + e.message, "err"); }
   }
 
@@ -1533,7 +1711,7 @@
   document.querySelectorAll("#tabs .tab").forEach(t => t.addEventListener("click", () => showTab(t.dataset.tab)));
   let startTab = location.hash.slice(1);
   try { startTab = startTab || localStorage.getItem("wagael_tab"); } catch (e) {}
-  showTab(["overview", "history", "diagnose", "config", "plant"].includes(startTab) ? startTab : "overview");
+  showTab(["overview", "history", "klima", "diagnose", "config", "plant"].includes(startTab) ? startTab : "overview");
 
   // ---------- Design (daisyUI-Themes) ----------
   const THEMES = [["night", "Night"], ["dim", "Dim"], ["business", "Business"], ["dracula", "Dracula"], ["sunset", "Sunset"],
