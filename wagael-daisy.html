@@ -1,0 +1,1522 @@
+<!DOCTYPE html>
+<html lang="de" data-theme="night">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<title>WAGAEL – Wärmepumpe</title>
+<link href="https://cdn.jsdelivr.net/npm/daisyui@5" rel="stylesheet" type="text/css">
+<link href="https://cdn.jsdelivr.net/npm/daisyui@5/themes.css" rel="stylesheet" type="text/css">
+<script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+<style>
+  /* Ergänzungen zu daisyUI – nutzen die Theme-Variablen */
+  body { -webkit-tap-highlight-color: transparent; }
+  .empty { opacity: .6; padding: .5rem 0; font-size: .875rem; }
+  .dx { font-size: .8125rem; opacity: .7; }
+  .ctitle { font-size: .8125rem; opacity: .75; display: flex; flex-wrap: wrap; align-items: center; gap: .4rem; }
+  .ok { color: var(--color-success); } .warn { color: var(--color-warning); } .err { color: var(--color-error); }
+  .btn.on { background: var(--color-primary); color: var(--color-primary-content); border-color: var(--color-primary); }
+  .chart { position: relative; height: 260px; margin-top: .5rem; }
+  .chart-lg { height: 340px; }
+  @media (min-width: 1280px) { .chart { height: 300px; } .chart-lg { height: 420px; } }
+  .lead { font-size: 1rem; line-height: 1.55; } .lead b { color: var(--color-base-content); }
+  .src { font-size: .7rem; opacity: .65; display: block; }
+  .pill { display: inline-flex; align-items: center; padding: .05rem .55rem; border-radius: 999px; font-size: .75rem; font-weight: 600; white-space: nowrap; }
+  .pill.ok, .pill.good { background: var(--color-success); color: var(--color-success-content); }
+  .pill.warn { background: var(--color-warning); color: var(--color-warning-content); }
+  .pill.err { background: var(--color-error); color: var(--color-error-content); }
+  .pill.info { background: var(--color-neutral); color: var(--color-neutral-content); }
+  .kv td:first-child { opacity: .7; width: 45%; }
+  .kv td { white-space: normal; vertical-align: top; }
+  #curveTable tr.now td { font-weight: 700; color: var(--color-primary); }
+  .bgrid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: .75rem; }
+  .bgrid label { font-size: .75rem; opacity: .85; }
+  .bgrid input, .bgrid select { margin-top: .25rem; width: 100%; }
+  .cfgcard { border: 1px solid var(--color-base-300); border-radius: var(--radius-box); padding: 1rem; background: var(--color-base-100); }
+  .cfgcard h3 { margin: 0 0 .25rem; font-size: 1rem; font-weight: 700; }
+  .cfgcard td, .cfgcard th { white-space: normal; vertical-align: top; }
+  .cfgcard td.new { font-weight: 700; color: var(--color-primary); }
+  .cfgcard .note { font-size: .8125rem; opacity: .75; margin-top: .4rem; }
+  .cfgcard .warnline { font-size: .8125rem; color: var(--color-warning); margin-top: .4rem; }
+  .printbtn { margin-top: .75rem; }
+  .diag { display: grid; grid-template-columns: 2rem 1fr; gap: .75rem; padding: .75rem 0; border-bottom: 1px solid var(--color-base-300); }
+  .diag:last-of-type { border-bottom: 0; }
+  .dt { font-weight: 600; } .dv { margin-top: .1rem; } .dw { margin-left: .4rem; }
+  /* iPad: größere Touch-Ziele */
+  @media (pointer: coarse) { .btn-sm { min-height: 2.5rem; height: 2.5rem; padding-inline: .9rem; } .tab { min-height: 2.5rem; } }
+  @media print {
+    header, nav, #goals, #cfgInputs, .printbtn { display: none !important; }
+    body * { visibility: hidden; }
+    #cfgOut, #cfgOut * { visibility: visible; color: #000 !important; }
+    #cfgOut { position: absolute; left: 0; top: 0; width: 100%; }
+    .cfgcard { background: #fff; border-color: #999; }
+  }
+</style>
+</head>
+<body class="min-h-screen bg-base-100 text-base-content">
+<header class="sticky top-0 z-30 bg-base-100/90 backdrop-blur border-b border-base-300">
+  <div class="mx-auto max-w-screen-2xl px-3 sm:px-5 py-2 flex flex-wrap items-center gap-x-4 gap-y-2">
+    <div class="flex items-center gap-3 mr-auto lg:mr-0">
+      <div class="text-xl font-bold tracking-tight">WAGAEL</div>
+      <div class="hidden sm:block text-sm opacity-60">Wärmepumpe Linnich</div>
+    </div>
+    <nav role="tablist" class="tabs tabs-box tabs-sm sm:tabs-md order-last w-full overflow-x-auto flex-nowrap lg:order-none lg:w-auto lg:mx-auto" id="tabs">
+      <a role="tab" class="tab whitespace-nowrap" data-tab="overview">Übersicht</a>
+      <a role="tab" class="tab whitespace-nowrap" data-tab="history">Verlauf</a>
+      <a role="tab" class="tab whitespace-nowrap" data-tab="diagnose">Diagnose</a>
+      <a role="tab" class="tab whitespace-nowrap" data-tab="config">Konfigurator</a>
+      <a role="tab" class="tab whitespace-nowrap" data-tab="plant">Anlage</a>
+    </nav>
+    <div class="flex items-center gap-2">
+      <span id="autoBadge" class="badge badge-ghost badge-sm sm:badge-md">Automatik …</span>
+      <select id="theme" class="select select-sm w-32" title="Design"></select>
+      <div id="userBox" class="hidden dropdown dropdown-end">
+        <div tabindex="0" role="button" class="btn btn-sm btn-ghost btn-circle" title="Konto">👤</div>
+        <div tabindex="0" class="dropdown-content z-40 menu bg-base-200 rounded-box w-64 p-3 shadow mt-2 gap-2">
+          <div class="text-xs opacity-70">Angemeldet als</div><div id="userEmail" class="text-sm font-medium break-all"></div>
+          <button id="logout" class="btn btn-sm btn-outline">Abmelden</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</header>
+
+<div id="loginView" class="hidden min-h-[70vh] flex items-center justify-center px-4">
+  <div class="card bg-base-200 w-full max-w-md shadow-xl">
+    <div class="card-body gap-4">
+      <h2 class="card-title text-xl">Anmelden</h2>
+      <p class="text-sm opacity-75">WAGAEL zeigt die Daten nur freigeschalteten Personen. Du bekommst einen Anmeldelink bzw. Code per E-Mail – kein Passwort nötig.</p>
+      <label><span class="text-xs opacity-70 block mb-1">E-Mail-Adresse</span>
+        <input id="loginEmail" type="email" autocomplete="email" class="input input-bordered w-full" placeholder="name@beispiel.de"></label>
+      <button id="loginSend" class="btn btn-primary w-full">Anmeldelink / Code senden</button>
+      <div id="codeBox" class="hidden space-y-3">
+        <div class="text-sm">E-Mail verschickt. Entweder auf den <b>Link</b> in der Mail tippen – oder den <b>Code</b> hier eingeben:</div>
+        <input id="loginCode" inputmode="numeric" autocomplete="one-time-code" maxlength="10" class="input input-bordered w-full text-center tracking-[.4em] text-lg" placeholder="Code">
+        <button id="loginVerify" class="btn btn-primary btn-outline w-full">Mit Code anmelden</button>
+      </div>
+      <div id="loginMsg" class="text-sm"></div>
+    </div>
+  </div>
+</div>
+
+<main id="appView" class="hidden mx-auto max-w-screen-2xl px-3 sm:px-5 py-4 lg:py-6">
+  <div id="noAccess" class="hidden alert alert-warning mb-4">
+    <span>Du bist angemeldet, aber diese E-Mail ist für WAGAEL noch <b>nicht freigeschaltet</b>. In Supabase in der Tabelle <b>wagael_users</b> eintragen (06_login.sql).</span>
+  </div>
+
+<!-- ===================== ÜBERSICHT ===================== -->
+<section data-panel="overview" class="space-y-4 lg:space-y-6">
+  <div class="card bg-base-200">
+    <div class="card-body p-4 sm:p-5 gap-3">
+      <div class="flex flex-wrap items-baseline justify-between gap-2">
+        <h2 class="card-title text-base">Zustand auf einen Blick</h2>
+        <span id="stateAge" class="text-xs opacity-60"></span>
+      </div>
+      <div id="stateNow" class="rounded-box p-4 border border-base-300 bg-base-100 flex items-center gap-4"><div class="empty">Lade …</div></div>
+      <div id="stateGrid" class="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-7 gap-3"></div>
+      <details class="collapse collapse-arrow bg-base-100 border border-base-300">
+        <summary class="collapse-title text-sm font-medium min-h-0 py-3">Wie erkenne ich Sommer- und Winterbetrieb?</summary>
+        <div class="collapse-content text-sm space-y-2">
+          <p><b>Winterbetrieb:</b> Heizung (Heizkreis 1) ist <b>an</b> – die Anlage heizt die Räume <i>und</i> macht Warmwasser.</p>
+          <p><b>Sommerbetrieb:</b> Heizung ist <b>aus</b> – die Anlage macht <b>nur Warmwasser</b>. Umschalten am Bedienteil (Heizung aus/an) oder in der SmartThings-App beim Heizkreis.</p>
+          <p><b>Kühlbetrieb:</b> Heizkreis steht auf „Kühlen“ – bei Fußbodenheizung nur sinnvoll, wenn das so geplant wurde.</p>
+          <p class="opacity-70">Eine automatische Heizgrenze („ab X °C draußen nicht mehr heizen“) meldet die Anlage nicht an SmartThings. Ob sie gerade wirklich heizt, siehst du oben bei „Gerade“.</p>
+        </div>
+      </details>
+    </div>
+  </div>
+
+  <div class="grid gap-4 lg:grid-cols-3">
+    <div class="card bg-base-200 lg:col-span-1">
+      <div class="card-body p-4 sm:p-5 gap-3">
+        <h2 class="card-title text-base">Token &amp; Automatik</h2>
+        <div id="auto" class="text-sm">Automatik: lade Status …</div>
+        <details class="collapse collapse-arrow bg-base-100 border border-base-300">
+          <summary class="collapse-title text-sm font-medium min-h-0 py-3">Neuen Token eintragen</summary>
+          <div class="collapse-content space-y-3">
+            <label class="form-control w-full"><span class="label-text text-xs opacity-70 mb-1 block">SmartThings-Token (24 h gespeichert)</span>
+              <input id="token" type="password" autocomplete="off" placeholder="Token einfügen" class="input input-bordered w-full"></label>
+            <label class="form-control w-full"><span class="label-text text-xs opacity-70 mb-1 block">PIN</span>
+              <input id="pin" type="password" autocomplete="off" placeholder="PIN" class="input input-bordered w-full"></label>
+            <button id="go" class="btn btn-primary w-full">Token eintragen &amp; jetzt erfassen</button>
+            <div class="text-xs opacity-70">Token holen: <a class="link link-primary" href="https://account.smartthings.com/tokens" target="_blank" rel="noopener">account.smartthings.com/tokens</a> · Rechte: Devices „List“ + „See“</div>
+          </div>
+        </details>
+        <div id="msg" class="text-sm whitespace-pre-line"></div>
+      </div>
+    </div>
+    <div class="card bg-base-200 lg:col-span-2">
+      <div class="card-body p-4 sm:p-5">
+        <h2 class="card-title text-base">Letzte Erfassung</h2>
+        <div id="tiles" class="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-4 gap-3"><div class="empty">Lade …</div></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="grid gap-4 xl:grid-cols-2">
+    <div class="card bg-base-200">
+      <div class="card-body p-4 sm:p-5 gap-3">
+        <h2 class="card-title text-base">Monat &amp; Hochrechnung</h2>
+        <div class="flex flex-wrap gap-3 items-end">
+          <label><span class="text-xs opacity-70 block mb-1">Strompreis (€/kWh)</span>
+            <input id="price" type="number" step="0.01" min="0" placeholder="0,30" class="input input-bordered input-sm w-28"></label>
+          <label><span class="text-xs opacity-70 block mb-1">Zähler zählt seit</span>
+            <input id="cstart" type="date" class="input input-bordered input-sm"></label>
+        </div>
+        <div id="month" class="grid grid-cols-2 gap-3"><div class="empty">Lade …</div></div>
+        <div id="monthNote" class="dx"></div>
+      </div>
+    </div>
+    <div class="card bg-base-200">
+      <div class="card-body p-4 sm:p-5 gap-3">
+        <h2 class="card-title text-base">Richtwert-Check – passt der Verbrauch?</h2>
+        <div id="benchToday" class="grid grid-cols-2 gap-3"></div>
+        <div class="overflow-x-auto">
+          <table class="table table-sm">
+            <thead><tr><th>Tag</th><th class="text-right">Ø außen</th><th class="text-right">Ist kWh</th><th class="text-right">Richtwert</th><th class="text-right">Abw.</th><th>Bewertung</th></tr></thead>
+            <tbody id="benchDays"><tr><td colspan="6" class="empty">Lade …</td></tr></tbody>
+          </table>
+        </div>
+        <details class="collapse collapse-arrow bg-base-100 border border-base-300">
+          <summary class="collapse-title text-sm font-medium min-h-0 py-3">Richtwerte nach Außentemperatur</summary>
+          <div class="collapse-content overflow-x-auto"><table id="benchTable" class="table table-sm"></table></div>
+        </details>
+        <details class="collapse collapse-arrow bg-base-100 border border-base-300">
+          <summary class="collapse-title text-sm font-medium min-h-0 py-3">Annahmen (Gasverbrauch 2024) – anpassbar</summary>
+          <div class="collapse-content">
+            <div class="grid grid-cols-2 sm:grid-cols-3 gap-3">
+              <label><span class="text-xs opacity-70 block mb-1">Gas 2024 (m³)</span><input id="bGas" type="number" step="1" class="input input-bordered input-sm w-full"></label>
+              <label><span class="text-xs opacity-70 block mb-1">kWh je m³</span><input id="bKwhM3" type="number" step="0.1" class="input input-bordered input-sm w-full"></label>
+              <label><span class="text-xs opacity-70 block mb-1">Kessel-Wirkungsgrad</span><input id="bEta" type="number" step="0.01" class="input input-bordered input-sm w-full"></label>
+              <label><span class="text-xs opacity-70 block mb-1">Warmwasser-Wärme/Jahr</span><input id="bDhw" type="number" step="100" class="input input-bordered input-sm w-full"></label>
+              <label><span class="text-xs opacity-70 block mb-1">Gradtagzahl 2024 (Jülich)</span><input id="bGtz" type="number" step="1" class="input input-bordered input-sm w-full"></label>
+            </div>
+            <div id="benchDerived" class="dx mt-2"></div>
+          </div>
+        </details>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ===================== VERLAUF ===================== -->
+<section data-panel="history" class="space-y-4 lg:space-y-6 hidden">
+  <div class="flex flex-wrap items-center gap-2" id="ranges">
+    <button data-r="today" class="btn btn-sm on">Heute</button>
+    <button data-r="yesterday" class="btn btn-sm">Gestern</button>
+    <button data-r="24" class="btn btn-sm">24 Std.</button>
+    <button data-r="168" class="btn btn-sm">7 Tage</button>
+    <input type="date" id="day" class="input input-bordered input-sm w-auto" title="Tag wählen">
+  </div>
+  <div id="stats" class="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-6 gap-3"></div>
+  <div class="grid gap-4 lg:grid-cols-2">
+    <div class="card bg-base-200"><div class="card-body p-4">
+      <div class="ctitle">Temperaturen (°C)</div>
+      <div class="chart"><canvas id="cTemp"></canvas></div></div></div>
+    <div class="card bg-base-200"><div class="card-body p-4">
+      <div class="ctitle">Elektrische Leistung (kW) – nach Betriebsart</div>
+      <div class="chart"><canvas id="cPower"></canvas></div></div></div>
+    <div class="card bg-base-200"><div class="card-body p-4">
+      <div class="ctitle">Vorlauf, Rücklauf &amp; Außen am Gerät (°C) <span class="badge badge-warning badge-outline badge-xs">entschlüsselt · ohne Gewähr</span></div>
+      <div class="chart"><canvas id="cCycleTemp"></canvas></div></div></div>
+  </div>
+  <div class="card bg-base-200"><div class="card-body p-4 gap-3">
+    <div class="ctitle">Verdichter: Läufe &amp; Starts (Hz) <span class="badge badge-warning badge-outline badge-xs">entschlüsselt · ohne Gewähr</span></div>
+    <div id="hzSummary" class="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-6 gap-3"></div>
+    <div class="chart chart-lg"><canvas id="cHz"></canvas></div>
+    <div class="text-xs opacity-70">Fläche = Verdichter läuft · flache Linie auf 0 = Verdichter aus · <b>Lücke</b> = keine Daten · ▲ = echter Neustart (vorher aus) · ◆ = lief schon vor Beginn des Zeitraums bzw. Datenlücke</div>
+    <details class="collapse collapse-arrow bg-base-100 border border-base-300">
+      <summary class="collapse-title text-sm font-medium min-h-0 py-3">Alle Laufphasen im Zeitraum</summary>
+      <div class="collapse-content overflow-x-auto"><table class="table table-sm">
+        <thead><tr><th>Start</th><th>Ende</th><th class="text-right">Laufzeit</th><th class="text-right">Pause davor</th><th class="text-right">Hz Start → Ø</th><th>Betrieb</th><th>Art</th></tr></thead>
+        <tbody id="hzRuns"></tbody></table></div>
+    </details>
+  </div></div>
+  <div class="grid gap-4 xl:grid-cols-2">
+    <div class="card bg-base-200"><div class="card-body p-4">
+      <div class="ctitle">Warmwasser-Ladungen</div>
+      <div class="overflow-x-auto"><table class="table table-sm">
+        <thead><tr><th>Start</th><th class="text-right">Dauer</th><th class="text-right">Temperatur</th><th class="text-right">kWh</th><th>Hinweis</th></tr></thead>
+        <tbody id="dhw"><tr><td colspan="5" class="empty">Lade …</td></tr></tbody>
+      </table></div></div></div>
+    <div class="card bg-base-200"><div class="card-body p-4">
+      <div class="ctitle">Verbrauch je Gerät zwischen den Erfassungstagen</div>
+      <div class="overflow-x-auto"><table class="table table-sm">
+        <thead><tr><th>Tag</th><th>Gerät</th><th class="text-right">kWh</th><th class="text-right">Std.</th><th class="text-right">kWh/24h</th><th class="text-right">Ø außen</th><th class="text-right">Zähler</th></tr></thead>
+        <tbody id="energy"><tr><td colspan="7" class="empty">Lade …</td></tr></tbody>
+      </table></div></div></div>
+  </div>
+</section>
+
+<!-- ===================== DIAGNOSE ===================== -->
+<section data-panel="diagnose" class="hidden">
+  <div class="grid gap-4 xl:grid-cols-2 items-start">
+    <div class="card bg-base-200"><div class="card-body p-4 sm:p-5">
+      <h2 class="card-title text-base">Diagnose – letzte 7 Tage</h2>
+      <div id="diag"><div class="empty">Lade …</div></div></div></div>
+    <div class="card bg-base-200"><div class="card-body p-4 sm:p-5">
+      <h2 class="card-title text-base">Heizkurven-Check</h2>
+      <div class="dx">Ist-Wassertemperatur im Heizbetrieb gegen die eingestellte Kurve</div>
+      <div class="chart chart-lg"><canvas id="cCurve"></canvas></div></div></div>
+  </div>
+</section>
+
+<!-- ===================== KONFIGURATOR ===================== -->
+<section data-panel="config" class="hidden">
+  <div class="grid gap-4 2xl:grid-cols-5 items-start">
+    <div class="card bg-base-200 2xl:col-span-3" id="cfgBox"><div class="card-body p-4 sm:p-5 gap-3">
+      <h2 class="card-title text-base">Was muss ich wo einstellen?</h2>
+      <div class="flex flex-wrap gap-2" id="goals">
+        <button data-g="room" class="btn btn-sm on">🌡️ Raumtemperatur</button>
+        <button data-g="frost" class="btn btn-sm">❄️ Nur bei Frost</button>
+        <button data-g="mild" class="btn btn-sm">🌤️ Nur mild</button>
+        <button data-g="dhw" class="btn btn-sm">🚿 Warmwasser</button>
+        <button data-g="legio" class="btn btn-sm">🦠 Legionellen</button>
+        <button data-g="boost" class="btn btn-sm">🔥 Heizstab</button>
+        <button data-g="eco" class="btn btn-sm">💶 Sparsam</button>
+      </div>
+      <div id="cfgInputs" class="bgrid"></div>
+      <div id="cfgOut"></div>
+    </div></div>
+    <div class="card bg-base-200 2xl:col-span-2" id="curveBox"><div class="card-body p-4 sm:p-5 gap-3">
+      <h2 class="card-title text-base">Heizkurve – einfach erklärt</h2>
+      <div id="curveText" class="lead">Lade …</div>
+      <div class="grid gap-3 sm:grid-cols-2 2xl:grid-cols-1">
+        <div class="overflow-x-auto"><table id="curveTable" class="table table-sm"></table></div>
+        <div class="chart"><canvas id="cCurveSimple"></canvas></div>
+      </div>
+      <div id="curveVerdict"></div>
+      <details class="collapse collapse-arrow bg-base-100 border border-base-300">
+        <summary class="collapse-title text-sm font-medium min-h-0 py-3">So stellst du die Heizkurve ein</summary>
+        <div class="collapse-content text-sm">
+          <ol class="list-decimal pl-5 space-y-2">
+            <li>Am <b>Bedienteil</b> → <b>Einstellungen</b> → <b>Installateur-Einstellungen / FSV</b> (meist mit Installateur-Passwort, siehe Samsung-Anleitung).</li>
+            <li><b>2021</b> = Wasser bei Kälte – <span id="v2021">–</span><br><b>2022</b> = Wasser an milden Tagen – <span id="v2022">–</span><br><b>2011 / 2012</b> = Außentemperatur „kalt“/„mild“ – <span id="v2011">–</span> / <span id="v2012">–</span> · <i>besser nicht ändern</i></li>
+            <li><b>Immer nur 1 °C ändern</b>, dann <b>2–3 Tage warten</b>.</li>
+            <li>Zu warm → 2021 und 2022 senken · zu kalt → erhöhen.</li>
+            <li>Alte Werte vorher notieren.</li>
+          </ol>
+        </div>
+      </details>
+    </div></div>
+  </div>
+</section>
+
+<!-- ===================== ANLAGE ===================== -->
+<section data-panel="plant" class="space-y-4 lg:space-y-6 hidden">
+  <div class="grid gap-4 lg:grid-cols-2 items-start">
+    <div class="card bg-base-200"><div class="card-body p-4 sm:p-5">
+      <h2 class="card-title text-base">Stammdaten</h2>
+      <div class="overflow-x-auto"><table id="stamm" class="table table-sm kv"><tr><td class="empty">Lade …</td></tr></table></div>
+      <div class="dx">Ändern: Supabase → Table Editor → <b>hp_stammdaten</b></div>
+    </div></div>
+    <div class="card bg-base-200"><div class="card-body p-4 sm:p-5">
+      <h2 class="card-title text-base">IST-Einstellungen (live)</h2>
+      <div class="overflow-x-auto"><table id="ist" class="table table-sm kv"><tr><td class="empty">Lade …</td></tr></table></div>
+    </div></div>
+  </div>
+  <div class="grid gap-4 xl:grid-cols-2 items-start">
+    <div class="card bg-base-200"><div class="card-body p-4 sm:p-5">
+      <h2 class="card-title text-base">Änderungsprotokoll</h2>
+      <div class="overflow-x-auto"><table class="table table-sm">
+        <thead><tr><th>Zeitpunkt</th><th>Einstellung</th><th>vorher</th><th>nachher</th></tr></thead>
+        <tbody id="slog"><tr><td colspan="4" class="empty">Lade …</td></tr></tbody>
+      </table></div>
+    </div></div>
+    <div class="card bg-base-200"><div class="card-body p-4 sm:p-5">
+      <h2 class="card-title text-base">Alle Einstellwerte (FSV)</h2>
+      <div class="overflow-x-auto"><table id="fsvTable" class="table table-sm"></table></div>
+      <div class="dx">Beschreibungen nur für bekannte Werte – übrige in der Samsung-Installationsanleitung.</div>
+    </div></div>
+  </div>
+</section>
+
+</main>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+<script>
+  // ===== Konfiguration: aus Supabase → Project Settings → API =====
+  const SUPABASE_URL = "https://umkiprxcwqwhbudmvaci.supabase.co";
+  const SUPABASE_KEY = "sb_publishable_kvmQTcpqL1AqEdIx51z47A_qjzOUZqu";
+  // ================================================================
+
+  const $ = (id) => document.getElementById(id);
+  const fmt = (v, d = 1) => (v === null || v === undefined) ? "–" : Number(v).toLocaleString("de-DE", { minimumFractionDigits: d, maximumFractionDigits: d });
+
+  // PIN im Browser merken (Fehler bei gesperrtem Speicher ignorieren)
+  try { $("pin").value = localStorage.getItem("wagael_pin") || ""; } catch (e) {}
+
+  let accessToken = null;   // Login-Token (Supabase Auth)
+  async function rest(path) {
+    const headers = { apikey: SUPABASE_KEY };
+    if (accessToken) headers.Authorization = `Bearer ${accessToken}`;
+    const r = await fetch(`${SUPABASE_URL}/rest/v1/${path}`, { headers });
+    if (!r.ok) throw new Error(`${r.status} ${await r.text()}`);
+    return r.json();
+  }
+
+  function setMsg(text, cls = "") { $("msg").className = cls; $("msg").textContent = text; }
+
+  $("go").addEventListener("click", async () => {
+    const token = $("token").value.trim();
+    const pin = $("pin").value.trim();
+    if (!token || !pin) return setMsg("Bitte Token und PIN eingeben.", "warn");
+    try { localStorage.setItem("wagael_pin", pin); } catch (e) {}
+
+    $("go").disabled = true;
+    setMsg("Erfasse …");
+    try {
+      const r = await fetch(`${SUPABASE_URL}/functions/v1/capture`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", apikey: SUPABASE_KEY },
+        body: JSON.stringify({ token, pin }),
+      });
+      const data = await r.json().catch(() => ({}));
+      if (!r.ok || !data.ok) throw new Error(data.error || `Fehler ${r.status}`);
+
+      const failed = data.devices.filter(d => !d.ok).map(d => d.label);
+      let text = `✓ ${data.devices.length} Geräte erfasst (${data.day}). Automatik läuft jetzt 24 h.`;
+      if (failed.length) text += `\nNicht lesbar: ${failed.join(", ")}`;
+      if (data.weather !== "ok") text += `\nWetter: ${data.weather}`;
+      setMsg(text, failed.length ? "warn" : "ok");
+      $("token").value = "";
+      await loadData();
+    } catch (e) {
+      setMsg("✗ " + e.message, "err");
+    } finally {
+      $("go").disabled = false;
+    }
+  });
+
+  function tile(k, v, s = "") {
+    return `<div class="rounded-box bg-base-100 border border-base-300 p-3 min-w-0">
+      <div class="text-xs opacity-70 truncate">${k}</div>
+      <div class="text-xl sm:text-2xl font-semibold leading-tight mt-1 break-words">${v}</div>
+      <div class="text-xs opacity-60 mt-1">${s}</div></div>`;
+  }
+
+  async function loadTiles() {
+    // jeweils die neueste Zeile von Wärmepumpe (hp_valve gesetzt) und Klimaanlage (humidity gesetzt)
+    const [hp] = await rest("snapshots?select=*&hp_valve=not.is.null&order=captured_at.desc&limit=1");
+    const [ac] = await rest("snapshots?select=*&humidity=not.is.null&order=captured_at.desc&limit=1");
+    const t = [];
+    if (hp) {
+      const when = new Date(hp.captured_at).toLocaleString("de-DE", { dateStyle: "short", timeStyle: "short" });
+      t.push(tile("Warmwasser", `${fmt(hp.temperature)} °C`, `Soll ${fmt(hp.setpoint, 0)} °C · ${hp.mode ?? ""}`));
+      t.push(tile("Heizkreis 1", `${fmt(hp.hp_flow_temp)} °C`, hp.hp_valve === "room" ? "heizt Räume" : (hp.hp_valve === "tank" ? "macht Warmwasser" : hp.hp_valve)));
+      t.push(tile("WP Zähler", `${fmt(hp.energy_wh / 1000, 1)} kWh`, `Leistung ${fmt(hp.power_kw, 2)} kW`));
+      t.push(tile("Heizstab / Abtauen", `${hp.hp_booster ?? "–"} / ${hp.hp_defrost ?? "–"}`, `Stand ${when}`));
+    }
+    if (ac) {
+      t.push(tile("Klima Raum", `${fmt(ac.temperature)} °C`, `Luftfeuchte ${fmt(ac.humidity, 0)} % · ${ac.switch_state ?? ""}`));
+      t.push(tile("Klima Zähler", ac.energy_wh != null ? `${fmt(ac.energy_wh / 1000, 1)} kWh` : "–", ac.power_kw != null ? `Leistung ${fmt(ac.power_kw, 2)} kW` : ""));
+    }
+    // Fernseher: jeweils neueste Zeile pro Gerät
+    const tvRows = await rest("snapshots?select=device_id,device_label,switch_state,captured_at,error,raw&device_type=eq.Television&order=captured_at.desc&limit=20");
+    const seen = new Set();
+    for (const tv of tvRows) {
+      if (seen.has(tv.device_id)) continue;
+      seen.add(tv.device_id);
+      const m = tv.raw?.components?.main || {};
+      const input = m.mediaInputSource?.inputSource?.value;
+      const vol = m.audioVolume?.volume?.value;
+      const sub = tv.error ? "nicht erreichbar" : [input ? `Quelle ${input}` : "", vol != null ? `Lautst. ${vol}` : ""].filter(Boolean).join(" · ");
+      t.push(tile(tv.device_label ?? "TV", tv.switch_state === "on" ? "an" : (tv.switch_state === "off" ? "aus" : "–"), sub));
+    }
+    $("tiles").innerHTML = t.length ? t.join("") : `<div class="empty">Noch keine Erfassung.</div>`;
+  }
+
+  async function loadEnergy() {
+    const rows = await rest("daily_energy?select=*&order=day.desc,device_label.asc&limit=60");
+    $("energy").innerHTML = rows.length ? rows.map(r => `
+      <tr>
+        <td>${new Date(r.day + "T00:00:00").toLocaleDateString("de-DE", { weekday: "short", day: "2-digit", month: "2-digit" })}</td>
+        <td>${r.device_label ?? r.device_id}</td>
+        <td>${fmt(r.kwh_seit_vorher, 2)}</td>
+        <td>${fmt(r.stunden_seit_vorher, 1)}</td>
+        <td>${fmt(r.kwh_pro_24h, 2)}</td>
+        <td>${r.aussen_mittel != null ? fmt(r.aussen_mittel) + " °C" : "–"}</td>
+        <td>${fmt(r.zaehler_kwh, 1)}</td>
+      </tr>`).join("") : `<tr><td colspan="7" class="empty">Noch keine Daten – ab der zweiten Erfassung erscheint der Verbrauch.</td></tr>`;
+  }
+
+  // ---------- Automatik-Status ----------
+  async function loadAuto() {
+    const el = $("auto");
+    try {
+      const r = await fetch(`${SUPABASE_URL}/functions/v1/capture`, {
+        method: "POST", headers: { "Content-Type": "application/json", apikey: SUPABASE_KEY },
+        body: JSON.stringify({ mode: "status" }),
+      });
+      const s = await r.json();
+      const t = (v) => v ? new Date(v).toLocaleString("de-DE", { weekday: "short", hour: "2-digit", minute: "2-digit" }) : "–";
+      if (s.active) {
+        el.innerHTML = `<span class="ok">● Automatik aktiv</span> · Token gültig bis ca. ${t(s.expires_at)} · letzte Abfrage ${t(s.last_auto)}`;
+      } else if (s.expired_at) {
+        el.innerHTML = `<span class="warn">● Automatik pausiert</span> · Token abgelaufen seit ${t(s.expired_at)} – bitte neuen eintragen`;
+      } else if (s.saved_at) {
+        el.innerHTML = `<span class="warn">● Automatik pausiert</span> · Token vermutlich abgelaufen (eingetragen ${t(s.saved_at)})`;
+      } else {
+        el.innerHTML = `<span class="warn">● Automatik aus</span> · noch kein Token eingetragen`;
+      }
+      if (s.last_error) el.innerHTML += `<br><span class="err">Letzter Fehler: ${s.last_error}</span>`;
+      const b = $("autoBadge");
+      if (b) { b.className = "badge badge-sm sm:badge-md " + (s.active ? "badge-success" : "badge-warning");
+        b.textContent = s.active ? `Automatik bis ${s.expires_at ? new Date(s.expires_at).toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit" }) : "?"}` : "Automatik pausiert"; }
+    } catch (e) {
+      el.textContent = "Automatik-Status nicht abrufbar.";
+    }
+  }
+
+  // ---------- Hilfen für Verlauf & Diagnose ----------
+  // Farben: validierte Palette, je nach hellem/dunklem Theme; Achsen/Gitter aus dem daisyUI-Theme
+  const C = {};
+  const PAL = {
+    dark:  { ww: "#3987e5", hk: "#d95926", out: "#199e70", ret: "#c98500", hz: "#9085e9" },
+    light: { ww: "#2a78d6", hk: "#eb6834", out: "#1baf7a", ret: "#eda100", hz: "#6250d6" },
+  };
+  function applyPalette() {
+    const cs = getComputedStyle(document.documentElement);
+    const dark = (cs.colorScheme || "").includes("dark");
+    Object.assign(C, PAL[dark ? "dark" : "light"]);
+    C.tick = cs.getPropertyValue("--color-base-content").trim() || "#888";
+    C.grid = cs.getPropertyValue("--color-base-300").trim() || "#444";
+    C.curve = C.tick;
+    if (window.Chart) { Chart.defaults.color = C.tick; Chart.defaults.font.family = getComputedStyle(document.body).fontFamily; }
+  }
+  const ON_KW = 0.15;            // ab dieser Leistung gilt der Verdichter als "läuft"
+  const HP_COLS = "captured_at,temperature,hp_flow_temp,hp_valve,hp_booster,hp_defrost,power_kw,energy_wh,outdoor_temp";
+  let charts = {};
+
+  // PostgREST liefert max. 1000 Zeilen pro Abruf → seitenweise holen
+  async function restAll(path) {
+    let out = [], offset = 0;
+    while (true) {
+      const part = await rest(`${path}&limit=1000&offset=${offset}`);
+      out = out.concat(part);
+      if (part.length < 1000 || out.length >= 20000) return out;
+      offset += 1000;
+    }
+  }
+
+  function hpRows(fromISO, toISO) {
+    return restAll(`snapshots?select=${HP_COLS}&hp_valve=not.is.null&captured_at=gte.${fromISO}&captured_at=lt.${toISO}&order=captured_at.asc`);
+  }
+
+  // Entschlüsselte Gerätedaten (Tabelle hp_cycle, 5-Minuten-Raster)
+  async function cycleRows(fromISO, toISO) {
+    try {
+      const rows = await restAll(`hp_cycle?select=ts,out_air,comp_hz,fan_rpm,flow,ret,dhw&ts=gte.${fromISO}&ts=lt.${toISO}&order=ts.asc`);
+      return rows.map(r => ({ ...r, t: new Date(r.ts).getTime() }));
+    } catch (e) { return []; }   // Tabelle noch nicht angelegt
+  }
+  // nächstgelegener Gerätemesspunkt (max. 6 Min. entfernt)
+  function nearest(cyc, t) {
+    let lo = 0, hi = cyc.length - 1;
+    if (hi < 0) return null;
+    while (lo < hi) { const mid = (lo + hi) >> 1; if (cyc[mid].t < t) lo = mid + 1; else hi = mid; }
+    const cand = [cyc[lo], cyc[lo - 1]].filter(Boolean).sort((a, b) => Math.abs(a.t - t) - Math.abs(b.t - t))[0];
+    return Math.abs(cand.t - t) <= 6 * 60000 ? cand : null;
+  }
+  // Verdichter-Laufphasen aus der Frequenz
+  function hzRuns(cyc) {
+    const runs = []; let cur = null;
+    cyc.forEach((c, i) => {
+      const prev = cyc[i - 1];
+      const contiguous = prev && (c.t - prev.t) <= 6.5 * 60000;
+      const on = (c.comp_hz ?? 0) > 0;
+      if (on) {
+        if (!cur || !contiguous) { if (cur) runs.push(cur); cur = { start: c.t, end: c.t, closed: !!contiguous && !((prev.comp_hz ?? 0) > 0) }; }
+        cur.end = c.t;
+      } else if (cur) { cur.endClosed = !!contiguous; runs.push(cur); cur = null; }
+    });
+    return runs.filter(r => r.closed && r.endClosed);
+  }
+
+  // Energie je Intervall dem späteren Messpunkt zuordnen
+  function withDeltas(rows) {
+    return rows.map((r, i) => {
+      const prev = rows[i - 1];
+      const t = new Date(r.captured_at).getTime();
+      const gapMin = prev ? (t - new Date(prev.captured_at).getTime()) / 60000 : null;
+      let dWh = prev && r.energy_wh != null && prev.energy_wh != null ? r.energy_wh - prev.energy_wh : 0;
+      if (dWh < 0 || (gapMin != null && gapMin > 60)) dWh = 0;   // Zählersprung oder Datenlücke ignorieren
+      return { ...r, t, gapMin, dWh, on: (r.power_kw ?? 0) > ON_KW, hour: new Date(t).getHours() };
+    });
+  }
+
+  function median(a) { if (!a.length) return null; const s = [...a].sort((x, y) => x - y); const m = s.length >> 1; return s.length % 2 ? s[m] : (s[m - 1] + s[m]) / 2; }
+  const hhmm = (t) => new Date(t).toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit" });
+  const ddmm = (t) => new Date(t).toLocaleDateString("de-DE", { weekday: "short", day: "2-digit", month: "2-digit" });
+
+  // Warmwasser-Ladungen: zusammenhängende Messpunkte mit Ventil auf "tank"
+  function dhwRuns(rows) {
+    const runs = []; let cur = null;
+    rows.forEach((r, i) => {
+      const contiguous = cur && r.gapMin != null && r.gapMin <= 20;
+      if (r.hp_valve === "tank") {
+        if (!cur || !contiguous) { if (cur) runs.push(cur); cur = { start: r.t, end: r.t, startTemp: r.temperature, peak: r.temperature, wh: 0, booster: false }; }
+        cur.end = r.t; cur.wh += r.dWh; cur.booster ||= r.hp_booster === "on";
+        if (r.temperature != null) cur.peak = Math.max(cur.peak ?? r.temperature, r.temperature);
+      } else if (cur) {
+        if (r.temperature != null) cur.peak = Math.max(cur.peak ?? r.temperature, r.temperature); // Nachlauf
+        runs.push(cur); cur = null;
+      }
+    });
+    if (cur) runs.push(cur);
+    return runs;
+  }
+
+  // Verdichter-Laufphasen (für die Taktung)
+  function onRuns(rows) {
+    const runs = []; let cur = null;
+    rows.forEach(r => {
+      const contiguous = r.gapMin != null && r.gapMin <= 12;
+      if (r.on) {
+        if (!cur || !contiguous) { if (cur) runs.push(cur); cur = { start: r.t, end: r.t, valve: r.hp_valve, closed: contiguous }; }
+        cur.end = r.t;
+      } else if (cur) { cur.endClosed = contiguous; runs.push(cur); cur = null; }
+    });
+    return runs.filter(x => x.closed && x.endClosed);   // nur vollständig beobachtete Phasen
+  }
+
+  // Heizkurve aus den FSV-Einstellungen (2011/2012 außen, 2021/2022 Wasser)
+  function curveFrom(raw) {
+    const list = raw?.components?.main?.["samsungce.ehsFsvSettings"]?.fsvSettings?.value || [];
+    const g = (id) => list.find(x => x.id === id)?.value;
+    const c = { xLo: g("2011"), xHi: g("2012"), yLo: g("2021"), yHi: g("2022") };
+    return [c.xLo, c.xHi, c.yLo, c.yHi].every(v => typeof v === "number") ? c : null;
+  }
+  function curveAt(c, x) {
+    if (x <= c.xLo) return c.yLo;
+    if (x >= c.xHi) return c.yHi;
+    return c.yLo + (c.yHi - c.yLo) * (x - c.xLo) / (c.xHi - c.xLo);
+  }
+
+  function drawChart(id, config) {
+    if (charts[id]) charts[id].destroy();
+    charts[id] = new Chart($(id), config);
+  }
+
+  function baseOptions(unit) {
+    return {
+      responsive: true, maintainAspectRatio: false, animation: false,
+      interaction: { mode: "index", intersect: false },
+      plugins: {
+        legend: { labels: { color: C.tick, boxWidth: 12, usePointStyle: true } },
+        tooltip: { callbacks: { label: (c) => c.raw == null ? null : `${c.dataset.label}: ${fmt(typeof c.raw === "object" ? c.raw.y : c.raw, unit === "kW" ? 2 : 1)} ${unit}` } },
+      },
+      scales: {
+        x: { ticks: { color: C.tick, maxTicksLimit: 9, maxRotation: 0 }, grid: { display: false } },
+        y: { ticks: { color: C.tick }, grid: { color: C.grid } },
+      },
+    };
+  }
+
+  // ---------- Zeitraum ----------
+  let range = "today";
+  const dayInput = $("day");
+  dayInput.value = new Date().toLocaleDateString("sv-SE");
+
+  function rangeBounds() {
+    const now = new Date();
+    const startOfDay = (d) => { const x = new Date(d); x.setHours(0, 0, 0, 0); return x; };
+    if (range === "today") { const f = startOfDay(now); return [f, new Date(f.getTime() + 864e5), true]; }
+    if (range === "yesterday") { const t = startOfDay(now); return [new Date(t.getTime() - 864e5), t, true]; }
+    if (range === "date") { const f = new Date(dayInput.value + "T00:00:00"); return [f, new Date(f.getTime() + 864e5), true]; }
+    const h = Number(range); return [new Date(now.getTime() - h * 3600e3), now, h <= 48];
+  }
+
+  document.querySelectorAll("#ranges button").forEach(b => b.addEventListener("click", () => {
+    document.querySelectorAll("#ranges button").forEach(x => x.classList.remove("on"));
+    b.classList.add("on"); range = b.dataset.r; loadHistory();
+  }));
+  dayInput.addEventListener("change", () => {
+    document.querySelectorAll("#ranges button").forEach(x => x.classList.remove("on"));
+    range = "date"; loadHistory();
+  });
+
+  // ---------- Verlauf ----------
+  async function loadHistory() {
+    const [from, to, short] = rangeBounds();
+    const [rowsRaw, cyc] = await Promise.all([hpRows(from.toISOString(), to.toISOString()), cycleRows(from.toISOString(), to.toISOString())]);
+    const rows = withDeltas(rowsRaw);
+    const lbl = (t) => short ? hhmm(t) : `${ddmm(t)} ${hhmm(t)}`;
+    const cycRun = cyc.filter(c => (c.comp_hz ?? 0) > 0 && c.flow != null && c.ret != null);
+    const spread = cycRun.length ? cycRun.reduce((a, c) => a + (c.flow - c.ret), 0) / cycRun.length : null;
+    const lastCyc = cyc[cyc.length - 1];
+
+    // Kennzahlen
+    const whSum = rows.reduce((a, r) => a + r.dWh, 0);
+    const whTank = rows.filter(r => r.hp_valve === "tank").reduce((a, r) => a + r.dWh, 0);
+    const whNight = rows.filter(r => r.hour >= 22 || r.hour < 6).reduce((a, r) => a + r.dWh, 0);
+    const running = rows.filter(r => r.on).length;
+    const outs = rows.map(r => r.outdoor_temp).filter(v => v != null);
+    const avgOut = outs.length ? outs.reduce((a, b) => a + b, 0) / outs.length : null;
+    const runs = onRuns(rows);
+    $("stats").innerHTML = rows.length < 2
+      ? `<div class="empty">Noch zu wenig Messpunkte (${rows.length}) für diesen Zeitraum.</div>`
+      : [
+        tile("Verbrauch", `${fmt(whSum / 1000, 2)} kWh`, `${rows.length} Messpunkte`),
+        tile("davon Warmwasser", whSum ? `${fmt(whTank / whSum * 100, 0)} %` : "–", `${fmt(whTank / 1000, 2)} kWh`),
+        tile("davon nachts 22–6 Uhr", whSum ? `${fmt(whNight / whSum * 100, 0)} %` : "–", `${fmt(whNight / 1000, 2)} kWh`),
+        tile("Verdichter läuft", `${fmt(running / rows.length * 100, 0)} %`, `${runs.length} Laufphasen erkannt`),
+        tile("Ø außen Linnich", avgOut != null ? `${fmt(avgOut)} °C` : "–", lastCyc?.out_air != null ? `Gerät zuletzt ${fmt(lastCyc.out_air, 0)} °C` : "Wetterdienst"),
+        tile("Ø Spreizung", spread != null ? `${fmt(spread, 1)} K` : "–", "Vorlauf − Rücklauf im Betrieb"),
+      ].join("");
+
+    const labels = rows.map(r => lbl(r.t));
+    drawChart("cTemp", {
+      type: "line",
+      data: { labels, datasets: [
+        { label: "Warmwasser", data: rows.map(r => r.temperature), borderColor: C.ww, backgroundColor: C.ww },
+        { label: "Heizkreis 1", data: rows.map(r => r.hp_flow_temp), borderColor: C.hk, backgroundColor: C.hk },
+        { label: "Außen Linnich", data: rows.map(r => r.outdoor_temp), borderColor: C.out, backgroundColor: C.out },
+      ].map(d => ({ ...d, borderWidth: 2, pointRadius: 0, pointHoverRadius: 4, spanGaps: true, tension: 0.2 })) },
+      options: baseOptions("°C"),
+    });
+
+    drawChart("cPower", {
+      type: "bar",
+      data: { labels, datasets: [
+        { label: "Heizen", data: rows.map(r => r.hp_valve === "tank" ? null : r.power_kw), backgroundColor: C.hk },
+        { label: "Warmwasser", data: rows.map(r => r.hp_valve === "tank" ? r.power_kw : null), backgroundColor: C.ww },
+      ].map(d => ({ ...d, borderRadius: { topLeft: 4, topRight: 4 }, borderSkipped: "bottom", categoryPercentage: 0.9, barPercentage: 0.9 })) },
+      options: (() => { const o = baseOptions("kW"); o.scales.x.stacked = true; o.scales.y.stacked = true; o.scales.y.beginAtZero = true; return o; })(),
+    });
+
+    // Gerätedaten (entschlüsselt)
+    const cl = cyc.map(c => lbl(c.t));
+    drawChart("cCycleTemp", {
+      type: "line",
+      data: { labels: cl, datasets: [
+        { label: "Vorlauf", data: cyc.map(c => c.flow), borderColor: C.hk, backgroundColor: C.hk },
+        { label: "Rücklauf", data: cyc.map(c => c.ret), borderColor: C.ret, backgroundColor: C.ret },
+        { label: "Außen (Gerät)", data: cyc.map(c => c.out_air), borderColor: C.out, backgroundColor: C.out },
+      ].map(d => ({ ...d, borderWidth: 2, pointRadius: 0, pointHoverRadius: 4, spanGaps: true, stepped: true })) },
+      options: baseOptions("°C"),
+    });
+    // --- Verdichter: echte Zeitachse, 0 = aus, Lücke = keine Daten, Starts markiert ---
+    const GAP = 7.5 * 60000, STEP = 5 * 60000;
+    const hzPts = [];
+    cyc.forEach((c, k) => {
+      const prev = cyc[k - 1];
+      if (prev && c.t - prev.t > GAP) hzPts.push({ x: prev.t + STEP, y: null });   // Datenlücke sichtbar lassen
+      hzPts.push({ x: c.t, y: c.comp_hz ?? 0 });
+    });
+    // Läufe bestimmen (auch angeschnittene)
+    const runsAll = []; let cur = null;
+    cyc.forEach((c, k) => {
+      const prev = cyc[k - 1], contiguous = prev && c.t - prev.t <= GAP, on = (c.comp_hz ?? 0) > 0;
+      if (on && (!cur || !contiguous)) {
+        if (cur) runsAll.push(cur);
+        cur = { start: c.t, end: c.t, hz: [c.comp_hz], realStart: !!contiguous && !((prev.comp_hz ?? 0) > 0), cut: false };
+      } else if (on) { cur.end = c.t; cur.hz.push(c.comp_hz); }
+      if (!on && cur) { runsAll.push(cur); cur = null; }
+      else if (cur && k === cyc.length - 1) { cur.open = true; }
+    });
+    if (cur) runsAll.push(cur);
+    const nearestRow = (t) => { let best = null, d = Infinity; for (const r of rows) { const dd = Math.abs(r.t - t); if (dd < d) { d = dd; best = r; } } return d <= 15 * 60000 ? best : null; };
+    runsAll.forEach((r, k) => {
+      r.min = (r.end - r.start) / 60000 + 5;
+      const p = runsAll[k - 1];
+      r.pause = p && r.realStart ? (r.start - p.end) / 60000 - 5 : null;
+      const mid = nearestRow(r.start + (r.end - r.start) / 2);
+      r.kind = mid?.hp_valve === "tank" ? "Warmwasser" : "Heizen";
+      r.avg = r.hz.reduce((a, b) => a + b, 0) / r.hz.length;
+    });
+    const real = runsAll.filter(r => r.realStart);
+    const heatRuns = real.filter(r => r.kind === "Heizen" && !r.open);
+    const spanH = cyc.length > 1 ? (cyc[cyc.length - 1].t - cyc[0].t) / 3600e3 : 0;
+    const medRun = median(heatRuns.map(r => r.min)), medPause = median(heatRuns.map(r => r.pause).filter(v => v != null && v >= 0));
+    const sph = spanH > 0 ? real.length / spanH : null;
+    const st = medRun == null ? "info" : medRun < 30 || (sph ?? 0) > 1 ? "err" : medRun < 60 || (sph ?? 0) > 0.5 ? "warn" : "ok";
+    const word = { ok: "ruhiger Betrieb", warn: "taktet etwas", err: "taktet deutlich", info: "zu wenig Daten" }[st];
+    $("hzSummary").innerHTML = [
+      tile("Echte Neustarts", `${real.length}`, sph != null ? `≈ ${fmt(sph, 1)} pro Stunde` : ""),
+      tile("Typische Laufzeit (Heizen)", medRun != null ? `${fmt(medRun, 0)} Min.` : "–", "Median, nur vollständige Läufe"),
+      tile("Typische Pause", medPause != null ? `${fmt(medPause, 0)} Min.` : "–", "zwischen zwei Heizläufen"),
+      tile("Längster Lauf", runsAll.length ? `${fmt(Math.max(...runsAll.map(r => r.min)), 0)} Min.` : "–", ""),
+      tile("Läuft", cyc.length ? `${fmt(cyc.filter(c => (c.comp_hz ?? 0) > 0).length / cyc.length * 100, 0)} %` : "–", "der Zeit"),
+      tile("Bewertung", `<span class="pill ${st === "ok" ? "ok" : st}">${word}</span>`, "Fußbodenheizung ideal: Läufe > 1 Std., < 0,5 Starts/Std."),
+    ].join("");
+
+    $("hzRuns").innerHTML = runsAll.length ? runsAll.slice().reverse().map(r => `<tr>
+      <td>${short ? "" : ddmm(r.start) + " "}${hhmm(r.start)}</td><td>${r.open ? "läuft noch" : hhmm(r.end + STEP)}</td>
+      <td class="text-right">${r.open ? "≥ " : ""}${fmt(r.min, 0)} Min.</td>
+      <td class="text-right">${r.pause != null ? fmt(Math.max(r.pause, 0), 0) + " Min." : "–"}</td>
+      <td class="text-right">${r.hz[0]} → ${fmt(r.avg, 0)}</td>
+      <td>${r.realStart ? "▲ Neustart" : "◆ lief schon / Datenlücke"}</td><td>${r.kind}</td></tr>`).join("")
+      : `<tr><td colspan="7" class="empty">Keine Laufphasen im Zeitraum.</td></tr>`;
+
+    const startMarks = runsAll.map(r => ({ x: r.start, y: r.hz[0], real: r.realStart }));
+    const oHz = baseOptions("Hz");
+    oHz.interaction = { mode: "nearest", axis: "x", intersect: false };
+    oHz.plugins.tooltip.callbacks = {
+      title: (items) => items.length ? `${short ? "" : ddmm(items[0].raw.x) + " "}${hhmm(items[0].raw.x)}` : "",
+      label: (c) => c.datasetIndex === 0 ? (c.raw.y == null ? "keine Daten" : c.raw.y === 0 ? "Verdichter aus" : `Verdichter ${c.raw.y} Hz`) : (c.raw.real ? "▲ Neustart" : "◆ lief schon / nach Datenlücke"),
+    };
+    oHz.scales.x = { type: "linear", min: from.getTime(), max: Math.min(to.getTime(), Date.now() + STEP),
+      ticks: { color: C.tick, maxRotation: 0, maxTicksLimit: 10, callback: (v) => short ? hhmm(v) : `${ddmm(v)} ${hhmm(v)}` }, grid: { display: false } };
+    oHz.scales.y.beginAtZero = true;
+    oHz.plugins.legend.display = false;
+    drawChart("cHz", {
+      type: "line",
+      data: { datasets: [
+        { label: "Verdichter", data: hzPts, borderColor: C.hz, backgroundColor: C.hz + "55", fill: "origin", stepped: "after", borderWidth: 2, pointRadius: 0, pointHoverRadius: 3, spanGaps: false },
+        { label: "Start", type: "scatter", data: startMarks, pointStyle: startMarks.map(s => s.real ? "triangle" : "rectRot"),
+          pointRadius: startMarks.map(s => s.real ? 7 : 5), backgroundColor: startMarks.map(s => s.real ? C.hk : C.tick), borderColor: C.tick, borderWidth: 1 },
+      ] },
+      options: oHz,
+    });
+
+    // Warmwasser-Ladungen
+    const dr = dhwRuns(rows);
+    $("dhw").innerHTML = dr.length ? dr.map(x => {
+      const mins = Math.round((x.end - x.start) / 60000) + 5;
+      const night = new Date(x.start).getHours() >= 22 || new Date(x.start).getHours() < 6;
+      const legio = (x.peak ?? 0) >= 58;
+      const notes = [night ? "nachts" : "", legio ? "Legionellen?" : "", x.booster ? "mit Heizstab" : ""].filter(Boolean).join(", ");
+      return `<tr><td>${short ? "" : ddmm(x.start) + " "}${hhmm(x.start)}</td><td>~${mins} Min.</td>
+        <td>${fmt(x.startTemp)} → ${fmt(x.peak)} °C</td><td>${fmt(x.wh / 1000, 2)}</td><td>${notes || "–"}</td></tr>`;
+    }).join("") : `<tr><td colspan="5" class="empty">Keine Warmwasser-Ladung in diesem Zeitraum.</td></tr>`;
+  }
+
+  // ---------- Diagnose (letzte 7 Tage) ----------
+  function verdict(state, title, value, text) {
+    const icon = { ok: "✓", warn: "!", err: "✗", info: "i" }[state];
+    const word = { ok: "in Ordnung", warn: "prüfen", err: "auffällig", info: "Info" }[state];
+    const bc = { ok: "badge-success", warn: "badge-warning", err: "badge-error", info: "badge-neutral" }[state];
+    return `<div class="diag"><div class="badge ${bc} badge-lg font-bold">${icon}</div>
+      <div><div class="dt">${title} <span class="dw badge badge-sm badge-outline ${bc}">${word}</span></div>
+      <div class="dv">${value}</div><div class="dx">${text}</div></div></div>`;
+  }
+
+  async function loadDiagnose() {
+    const to = new Date(), from = new Date(to.getTime() - 7 * 864e5);
+    const [rowsRaw, cyc] = await Promise.all([hpRows(from.toISOString(), to.toISOString()), cycleRows(from.toISOString(), to.toISOString())]);
+    const rows = withDeltas(rowsRaw);
+    const [latest] = await rest("snapshots?select=raw&hp_valve=not.is.null&order=captured_at.desc&limit=1");
+    // Außentemperatur bevorzugt vom Gerät
+    const outOf = (r) => { const c = nearest(cyc, r.t); return c?.out_air ?? r.outdoor_temp; };
+    const curve = curveFrom(latest?.raw);
+    const days = rows.length > 1 ? Math.max((rows[rows.length - 1].t - rows[0].t) / 864e5, 1 / 24) : 0;
+    const out = [];
+
+    if (rows.length < 24) {
+      $("diag").innerHTML = `<div class="empty">Noch zu wenig Daten (${rows.length} Messpunkte). Die Diagnose wird nach etwa einem Tag aussagekräftig, nach einer Woche verlässlich.</div>`;
+    } else {
+      const step = median(rows.map(r => r.gapMin).filter(v => v != null));
+
+      // 1) Taktung – bevorzugt aus der Verdichter-Frequenz (entschlüsselt)
+      const hzR = hzRuns(cyc);
+      const cycDays = cyc.length > 1 ? Math.max((cyc[cyc.length - 1].t - cyc[0].t) / 864e5, 1 / 24) : 0;
+      if (cyc.length >= 24 && hzR.length) {
+        const lensHz = hzR.map(x => (x.end - x.start) / 60000 + 5);
+        const medHz = median(lensHz), spd = hzR.length / cycDays;
+        const onShare = cyc.filter(c => (c.comp_hz ?? 0) > 0).length / cyc.length;
+        const st = medHz < 30 || spd > 24 ? "err" : medHz < 60 || spd > 12 ? "warn" : "ok";
+        out.push(verdict(st, "Taktung (Verdichter)", `${fmt(spd, 1)} Starts/Tag · typische Laufzeit ${fmt(medHz, 0)} Min. · läuft ${fmt(onShare * 100, 0)} % der Zeit`,
+          "Aus der Verdichter-Frequenz (entschlüsselt, ohne Gewähr). Ideal bei Fußbodenheizung: wenige Starts, lange Laufzeiten. Viele kurze Takte → Anlage zu groß, Hysterese zu klein oder Heizkreise zu."));
+      }
+      const runs = onRuns(rows).filter(x => x.valve !== "tank");
+      const lens = runs.map(x => (x.end - x.start) / 60000 + step);
+      const med = median(lens);
+      const startsPerDay = runs.length / days;
+      if (cyc.length >= 24 && hzR.length) { /* bereits über Frequenz bewertet */ }
+      else if (step > 7) out.push(verdict("info", "Taktung", `Messabstand ~${fmt(step, 0)} Min.`, "Für eine Taktanalyse wird der 5-Minuten-Takt benötigt (03_fuenf_minuten.sql)."));
+      else if (!runs.length) out.push(verdict("info", "Taktung", "keine Heizphasen erkannt", "Noch keine vollständig beobachtete Heizphase."));
+      else {
+        const st = med < 30 || startsPerDay > 24 ? "err" : med < 60 || startsPerDay > 12 ? "warn" : "ok";
+        out.push(verdict(st, "Taktung (Heizen)", `${fmt(startsPerDay, 1)} Starts/Tag · typische Laufzeit ${fmt(med, 0)} Min.`,
+          "Bei Fußbodenheizung ideal: wenige, lange Laufphasen (> 1 Std.). Viele kurze Takte deuten auf zu große Leistung, zu kleine Hysterese oder zu wenig Durchfluss hin."));
+      }
+
+      // 2) Heizstab
+      const boost = rows.filter(r => r.hp_booster === "on");
+      out.push(boost.length
+        ? verdict("warn", "Heizstab", `${boost.length} Messpunkte mit Heizstab`, `Zuletzt ${ddmm(boost[boost.length - 1].t)} ${hhmm(boost[boost.length - 1].t)}. Heizstab ist teuer – nur bei Legionellenschaltung oder starkem Frost normal.`)
+        : verdict("ok", "Heizstab", "nicht gelaufen", "Gut – der teure Heizstab wurde im Zeitraum nicht genutzt."));
+
+      // 3) Warmwasser-Zeitpunkt
+      const dr = dhwRuns(rows);
+      const whTank = dr.reduce((a, x) => a + x.wh, 0);
+      const whTankNight = dr.filter(x => { const h = new Date(x.start).getHours(); return h >= 22 || h < 6; }).reduce((a, x) => a + x.wh, 0);
+      const nightShare = whTank ? whTankNight / whTank : 0;
+      const starts = dr.map(x => hhmm(x.start)).slice(-6).join(", ");
+      out.push(!dr.length
+        ? verdict("info", "Warmwasser-Zeitpunkt", "keine Ladung erkannt", "")
+        : verdict(nightShare > 0.5 ? "err" : nightShare > 0.2 ? "warn" : "ok", "Warmwasser-Zeitpunkt",
+          `${fmt(nightShare * 100, 0)} % des Warmwasser-Stroms nachts · ${fmt(dr.length / days, 1)} Ladungen/Tag`,
+          `Letzte Starts: ${starts}. Mit PV besser mittags laden (z. B. Zeitprogramm 11–15 Uhr).`));
+
+      // 4) Legionellenschaltung
+      const legio = dr.filter(x => (x.peak ?? 0) >= 58);
+      out.push(legio.length
+        ? verdict("info", "Legionellenschaltung", `${legio.length}× erkannt (≥ 58 °C)`, `Zuletzt ${ddmm(legio[legio.length - 1].start)} ${hhmm(legio[legio.length - 1].start)}${legio.some(x => x.booster) ? ", mit Heizstab" : ""}. Kann auf die Mittagszeit gelegt werden.`)
+        : verdict("ok", "Legionellenschaltung", "nicht erkannt", "Keine Aufheizung über 58 °C im Zeitraum."));
+
+      // 5) Heizkurve
+      const heat = rows.filter(r => r.on && r.hp_valve !== "tank" && r.hp_flow_temp != null && outOf(r) != null);
+      if (curve && heat.length >= 6) {
+        const dev = heat.map(r => r.hp_flow_temp - curveAt(curve, outOf(r)));
+        const md = dev.reduce((a, b) => a + b, 0) / dev.length;
+        out.push(verdict(Math.abs(md) <= 2 ? "ok" : Math.abs(md) <= 4 ? "warn" : "err", "Heizkurve",
+          `Ist im Mittel ${md >= 0 ? "+" : ""}${fmt(md)} K zur eingestellten Kurve`,
+          `Kurve: ${curve.xLo} °C → ${curve.yLo} °C, ${curve.xHi} °C → ${curve.yHi} °C. Sind die Räume warm genug, kann die Kurve probeweise 1–2 K abgesenkt werden.`));
+      } else out.push(verdict("info", "Heizkurve", "noch zu wenig Heizphasen", ""));
+
+      // 6) Abtauen
+      const defrost = rows.filter(r => r.hp_defrost === "on").length;
+      out.push(verdict(defrost / days > 15 ? "warn" : "ok", "Abtauen", `${fmt(defrost / days, 1)} Messpunkte/Tag mit Abtauen`, "Abtauen ist bei Temperaturen um 0 °C und feuchter Luft normal."));
+
+      // 7) Nachtanteil Heizen
+      const heatWh = rows.filter(r => r.hp_valve !== "tank");
+      const hn = heatWh.filter(r => r.hour >= 22 || r.hour < 6).reduce((a, r) => a + r.dWh, 0);
+      const ha = heatWh.reduce((a, r) => a + r.dWh, 0);
+      out.push(verdict("info", "Heizen nachts", ha ? `${fmt(hn / ha * 100, 0)} % des Heizstroms 22–6 Uhr` : "–", "Nachts ist es kälter, dafür ohne Sonne. Mit PV kann es sinnvoll sein, die Fußbodenheizung tagsüber etwas vorzuheizen."));
+
+      $("diag").innerHTML = out.join("") + `<div class="dx" style="margin-top:8px">Basis: ${rows.length} Messpunkte der letzten ${fmt(days, 1)} Tage. Automatische Einschätzung – Grenzwerte sind Richtwerte.</div>`;
+    }
+
+    // Heizkurven-Diagramm: Ist-Punkte vs. eingestellte Kurve
+    const pts = rows.filter(r => r.on && r.hp_valve !== "tank" && r.hp_flow_temp != null && outOf(r) != null)
+      .map(r => ({ x: outOf(r), y: r.hp_flow_temp }));
+    const ds = [{ label: "Ist (Heizbetrieb)", data: pts, backgroundColor: C.hk, borderColor: C.hk, pointRadius: 3, showLine: false }];
+    if (curve) {
+      const xs = [-15, curve.xLo, curve.xHi, 25];
+      ds.push({ label: "Eingestellte Heizkurve", data: xs.map(x => ({ x, y: curveAt(curve, x) })), borderColor: C.curve, backgroundColor: C.curve, borderWidth: 2, pointRadius: 0, showLine: true, borderDash: [6, 4] });
+    }
+    const o = baseOptions("°C");
+    o.interaction = { mode: "nearest", intersect: true };
+    o.plugins.tooltip.callbacks.label = (c) => `${c.dataset.label}: außen ${fmt(c.raw.x)} °C → Wasser ${fmt(c.raw.y)} °C`;
+    o.scales.x = { type: "linear", min: -15, max: 25, title: { display: true, text: "Außentemperatur (°C)", color: C.tick }, ticks: { color: C.tick }, grid: { color: C.grid } };
+    o.scales.y.title = { display: true, text: "Wasser Heizkreis (°C)", color: C.tick };
+    drawChart("cCurve", { type: "scatter", data: { datasets: ds }, options: o });
+  }
+
+  // ---------- Monat & Hochrechnung ----------
+  // Ab wann zählt der interne Zähler? Inbetriebnahme 01.04.2026 (SmartThings-Anbindung erst 20.07.2026) – anpassbar
+  try { $("cstart").value = localStorage.getItem("wagael_cstart") || "2026-04-01"; } catch (e) { $("cstart").value = "2026-04-01"; }
+  $("cstart").addEventListener("change", () => { try { localStorage.setItem("wagael_cstart", $("cstart").value); } catch (e) {} loadMonth(); });
+  try { $("price").value = localStorage.getItem("wagael_price") || ""; } catch (e) {}
+  $("price").addEventListener("change", () => { try { localStorage.setItem("wagael_price", $("price").value); } catch (e) {} loadMonth(); });
+
+  async function hpEdge(fromISO, asc) {
+    const [r] = await rest(`snapshots?select=captured_at,energy_wh&hp_valve=not.is.null&energy_wh=not.is.null&captured_at=gte.${fromISO}&order=captured_at.${asc ? "asc" : "desc"}&limit=1`);
+    return r ? { t: new Date(r.captured_at).getTime(), wh: r.energy_wh } : null;
+  }
+
+  async function loadMonth() {
+    const price = parseFloat(($("price").value || "").replace(",", "."));
+    const eur = (kwh) => isFinite(price) && price > 0 && kwh != null ? `${fmt(kwh * price, 2)} €` : "";
+    const now = new Date();
+    const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+    const monthEnd = new Date(now.getFullYear(), now.getMonth() + 1, 1);
+    const daysInMonth = (monthEnd - monthStart) / 864e5;
+    const monthName = now.toLocaleDateString("de-DE", { month: "long" });
+
+    const latest = await hpEdge("2000-01-01", false);
+    if (!latest) { $("month").innerHTML = `<div class="empty">Noch keine Daten.</div>`; return; }
+
+    // 1) Tagesverbrauch aktuell: letzte bis zu 7 Tage, mind. 6 Std. Daten
+    const first7 = await hpEdge(new Date(now.getTime() - 7 * 864e5).toISOString(), true);
+    const spanH = first7 ? (latest.t - first7.t) / 3600e3 : 0;
+    const perDay = spanH >= 6 ? (latest.wh - first7.wh) / 1000 / spanH * 24 : null;
+
+    // 2) Langzeit-Schnitt aus dem Gesamtzähler
+    const counterStart = new Date(($("cstart").value || "2026-04-01") + "T00:00:00");
+    const daysSinceStart = (latest.t - counterStart.getTime()) / 864e5;
+    const avgSinceStart = latest.wh / 1000 / daysSinceStart;
+
+    // 3) Monat: gemessen ab Monatsanfang bzw. ab Beginn der Aufzeichnung, Rest hochgerechnet
+    const firstMonth = await hpEdge(monthStart.toISOString(), true);
+    const measured = firstMonth ? (latest.wh - firstMonth.wh) / 1000 : 0;
+    const daysBefore = firstMonth ? (firstMonth.t - monthStart.getTime()) / 864e5 : 0;   // vor Aufzeichnungsbeginn
+    const daysAfter = (monthEnd.getTime() - latest.t) / 864e5;                           // noch kommend
+    const rate = perDay ?? avgSinceStart;
+    const estBefore = daysBefore * rate, estAfter = daysAfter * rate;
+    const projection = measured + estBefore + estAfter;
+
+    $("month").innerHTML = [
+      tile("Verbrauch pro Tag (aktuell)", perDay != null ? `${fmt(perDay, 1)} kWh` : "–",
+        perDay != null ? `aus den letzten ${fmt(spanH, 0)} Std. ${eur(perDay)}` : "ab 6 Std. Messdaten"),
+      tile(`${monthName} bisher`, `${fmt(measured + estBefore, 0)} kWh`,
+        daysBefore > 0.5 ? `davon ${fmt(measured, 1)} gemessen, ${fmt(estBefore, 0)} geschätzt` : `gemessen ${eur(measured)}`),
+      tile(`Hochrechnung ${monthName}`, `${fmt(projection, 0)} kWh`, eur(projection) || `${fmt(daysInMonth, 0)} Tage`),
+      tile(`Ø seit ${counterStart.toLocaleDateString("de-DE", { day: "2-digit", month: "2-digit" })}`, `${fmt(avgSinceStart, 1)} kWh/Tag`, `${fmt(latest.wh / 1000, 0)} kWh in ${fmt(daysSinceStart, 0)} Tagen`),
+    ].join("");
+
+    $("monthNote").textContent = perDay == null
+      ? "Hochrechnung nutzt vorerst den Langzeit-Schnitt des Zählers – ab 6 Std. Messdaten wird der aktuelle Tagesverbrauch verwendet."
+      : `Hochrechnung = gemessen + ${fmt(daysBefore + daysAfter, 1)} Tage × ${fmt(rate, 1)} kWh/Tag. Wird mit jedem Tag genauer; Kälteeinbrüche sind noch nicht eingerechnet.`;
+  }
+
+  // ---------- Heizkurve – einfach erklärt ----------
+  const FSV_INFO = {
+    "2011": "Heizkurve: Außentemperatur „kalt“",
+    "2012": "Heizkurve: Außentemperatur „mild“",
+    "2021": "Heizkurve Kreis 1: Wasser bei „kalt“",
+    "2022": "Heizkurve Kreis 1: Wasser bei „mild“",
+    "2031": "Heizkurve Kreis 2: Wasser bei „kalt“",
+    "2032": "Heizkurve Kreis 2: Wasser bei „mild“",
+  };
+
+  async function loadCurve() {
+    const [hp] = await rest("snapshots?select=raw,outdoor_temp,hp_flow_temp,hp_valve,power_kw,captured_at&hp_valve=not.is.null&order=captured_at.desc&limit=1");
+    const curve = curveFrom(hp?.raw);
+    if (!curve) { $("curveText").textContent = "Keine Heizkurven-Daten gefunden."; return; }
+    const [lc] = await rest("hp_cycle?select=out_air,ts&order=ts.desc&limit=1").catch(() => []);
+    const devOut = lc && (Date.now() - new Date(lc.ts).getTime()) < 30 * 60000 ? lc.out_air : null;
+    const out = devOut ?? hp.outdoor_temp, flow = hp.hp_flow_temp;
+    const outSrc = devOut != null ? "Außenfühler der Anlage" : "Wetterdienst";
+    const target = out != null ? curveAt(curve, out) : null;
+    const slope = (curve.yLo - curve.yHi) / (curve.xHi - curve.xLo);
+
+    $("curveText").innerHTML =
+      `Deine Heizung macht das Heizwasser <b>umso wärmer, je kälter es draußen ist</b>.` +
+      (target != null ? ` Gerade sind es draußen <b>${fmt(out)} °C</b> <span class="dx">(${outSrc})</span> – laut Heizkurve soll das Wasser dann etwa <b>${fmt(target)} °C</b> warm sein` +
+        (flow != null ? `, gemessen sind <b>${fmt(flow)} °C</b>.` : ".") : "") +
+      ` Pro Grad kälter draußen wird das Wasser um ${fmt(slope, 2)} °C wärmer.`;
+
+    // Tabelle
+    const steps = [-10, -5, 0, 5, 10, 15];
+    const nearest = out != null ? steps.reduce((a, b) => Math.abs(b - out) < Math.abs(a - out) ? b : a) : null;
+    const word = (x) => x <= -5 ? " (sehr kalt)" : x >= 10 ? " (mild)" : "";
+    $("curveTable").innerHTML = `<thead><tr><th>Draußen</th><th>Heizwasser</th></tr></thead><tbody>` +
+      steps.map(x => `<tr class="${x === nearest ? "now" : ""}"><td>${x} °C${word(x)}${x === nearest ? " ← jetzt" : ""}</td><td>${fmt(curveAt(curve, x), 0)} °C</td></tr>`).join("") + `</tbody>`;
+
+    // Grafik
+    const ds = [{ label: "Heizkurve", data: [-15, curve.xLo, curve.xHi, 25].map(x => ({ x, y: curveAt(curve, x) })),
+      borderColor: C.hk, backgroundColor: C.hk, borderWidth: 2, pointRadius: 0, showLine: true }];
+    if (out != null && flow != null) ds.push({ label: "Jetzt (gemessen)", data: [{ x: out, y: flow }],
+      backgroundColor: C.ww, borderColor: "#1b2028", borderWidth: 2, pointRadius: 8, pointHoverRadius: 9, showLine: false });
+    const o = baseOptions("°C");
+    o.interaction = { mode: "nearest", intersect: true };
+    o.plugins.tooltip.callbacks.label = (c) => `${c.dataset.label}: draußen ${fmt(c.raw.x)} °C → Wasser ${fmt(c.raw.y)} °C`;
+    o.scales.x = { type: "linear", min: -15, max: 25, title: { display: true, text: "draußen (°C)", color: C.tick }, ticks: { color: C.tick }, grid: { color: C.grid } };
+    o.scales.y.title = { display: true, text: "Heizwasser (°C)", color: C.tick };
+    drawChart("cCurveSimple", { type: "scatter", data: { datasets: ds }, options: o });
+
+    // Einschätzung für Fußbodenheizung
+    const yCold = curveAt(curve, -10);
+    let st, txt;
+    if (yCold <= 35) { st = "ok"; txt = `Sehr niedrig eingestellt (${fmt(yCold, 0)} °C bei −10 °C) – sehr sparsam. Nur senken, wenn wirklich alle Räume warm werden.`; }
+    else if (yCold <= 40) { st = "ok"; txt = `Für eine Fußbodenheizung bereits niedrig eingestellt (${fmt(yCold, 0)} °C bei −10 °C). Werden alle Räume warm oder sogar zu warm, kann die Kurve probeweise um 1 °C gesenkt werden – das spart grob 2–3 % Strom.`; }
+    else if (yCold <= 45) { st = "warn"; txt = `Für eine Fußbodenheizung eher hoch (${fmt(yCold, 0)} °C bei −10 °C). Absenken in 1-°C-Schritten lohnt sich vermutlich.`; }
+    else { st = "err"; txt = `Für eine Fußbodenheizung sehr hoch (${fmt(yCold, 0)} °C bei −10 °C). Hier steckt deutliches Sparpotenzial.`; }
+    $("curveVerdict").innerHTML = verdict(st, "Einschätzung", `Kurve ${curve.yLo} °C bei ${curve.xLo} °C · ${curve.yHi} °C bei ${curve.xHi} °C`, txt);
+
+    $("v2021").textContent = `jetzt ${curve.yLo} °C`;
+    $("v2022").textContent = `jetzt ${curve.yHi} °C`;
+    $("v2011").textContent = `${curve.xLo} °C`;
+    $("v2012").textContent = `${curve.xHi} °C`;
+
+    // Alle FSV-Werte
+    const list = hp.raw?.components?.main?.["samsungce.ehsFsvSettings"]?.fsvSettings?.value || [];
+    $("fsvTable").innerHTML = `<thead><tr><th>FSV</th><th>Wert</th><th>Bereich</th><th>Bedeutung</th></tr></thead><tbody>` +
+      list.map(f => `<tr><td>${f.id}</td><td>${f.value}${f.temperatureUnit ? " °" + f.temperatureUnit : ""}</td>
+        <td>${f.minValue} – ${f.maxValue}</td><td>${FSV_INFO[f.id] ?? "–"}</td></tr>`).join("") + `</tbody>`;
+  }
+
+  // ---------- Richtwert-Check (Benchmark aus Gasverbrauch) ----------
+  const BENCH_DEFAULT = { gas: 1535, kwhM3: 10.5, eta: 0.90, dhw: 2500, gtz: 2759 };
+  const BENCH_KEYS = { gas: "bGas", kwhM3: "bKwhM3", eta: "bEta", dhw: "bDhw", gtz: "bGtz" };
+  // erwartete Jahresarbeitszahl je Außentemperatur (Fußbodenheizung, Vorlauf ~30 °C) – Richtwerte
+  const COP_PTS = [[-10, 2.7], [-2, 3.3], [3, 3.7], [8, 4.2], [15, 4.6]];
+  const COP_DHW = 2.8;
+
+  function benchParams() {
+    let saved = {};
+    try { saved = JSON.parse(localStorage.getItem("wagael_bench") || "{}"); } catch (e) {}
+    const p = { ...BENCH_DEFAULT, ...saved };
+    for (const [k, id] of Object.entries(BENCH_KEYS)) if ($(id).value === "") $(id).value = p[k];
+    for (const [k, id] of Object.entries(BENCH_KEYS)) { const v = parseFloat($(id).value); if (isFinite(v)) p[k] = v; }
+    return p;
+  }
+  Object.values(BENCH_KEYS).forEach(id => $(id).addEventListener("change", () => {
+    const p = {}; for (const [k, i] of Object.entries(BENCH_KEYS)) p[k] = parseFloat($(i).value);
+    try { localStorage.setItem("wagael_bench", JSON.stringify(p)); } catch (e) {}
+    loadBench();
+  }));
+
+  function copAt(t) {
+    if (t <= COP_PTS[0][0]) return COP_PTS[0][1];
+    for (let i = 1; i < COP_PTS.length; i++) {
+      const [x0, y0] = COP_PTS[i - 1], [x1, y1] = COP_PTS[i];
+      if (t <= x1) return y0 + (y1 - y0) * (t - x0) / (x1 - x0);
+    }
+    return COP_PTS[COP_PTS.length - 1][1];
+  }
+
+  function benchModel(p) {
+    const heatYear = p.gas * p.kwhM3 * p.eta;              // Nutzwärme gesamt
+    const spaceYear = Math.max(heatYear - p.dhw, 0);       // davon Heizung
+    const perGtz = spaceYear / p.gtz;                       // kWh Wärme je Gradtag
+    const dhwElDay = p.dhw / 365 / COP_DHW;
+    const day = (t) => {
+      const heat = t < 15 ? perGtz * (20 - t) : 0;
+      return { heat, el: heat / copAt(t) + dhwElDay };
+    };
+    return { heatYear, spaceYear, perGtz, dhwElDay, day };
+  }
+
+  function benchState(ratio) { return ratio < 0.85 ? "good" : ratio <= 1.15 ? "ok" : ratio <= 1.5 ? "warn" : "err"; }
+  const benchWord = { ok: "im Rahmen", good: "unter Richtwert", warn: "erhöht", err: "deutlich zu hoch", info: "zu wenig Daten" };
+
+  async function loadBench() {
+    const p = benchParams(), m = benchModel(p);
+
+    $("benchDerived").textContent =
+      `${fmt(p.gas, 0)} m³ × ${fmt(p.kwhM3, 1)} kWh/m³ × ${fmt(p.eta, 2)} = ${fmt(m.heatYear, 0)} kWh Wärme/Jahr, ` +
+      `davon Heizung ${fmt(m.spaceYear, 0)} kWh → ${fmt(m.perGtz, 2)} kWh Wärme je Gradtag. ` +
+      `Wärmepumpe: Wirkungsgrad je Außentemperatur ${COP_PTS.map(([t, c]) => `${t} °C: ${c}`).join(", ")}; Warmwasser ${COP_DHW}.`;
+
+    const temps = [-10, -5, -2, 0, 3, 5, 8, 10, 12, 15];
+    $("benchTable").innerHTML = `<thead><tr><th>Ø außen am Tag</th><th>Wärmebedarf</th><th>Richtwert Strom</th><th>„erhöht“ ab</th><th>„zu hoch“ ab</th></tr></thead><tbody>` +
+      temps.map(t => { const d = m.day(t); return `<tr><td>${t} °C</td><td>${fmt(d.heat, 0)} kWh</td><td><b>${fmt(d.el, 1)} kWh</b></td><td>${fmt(d.el * 1.15, 0)} kWh</td><td>${fmt(d.el * 1.5, 0)} kWh</td></tr>`; }).join("") + `</tbody>`;
+
+    // Tageswerte der letzten 7 Tage aus den Messpunkten
+    const to = new Date(), from = new Date(to); from.setHours(0, 0, 0, 0); from.setDate(from.getDate() - 6);
+    const rows = withDeltas(await hpRows(from.toISOString(), to.toISOString()));
+    const byDay = new Map();
+    for (const r of rows) {
+      const key = new Date(r.t).toLocaleDateString("sv-SE");
+      const d = byDay.get(key) || { wh: 0, covMin: 0, temps: [] };
+      d.wh += r.dWh;
+      if (r.gapMin != null && r.gapMin <= 60) d.covMin += r.gapMin;
+      if (r.outdoor_temp != null) d.temps.push(r.outdoor_temp);
+      byDay.set(key, d);
+    }
+    const days = [...byDay.entries()].sort((a, b) => b[0].localeCompare(a[0]));
+    const rowsHtml = days.map(([key, d]) => {
+      const covH = d.covMin / 60;
+      if (covH < 3 || !d.temps.length) return `<tr><td>${ddmm(key + "T12:00:00")}</td><td>–</td><td>–</td><td>–</td><td>–</td><td><span class="pill info">${benchWord.info}</span></td></tr>`;
+      const t = d.temps.reduce((a, b) => a + b, 0) / d.temps.length;
+      const ist = d.wh / 1000 * (covH < 23 ? 24 / covH : 1);
+      const soll = m.day(t).el;
+      const ratio = ist / soll, st = benchState(ratio);
+      const note = covH < 23 ? ` <span class="dx">(hochgerechnet aus ${fmt(covH, 1)} Std.)</span>` : "";
+      return `<tr><td>${ddmm(key + "T12:00:00")}</td><td>${fmt(t)} °C</td><td>${fmt(ist, 1)}${note}</td><td>${fmt(soll, 1)}</td>
+        <td>${ratio >= 1 ? "+" : ""}${fmt((ratio - 1) * 100, 0)} %</td><td><span class="pill ${st}">${benchWord[st]}</span></td></tr>`;
+    });
+    $("benchDays").innerHTML = rowsHtml.length ? rowsHtml.join("") : `<tr><td colspan="6" class="empty">Noch keine Tagesdaten.</td></tr>`;
+
+    // Kachel „Heute“
+    const today = days.find(([k]) => k === new Date().toLocaleDateString("sv-SE"));
+    if (today && today[1].temps.length && today[1].covMin / 60 >= 3) {
+      const d = today[1], covH = d.covMin / 60, t = d.temps.reduce((a, b) => a + b, 0) / d.temps.length;
+      const ist = d.wh / 1000 * 24 / covH, soll = m.day(t).el, st = benchState(ist / soll);
+      $("benchToday").innerHTML = [
+        tile("Heute (hochgerechnet)", `${fmt(ist, 1)} kWh`, `aus ${fmt(covH, 1)} Std. Messung`),
+        tile("Richtwert heute", `${fmt(soll, 1)} kWh`, `bei Ø ${fmt(t)} °C außen`),
+        tile("Bewertung", `<span class="pill ${st}" style="font-size:16px">${{ ok: "✓", good: "✓", warn: "!", err: "✗" }[st]} ${benchWord[st]}</span>`, `${ist >= soll ? "+" : ""}${fmt((ist / soll - 1) * 100, 0)} % zum Richtwert`),
+        tile("Richtwert Jahr", `${fmt((m.spaceYear / 3.7 + p.dhw / COP_DHW), 0)} kWh`, "Strom bei einem Jahr wie 2024"),
+      ].join("");
+    } else {
+      $("benchToday").innerHTML = `<div class="empty">Für heute erst ab 3 Std. Messdaten. Richtwert-Tabelle unten.</div>`;
+    }
+  }
+
+  // ---------- Anlage: Stammdaten, IST-Einstellungen, Protokoll ----------
+  let STAMM = {}, LIVE = null;   // LIVE: aktueller Anlagenzustand für den Konfigurator
+
+  function fsvMap(raw) {
+    const list = raw?.components?.main?.["samsungce.ehsFsvSettings"]?.fsvSettings?.value || [];
+    return Object.fromEntries(list.map(f => [f.id, f]));
+  }
+  const numIn = (s) => { const m = String(s ?? "").replace(",", ".").match(/-?\d+(\.\d+)?/); return m ? parseFloat(m[0]) : null; };
+
+  async function loadAnlage() {
+    const [stamm, logRows, [hp], lc] = await Promise.all([
+      rest("hp_stammdaten?select=key,value,sort&order=sort.asc").catch(() => []),
+      rest("hp_settings_log?select=ts,setting,old_value,new_value&order=ts.desc,id.desc&limit=60").catch(() => []),
+      rest("snapshots?select=raw,captured_at,outdoor_temp,hp_flow_temp&hp_valve=not.is.null&order=captured_at.desc&limit=1"),
+      rest("hp_cycle?select=out_air,ts&order=ts.desc&limit=1").catch(() => []),
+    ]);
+    STAMM = Object.fromEntries(stamm.map(s => [s.key, s.value]));
+    const raw = hp?.raw, m = raw?.components?.main || {}, i1 = raw?.components?.INDOOR1 || {}, i2 = raw?.components?.INDOOR2 || {};
+    const fsv = fsvMap(raw), curve = curveFrom(raw);
+    const devOut = lc?.[0] && (Date.now() - new Date(lc[0].ts).getTime()) < 30 * 60000 ? lc[0].out_air : null;
+    const out = devOut ?? hp?.outdoor_temp;
+    const ver = (m["samsungce.softwareVersion"]?.versions?.value || []).map(v => v.versionNumber).join(", ");
+    const ident = m["samsungce.deviceIdentification"] || {};
+
+    LIVE = {
+      fsv, curve, out,
+      dhwSet: m.thermostatCoolingSetpoint?.coolingSetpoint?.value,
+      dhwMode: m.airConditionerMode?.airConditionerMode?.value,
+      dhwTemp: m.temperatureMeasurement?.temperature?.value,
+      booster: m["samsungce.ehsBoosterHeater"]?.status?.value,
+      boosterTs: m["samsungce.ehsBoosterHeater"]?.status?.timestamp,
+      roomMeasured: numIn(STAMM["Raumtemperatur gemessen"]),
+      roomTarget: numIn(STAMM["Raum-Wunschtemperatur"]),
+    };
+
+    // Stammdaten (gepflegt + automatisch)
+    const auto = [
+      ["Gerätekennung (automatisch)", `${ident.binaryId?.value ?? "–"} · ${ident.description?.value ?? ""}`],
+      ["Baujahr laut Gerät (automatisch)", ident.releaseYear?.value != null ? `20${ident.releaseYear.value}` : "–"],
+      ["Software / Firmware (automatisch)", ver || "–"],
+    ];
+    $("stamm").innerHTML = (stamm.length ? stamm.map(s => [s.key, s.value]) : [["Hinweis", "Tabelle hp_stammdaten fehlt – 05_anlage.sql ausführen"]])
+      .concat(auto).map(([k, v]) => `<tr><td>${k}</td><td>${v ?? "–"}</td></tr>`).join("");
+
+    // IST-Einstellungen
+    const f = (id, unit = "") => fsv[id] ? `${fsv[id].value}${unit}` : "–";
+    const rows = [
+      ["Heizkurve: Vorlauf bei Kälte (FSV 2021)", f("2021", " °C") + ` <span class="src">bei ${f("2011", " °C")} außen (FSV 2011)</span>`],
+      ["Heizkurve: Vorlauf mild (FSV 2022)", f("2022", " °C") + ` <span class="src">bei ${f("2012", " °C")} außen (FSV 2012)</span>`],
+      ["Vorlauf-Soll jetzt (laut Kurve)", curve && out != null ? `${fmt(curveAt(curve, out))} °C <span class="src">bei ${fmt(out)} °C außen</span>` : "–"],
+      ["Vorlauf gemessen (Heizkreis 1)", hp?.hp_flow_temp != null ? `${fmt(hp.hp_flow_temp)} °C` : "–"],
+      ["Warmwasser-Soll", LIVE.dhwSet != null ? `${LIVE.dhwSet} °C` : "–"],
+      ["Warmwasser-Modus", LIVE.dhwMode ?? "–"],
+      ["Warmwasser jetzt", LIVE.dhwTemp != null ? `${fmt(LIVE.dhwTemp)} °C` : "–"],
+      ["FSV 1051 / 1052", `${f("1051", " °C")} / ${f("1052", " °C")} <span class="src">Warmwasser-Grenzen (Bedeutung laut Samsung-Handbuch prüfen)</span>`],
+      ["Heizkreis 1 / 2", `${i1.switch?.switch?.value ?? "–"} / ${i2.switch?.switch?.value ?? "–"}`],
+      ["Regelung nach", m["samsungce.ehsTemperatureReference"]?.temperatureReference?.value === "water" ? "Wassertemperatur (Heizkurve)" : (m["samsungce.ehsTemperatureReference"]?.temperatureReference?.value ?? "–")],
+      ["Raumthermostat an der Anlage", m["samsungce.ehsThermostat"]?.connectionState?.value === "disconnected" ? "keins angeschlossen" : (m["samsungce.ehsThermostat"]?.connectionState?.value ?? "–")],
+      ["Abwesenheitsmodus", m["custom.outingMode"]?.outingMode?.value ?? "–"],
+      ["Heizstab", `${LIVE.booster ?? "–"} <span class="src">zuletzt geschaltet ${LIVE.boosterTs ? new Date(LIVE.boosterTs).toLocaleString("de-DE", { dateStyle: "short", timeStyle: "short" }) : "–"}</span>`],
+      ["Raum-Wunsch / gemessen", `${STAMM["Raum-Wunschtemperatur"] ?? "–"} / ${STAMM["Raumtemperatur gemessen"] ?? "–"} <span class="src">aus den Stammdaten</span>`],
+    ];
+    $("ist").innerHTML = rows.map(([k, v]) => `<tr><td>${k}</td><td>${v}</td></tr>`).join("");
+
+    $("slog").innerHTML = logRows.length ? logRows.map(r => `<tr><td>${new Date(r.ts).toLocaleString("de-DE", { dateStyle: "short", timeStyle: "short" })}</td>
+      <td>${r.setting}</td><td>${r.old_value ?? "–"}</td><td><b>${r.new_value ?? "–"}</b></td></tr>`).join("")
+      : `<tr><td colspan="4" class="empty">Noch keine Einträge (05_anlage.sql ausführen).</td></tr>`;
+
+    renderCfg();
+  }
+
+  // ---------- Konfigurator ----------
+  let goal = "room";
+  const CFG_STEP_MAX = 3;          // max. Änderung der Kurve pro Durchgang (K)
+  const LIM = { "2021": [28, 50], "2022": [18, 32] };
+  const clamp = (v, [a, b]) => Math.min(b, Math.max(a, v));
+  const SAMSUNG_HINT = "FSV-Nummer laut Samsung-Handbüchern üblich – meldet deine Anlage nicht an SmartThings, bitte am Bedienteil prüfen";
+
+  document.querySelectorAll("#goals button").forEach(b => b.addEventListener("click", () => {
+    document.querySelectorAll("#goals button").forEach(x => x.classList.remove("on"));
+    b.classList.add("on"); goal = b.dataset.g; renderCfg(true);
+  }));
+
+  function field(id, label, html) { return `<label>${label}${html}</label>`; }
+  function numField(id, label, val, step = 0.5) { return field(id, label, `<input id="${id}" type="number" step="${step}" value="${val ?? ""}" class="input input-bordered w-full">`); }
+  function selField(id, label, opts, val) { return field(id, label, `<select id="${id}" class="select select-bordered w-full">${opts.map(([v, t]) => `<option value="${v}" ${v == val ? "selected" : ""}>${t}</option>`).join("")}</select>`); }
+  const val = (id) => $(id)?.value;
+
+  function renderCfgInputs() {
+    const L = LIVE || {};
+    const html = {
+      room: numField("cMeas", "Gemessene Raumtemperatur (°C)", L.roomMeasured ?? 22) + numField("cTarget", "Wunsch-Raumtemperatur (°C)", L.roomTarget ?? 21),
+      frost: selField("cDir", "An kalten Tagen ist es …", [["cold", "zu kalt"], ["warm", "zu warm"]], "warm") + selField("cStep", "Stärke", [[1, "etwas (1 K)"], [2, "deutlich (2 K)"]], 1),
+      mild: selField("cDir", "An milden Tagen ist es …", [["cold", "zu kalt"], ["warm", "zu warm"]], "warm") + selField("cStep", "Stärke", [[1, "etwas (1 K)"], [2, "deutlich (2 K)"]], 1),
+      dhw: numField("cDhwT", "Wunsch-Warmwassertemperatur (°C)", 48, 1) + selField("cDhwTime", "Wann laden?", [["11-15", "mittags 11–15 Uhr (PV)"], ["13-17", "nachmittags 13–17 Uhr"], ["any", "egal / rund um die Uhr"]], "11-15"),
+      legio: selField("cLDay", "Tag", ["So", "Mo", "Di", "Mi", "Do", "Fr", "Sa"].map(d => [d, d]), "So") + selField("cLTime", "Uhrzeit", [["12:00", "12:00"], ["13:00", "13:00"], ["14:00", "14:00"]], "13:00") + numField("cLTemp", "Temperatur (°C)", 60, 1),
+      boost: "",
+      eco: numField("cMeas", "Gemessene Raumtemperatur (°C)", L.roomMeasured ?? 22) + numField("cTarget", "Komfort-Untergrenze (°C)", 20.5),
+    }[goal];
+    $("cfgInputs").innerHTML = html;
+    $("cfgInputs").querySelectorAll("input,select").forEach(el => el.addEventListener("input", () => renderCfg()));
+  }
+
+  // Monatlicher Heizstrom laut Richtwert bei aktueller Außentemperatur (für die Wirkung)
+  function monthlyHeatKwh() {
+    try { const m = benchModel(benchParams()); const t = LIVE?.out ?? 5; return Math.max(m.day(t).el - m.dhwElDay, 0) * 30; } catch (e) { return null; }
+  }
+  function euro(kwh) { const p = parseFloat(($("price").value || "").replace(",", ".")); return isFinite(p) && p > 0 ? ` ≈ ${fmt(kwh * p, 0)} €` : ""; }
+  const checkDate = (d) => new Date(Date.now() + d * 864e5).toLocaleDateString("de-DE", { weekday: "short", day: "2-digit", month: "2-digit" });
+
+  function curveRows(d21, d22, why21, why22) {
+    const F = LIVE?.fsv || {};
+    const c21 = F["2021"]?.value, c22 = F["2022"]?.value;
+    const n21 = c21 != null ? clamp(c21 + d21, LIM["2021"]) : null;
+    let n22 = c22 != null ? clamp(c22 + d22, LIM["2022"]) : null;
+    const rows = [];
+    if (d21) rows.push(["Vorlauf bei Kälte", "Bedienteil → Installateur-Einstellungen → <b>FSV 2021</b>", `${c21 ?? "?"} °C`, n21 != null ? `${n21} °C` : "?", why21]);
+    if (d22) rows.push(["Vorlauf an milden Tagen", "Bedienteil → Installateur-Einstellungen → <b>FSV 2022</b>", `${c22 ?? "?"} °C`, n22 != null ? `${n22} °C` : "?", why22]);
+    const warn = (n21 != null && n22 != null && n21 - n22 < 5) ? "Achtung: Kurve wird sehr flach (FSV 2021 und 2022 liegen weniger als 5 K auseinander)." : "";
+    const limited = (n21 != null && c21 + d21 !== n21) || (n22 != null && c22 + d22 !== n22) ? "Auf Sicherheitsgrenzen begrenzt (FSV 2021: 28–50 °C, FSV 2022: 18–32 °C)." : "";
+    return { rows, warn: [warn, limited].filter(Boolean).join(" ") };
+  }
+
+  function card(title, sub, rows, notes = [], warns = []) {
+    return `<div class="cfgcard"><h3>${title}</h3><div class="dx">${sub}</div>
+      <div class="overflow-x-auto mt-2"><table class="table table-sm">
+        <thead><tr><th>Was</th><th>Wo an der Anlage</th><th>Jetzt</th><th>Neu</th><th>Warum</th></tr></thead>
+        <tbody>${rows.map(r => `<tr><td>${r[0]}</td><td>${r[1]}</td><td>${r[2]}</td><td class="new">${r[3]}</td><td>${r[4]}</td></tr>`).join("")}</tbody>
+      </table></div>
+      ${warns.filter(Boolean).map(w => `<div class="warnline">⚠ ${w}</div>`).join("")}
+      ${notes.filter(Boolean).map(n => `<div class="note">• ${n}</div>`).join("")}
+      <button class="btn btn-sm btn-outline printbtn" onclick="window.print()">Einstellkarte drucken / als PDF</button></div>`;
+  }
+
+  function roomPlan(meas, target) {
+    const dRoom = target - meas;
+    let dFlow = Math.round(dRoom * 2);
+    const capped = Math.abs(dFlow) > CFG_STEP_MAX;
+    dFlow = Math.max(-CFG_STEP_MAX, Math.min(CFG_STEP_MAX, dFlow));
+    return { dRoom, dFlow, capped };
+  }
+
+  function renderCfg(resetInputs) {
+    if (resetInputs || !$("cfgInputs").children.length) renderCfgInputs();
+    const L = LIVE || {}, F = L.fsv || {};
+    const mk = monthlyHeatKwh();
+    let out = "";
+
+    if (goal === "room" || goal === "eco") {
+      const meas = parseFloat(val("cMeas")), target = parseFloat(val("cTarget"));
+      if (!isFinite(meas) || !isFinite(target)) { $("cfgOut").innerHTML = ""; return; }
+      const p = roomPlan(meas, target);
+      const extra = [];
+      if (Math.abs(p.dRoom) < 0.3) {
+        out = card("Raumtemperatur passt", `Gemessen ${fmt(meas)} °C, Wunsch ${fmt(target)} °C – keine Änderung nötig.`, [], ["Weiter beobachten; Konfigurator nach Wetterwechsel erneut nutzen."]);
+      } else {
+        const lower = p.dFlow < 0;
+        const cr = curveRows(p.dFlow, p.dFlow,
+          `Faustregel Fußbodenheizung: 2 K Vorlauf ≈ 1 K Raum`, `Kurve parallel verschieben`);
+        const rows = cr.rows.concat([[
+          "Raumthermostate (Haupträume)", "an der Wand im jeweiligen Raum", "–", lower ? "ganz auf" : "prüfen: ganz auf?",
+          lower ? "Die Kurve regelt das Haus; Thermostate nur für Räume, die kühler sein sollen" : "Ein geschlossener Kreis heizt nicht – erst Thermostat prüfen, dann Kurve erhöhen"]]);
+        const saveKwh = mk != null ? mk * 0.06 * Math.abs(p.dFlow / 2) : null;
+        const effect = saveKwh != null ? `Erwartete Wirkung: etwa ${lower ? "−" : "+"}${fmt(Math.abs(p.dFlow / 2) * 6, 0)} % Heizstrom ≈ ${fmt(saveKwh, 0)} kWh/Monat${euro(saveKwh)} (Faustwert 6 % je Grad Raumtemperatur).` : "";
+        out = card(goal === "eco" ? "Möglichst sparsam – Schritt 1: Heizkurve" : `Raumtemperatur ${fmt(meas)} → ${fmt(target)} °C`,
+          `Vorlauf ${p.dFlow > 0 ? "+" : ""}${p.dFlow} K${p.capped ? " (auf 3 K pro Durchgang begrenzt – danach erneut prüfen)" : ""}.`,
+          rows,
+          [effect, `<b>Prüfen am ${checkDate(3)}</b>: Raumtemperatur messen, Wert in den Stammdaten aktualisieren, Konfigurator erneut aufrufen.`,
+           "Vorher die alten Werte notieren (stehen oben unter IST-Einstellungen)."],
+          [cr.warn]);
+      }
+      if (goal === "eco") {
+        out += `<div style="height:10px"></div>` + card("Möglichst sparsam – Schritt 2: Warmwasser & Heizstab", "Die größten weiteren Hebel.", [
+          ["Warmwasser-Soll", "Bedienteil → Warmwasser → Solltemperatur (oder SmartThings-App)", `${L.dhwSet ?? "?"} °C`, "48 °C", "Jedes Grad weniger senkt Verluste; 48 °C reicht im Alltag"],
+          ["Warmwasser-Modus", "Bedienteil → Warmwasser → Betriebsart", L.dhwMode ?? "?", "eco", "Eco = nur Wärmepumpe, ohne Heizstab-Unterstützung (laut Samsung-Beschreibung)"],
+          ["Warmwasser-Zeitprogramm", "Bedienteil → Zeitprogramm → Warmwasser", "nicht lesbar", "11:00–15:00", "Laden, wenn es warm ist und die Sonne scheint – nicht um Mitternacht"],
+          ["Legionellenschaltung", `Bedienteil → Installateur → <b>FSV 3041–3045</b><span class="src">${SAMSUNG_HINT}</span>`, "nicht lesbar", "1× pro Woche, So 13:00, 60 °C", "70 °C nachts mit Heizstab ist der teuerste Fall"],
+          ["Heizstab", `Bedienteil → Installateur → Zusatzheizung<span class="src">${SAMSUNG_HINT}</span>`, L.booster ?? "?", "nur Notbetrieb", "1 kWh Strom = 1 kWh Wärme – 3–4× teurer als die Wärmepumpe"],
+        ], ["Menünamen unterscheiden sich je nach Bedienteil. Bei Unsicherheit Installateur fragen."]);
+      }
+    }
+
+    if (goal === "frost" || goal === "mild") {
+      const dir = val("cDir"), step = parseInt(val("cStep") || "1", 10);
+      const d = dir === "warm" ? -step : step;
+      const cr = goal === "frost"
+        ? curveRows(d, 0, `Wirkt vor allem unter ~5 °C außen; ändert die Steilheit der Kurve`, "")
+        : curveRows(0, d, "", `Wirkt vor allem über ~10 °C außen; ändert die Steilheit der Kurve`);
+      out = card(goal === "frost" ? `Bei Frost ${dir === "warm" ? "zu warm" : "zu kalt"}` : `An milden Tagen ${dir === "warm" ? "zu warm" : "zu kalt"}`,
+        "Nur ein Ende der Heizkurve wird verschoben.", cr.rows,
+        [`<b>Prüfen</b> beim nächsten ${goal === "frost" ? "Frosttag" : "milden Tag (über 10 °C)"} – frühestens am ${checkDate(2)}.`], [cr.warn]);
+    }
+
+    if (goal === "dhw") {
+      const t = parseInt(val("cDhwT"), 10), time = val("cDhwTime");
+      const tt = isFinite(t) ? Math.min(60, Math.max(40, t)) : 48;
+      out = card("Warmwasser", "Warmwasser-Soll ist über SmartThings lesbar, das Zeitprogramm nicht.", [
+        ["Warmwasser-Soll", "Bedienteil → Warmwasser → Solltemperatur (oder SmartThings-App)", `${L.dhwSet ?? "?"} °C`, `${tt} °C`, tt < 45 ? "Unter 45 °C kann es bei längerem Duschen knapp werden" : "45–50 °C reichen im Alltag"],
+        ["Warmwasser-Modus", "Bedienteil → Warmwasser → Betriebsart", L.dhwMode ?? "?", "eco", "Eco = nur Wärmepumpe (laut Samsung-Beschreibung), langsamer aber sparsamer"],
+        ["Zeitprogramm Warmwasser", "Bedienteil → Zeitprogramm → Warmwasser", "nicht lesbar", time === "any" ? "kein Zeitfenster" : `${time.replace("-", ":00–")}:00`, time === "any" ? "Lädt bei Bedarf – auch nachts" : "Tagsüber ist die Außenluft wärmer (besserer Wirkungsgrad) und PV-Strom verfügbar"],
+      ], ["Die Tabelle „Warmwasser-Ladungen“ im Verlauf zeigt ab morgen, ob die Ladungen ins neue Zeitfenster gewandert sind.", tt < 50 ? "Legionellenschutz dann unbedingt 1× pro Woche aktiv lassen (Ziel „Legionellen“)." : ""]);
+    }
+
+    if (goal === "legio") {
+      const day = val("cLDay"), time = val("cLTime"), temp = Math.min(70, Math.max(55, parseInt(val("cLTemp"), 10) || 60));
+      out = card("Legionellenschaltung", `Empfehlung: 1× pro Woche, ${day} ${time}, ${temp} °C – mittags statt nachts.`, [
+        ["Legionellenschutz aktiv", `Bedienteil → Installateur → <b>FSV 3041</b><span class="src">${SAMSUNG_HINT}</span>`, "nicht lesbar", "ja", "Hygiene – nicht abschalten"],
+        ["Wochentag", `<b>FSV 3042</b><span class="src">${SAMSUNG_HINT}</span>`, "nicht lesbar", day, "Ein Tag pro Woche genügt"],
+        ["Startzeit", `<b>FSV 3043</b><span class="src">${SAMSUNG_HINT}</span>`, "nicht lesbar", time, "Mittags: wärmere Außenluft, PV-Strom"],
+        ["Zieltemperatur", `<b>FSV 3044</b><span class="src">${SAMSUNG_HINT}</span>`, `max. erlaubt ${F["1051"]?.value ?? "?"} °C (FSV 1051)`, `${temp} °C`, "60 °C reichen; 70 °C braucht meist den Heizstab"],
+        ["Haltezeit", `<b>FSV 3045</b><span class="src">${SAMSUNG_HINT}</span>`, "nicht lesbar", "10–30 Min.", "Kurz genügt bei 60 °C"],
+      ], ["Die Diagnose „Legionellenschaltung“ zeigt, wann die nächste Aufheizung über 58 °C stattfindet und ob der Heizstab dabei läuft."]);
+    }
+
+    if (goal === "boost") {
+      out = card("Heizstab nur im Notfall", `Heizstab aktuell: ${L.booster ?? "?"} · zuletzt geschaltet ${L.boosterTs ? new Date(L.boosterTs).toLocaleString("de-DE", { dateStyle: "short", timeStyle: "short" }) : "?"}`, [
+        ["Warmwasser-Modus", "Bedienteil → Warmwasser → Betriebsart", L.dhwMode ?? "?", "eco", "Eco nutzt nur die Wärmepumpe (laut Samsung-Beschreibung) – std/power dürfen den Heizstab zuschalten"],
+        ["Heizstab Warmwasser", `Bedienteil → Installateur → Warmwasser-Zusatzheizung<span class="src">${SAMSUNG_HINT}</span>`, "nicht lesbar", "aus / nur Notbetrieb", "1 kWh Strom = 1 kWh Wärme"],
+        ["Heizstab Heizung (Backup)", `Bedienteil → Installateur → Backup-Heizer, Freigabe-Außentemperatur<span class="src">${SAMSUNG_HINT}</span>`, "nicht lesbar", "erst unter −10 °C", "Bei 16 kW Leistung reicht die Wärmepumpe in Linnich praktisch immer"],
+        ["Legionellen-Temperatur", "siehe Ziel „Legionellen“", `max. ${F["1051"]?.value ?? "?"} °C erlaubt`, "60 °C", "70 °C erreicht die Wärmepumpe oft nur mit Heizstab"],
+      ], ["Die Diagnose „Heizstab“ zeigt ab jetzt jeden Messpunkt, an dem er läuft."]);
+    }
+
+    $("cfgOut").innerHTML = out;
+  }
+
+
+  // ---------- Zustand auf einen Blick ----------
+  const DHW_MODE = {
+    eco: ["Eco", "Sparbetrieb – nur Wärmepumpe (laut Samsung)"],
+    std: ["Standard", "Wärmepumpe, Heizstab nur bei Bedarf"],
+    power: ["Power", "schneller – Wärmepumpe plus Heizstab"],
+    force: ["Sofort", "einmalig sofort aufheizen"],
+  };
+  const HK_MODE = { auto: "Automatisch", heat: "Heizen", cool: "Kühlen" };
+
+  function stateTile(icon, label, value, sub, tone) {
+    const ring = { ok: "border-success", warn: "border-warning", err: "border-error", off: "border-base-300", info: "border-base-300" }[tone || "info"];
+    return `<div class="rounded-box bg-base-100 border-2 ${ring} p-3 min-w-0">
+      <div class="text-xs opacity-70 flex items-center gap-1"><span class="text-base">${icon}</span>${label}</div>
+      <div class="text-lg sm:text-xl font-semibold leading-tight mt-1">${value}</div>
+      <div class="text-xs opacity-60 mt-1">${sub || ""}</div></div>`;
+  }
+
+  async function loadState() {
+    const [[hp], cyc] = await Promise.all([
+      rest("snapshots?select=raw,captured_at,power_kw,hp_valve,hp_booster,hp_defrost,hp_flow_temp,temperature,setpoint,outdoor_temp&hp_valve=not.is.null&order=captured_at.desc&limit=1"),
+      rest("hp_cycle?select=ts,comp_hz,out_air&order=ts.desc&limit=1").catch(() => []),
+    ]);
+    if (!hp) { $("stateNow").innerHTML = `<div class="empty">Noch keine Daten.</div>`; return; }
+    const raw = hp.raw?.components || {}, m = raw.main || {}, i1 = raw.INDOOR1 || {}, i2 = raw.INDOOR2 || {};
+    const c = cyc?.[0];
+    // Fallbacks direkt aus den Rohdaten
+    hp.temperature ??= m.temperatureMeasurement?.temperature?.value ?? null;
+    hp.setpoint ??= m.thermostatCoolingSetpoint?.coolingSetpoint?.value ?? null;
+    hp.hp_flow_temp ??= i1.temperatureMeasurement?.temperature?.value ?? null;
+    hp.captured_at ??= m.temperatureMeasurement?.temperature?.timestamp ?? null;
+    const cycFresh = c && Math.abs(new Date(c.ts) - new Date(hp.captured_at)) < 20 * 60000;
+    const plantOn = m.switch?.switch?.value === "on";
+    const hk1On = i1.switch?.switch?.value === "on";
+    const hk2On = i2.switch?.switch?.value === "on";
+    const hkMode = i1.airConditionerMode?.airConditionerMode?.value;
+    const dhwMode = m.airConditionerMode?.airConditionerMode?.value;
+    const away = m["custom.outingMode"]?.outingMode?.value === "on";
+    const booster = hp.hp_booster === "on", defrost = hp.hp_defrost === "on";
+    const running = cycFresh ? (c.comp_hz ?? 0) > 0 : (hp.power_kw ?? 0) > 0.15;
+    const out = cycFresh && c.out_air != null ? c.out_air : hp.outdoor_temp;
+    const curve = curveFrom(hp.raw);
+    const target = curve && out != null ? curveAt(curve, out) : null;
+
+    // Saison
+    let season, seasonSub, seasonTone;
+    if (!plantOn) { season = "Aus"; seasonSub = "Anlage ist ausgeschaltet"; seasonTone = "err"; }
+    else if (hk1On && hkMode === "cool") { season = "Kühlbetrieb"; seasonSub = "Heizkreis kühlt"; seasonTone = "warn"; }
+    else if (hk1On) { season = "Winterbetrieb"; seasonSub = "Heizung + Warmwasser"; seasonTone = "ok"; }
+    else { season = "Sommerbetrieb"; seasonSub = "nur Warmwasser, Heizung aus"; seasonTone = "info"; }
+
+    // Was passiert gerade?
+    let nowIcon, nowText, nowSub, nowTone;
+    if (!plantOn) { nowIcon = "⏻"; nowText = "Anlage ausgeschaltet"; nowSub = "Keine Heizung, kein Warmwasser."; nowTone = "err"; }
+    else if (defrost) { nowIcon = "🧊"; nowText = "Taut gerade ab"; nowSub = "Normal bei Temperaturen um 0 °C – dauert meist nur wenige Minuten."; nowTone = "info"; }
+    else if (hp.hp_valve === "tank" && running) { nowIcon = "🚿"; nowText = "Lädt gerade Warmwasser"; nowSub = `Speicher ${fmt(hp.temperature)} °C → Ziel ${hp.setpoint ?? "?"} °C. Die Heizung pausiert so lange.`; nowTone = "info"; }
+    else if (running && hk1On) { nowIcon = "🔥"; nowText = "Heizt gerade die Räume"; nowSub = `Heizwasser ${fmt(hp.hp_flow_temp)} °C${target != null ? ` (Ziel laut Heizkurve ${fmt(target)} °C)` : ""}${out != null ? ` bei ${fmt(out)} °C draußen` : ""}.`; nowTone = "ok"; }
+    else { nowIcon = "⏸"; nowText = "Pause – gerade nichts zu tun"; nowSub = hk1On ? `Das Haus ist warm genug${out != null ? ` (${fmt(out)} °C draußen)` : ""}. Sie springt automatisch wieder an.` : "Heizung aus – sie lädt nur Warmwasser, wenn nötig."; nowTone = "info"; }
+    if (booster) nowSub += " ⚠ Der Heizstab läuft gerade (teuer).";
+    const toneBg = { ok: "border-success", warn: "border-warning", err: "border-error", info: "border-base-300" }[nowTone];
+    $("stateNow").className = `rounded-box p-4 border-2 ${toneBg} bg-base-100 flex items-center gap-4`;
+    $("stateNow").innerHTML = `<div class="text-4xl sm:text-5xl leading-none">${nowIcon}</div>
+      <div><div class="text-xs opacity-60">Gerade</div><div class="text-xl sm:text-2xl font-bold leading-tight">${nowText}</div><div class="text-sm opacity-75 mt-1">${nowSub}</div></div>`;
+
+    const dm = DHW_MODE[dhwMode] || [dhwMode ?? "–", ""];
+    const supported = m.airConditionerMode?.supportedAcModes?.value || Object.keys(DHW_MODE);
+    const modeList = supported.map(x => x === dhwMode ? `<b class="text-base-content">${x.toUpperCase()}</b>` : x.toUpperCase()).join(" · ");
+    $("stateGrid").innerHTML = [
+      stateTile("⏻", "Anlage", plantOn ? "Eingeschaltet" : "Ausgeschaltet", plantOn ? "Hauptschalter an" : "", plantOn ? "ok" : "err"),
+      stateTile(season === "Winterbetrieb" ? "❄️" : season === "Sommerbetrieb" ? "☀️" : "🔄", "Betriebsart", season, seasonSub, seasonTone),
+      stateTile("🏠", "Heizung", hk1On ? `An · ${HK_MODE[hkMode] ?? hkMode ?? ""}` : "Aus", hk2On ? "Heizkreis 2 ebenfalls an" : "Heizkreis 2 aus (nicht genutzt)", hk1On ? "ok" : "off"),
+      stateTile("⚙️", "Betriebsmodus", `${(dhwMode ?? "–").toUpperCase()} <span class="text-sm font-normal opacity-70">(${modeList})</span>`, `${dm[0]}: ${dm[1]}`, dhwMode === "eco" ? "ok" : "info"),
+      stateTile("🚿", "Warmwasser", `${fmt(hp.temperature)} °C`, `Ziel ${hp.setpoint ?? "?"} °C`, "info"),
+      stateTile("🔌", "Heizstab", booster ? "Läuft" : "Aus", booster ? "teuer – 1 kWh Strom = 1 kWh Wärme" : "gut so", booster ? "warn" : "ok"),
+      stateTile("🧳", "Abwesenheit", away ? "Aktiv" : "Aus", away ? "Anlage im Sparbetrieb" : "normaler Betrieb", away ? "warn" : "off"),
+    ].join("");
+
+    if (!hp.captured_at) { $("stateAge").textContent = ""; return; }
+    const age = Math.round((Date.now() - new Date(hp.captured_at).getTime()) / 60000);
+    $("stateAge").textContent = `Stand ${new Date(hp.captured_at).toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit" })} · vor ${age} Min.${age > 30 ? " – Automatik prüfen" : ""}`;
+  }
+
+  async function loadData() {
+    applyPalette();
+    try { await Promise.all([loadTiles(), loadEnergy(), loadHistory(), loadAuto(), loadDiagnose(), loadMonth(), loadCurve(), loadBench(), loadAnlage(), loadState()]); }
+    catch (e) { setMsg("Daten konnten nicht geladen werden: " + e.message, "err"); }
+  }
+
+  // ---------- Login (Supabase Auth, E-Mail-Link oder Code) ----------
+  const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY, { auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: true } });
+  let loggedIn = false;
+
+  function loginMsg(text, cls = "") { $("loginMsg").className = "text-sm " + cls; $("loginMsg").textContent = text; }
+  function germanAuthError(e) {
+    const m = (e?.message || String(e)).toLowerCase();
+    if (m.includes("signups not allowed") || m.includes("not allowed") || m.includes("user not found")) return "Diese E-Mail ist nicht freigeschaltet.";
+    if (m.includes("rate limit") || m.includes("security purposes")) return "Zu viele Versuche – bitte ein paar Minuten warten.";
+    if (m.includes("expired") || m.includes("invalid")) return "Code ungültig oder abgelaufen – bitte neu anfordern.";
+    return e?.message || String(e);
+  }
+
+  async function applySession(session) {
+    accessToken = session?.access_token || null;
+    const was = loggedIn; loggedIn = !!session;
+    $("loginView").classList.toggle("hidden", loggedIn);
+    $("appView").classList.toggle("hidden", !loggedIn);
+    $("tabs").classList.toggle("invisible", !loggedIn);
+    $("autoBadge").classList.toggle("hidden", !loggedIn);
+    $("userBox").classList.toggle("hidden", !loggedIn);
+    if (!loggedIn) return;
+    $("userEmail").textContent = session.user?.email || "";
+    if (!was) {
+      await loadData();
+      // Freischaltung prüfen: angemeldet, aber RLS liefert nichts
+      try { const t = await rest("snapshots?select=id&limit=1"); $("noAccess").classList.toggle("hidden", t.length > 0); } catch (e) {}
+      requestAnimationFrame(() => Object.values(charts).forEach(c => c.resize()));
+    }
+  }
+
+  $("loginSend").addEventListener("click", async () => {
+    const email = $("loginEmail").value.trim();
+    if (!email) return loginMsg("Bitte E-Mail eingeben.", "warn");
+    $("loginSend").disabled = true; loginMsg("Sende …");
+    const { error } = await sb.auth.signInWithOtp({ email, options: { shouldCreateUser: false, emailRedirectTo: location.origin + location.pathname } });
+    $("loginSend").disabled = false;
+    if (error) return loginMsg(germanAuthError(error), "err");
+    try { localStorage.setItem("wagael_login_email", email); } catch (e) {}
+    $("codeBox").classList.remove("hidden"); loginMsg("");
+  });
+  $("loginVerify").addEventListener("click", async () => {
+    const email = $("loginEmail").value.trim(), token = $("loginCode").value.trim();
+    if (!token) return loginMsg("Bitte Code eingeben.", "warn");
+    const { error } = await sb.auth.verifyOtp({ email, token, type: "email" });
+    if (error) loginMsg(germanAuthError(error), "err");
+  });
+  $("logout").addEventListener("click", async () => { await sb.auth.signOut(); });
+  try { $("loginEmail").value = localStorage.getItem("wagael_login_email") || ""; } catch (e) {}
+
+  sb.auth.onAuthStateChange((_ev, session) => { setTimeout(() => applySession(session), 0); });
+  sb.auth.getSession().then(({ data }) => applySession(data.session));
+
+  // Automatisch neu laden: alle 5 Minuten und beim Zurückwechseln in den Tab/die App – nur angemeldet
+  setInterval(() => { if (loggedIn) loadData(); }, 5 * 60 * 1000);
+  document.addEventListener("visibilitychange", () => { if (loggedIn && document.visibilityState === "visible") loadData(); });
+
+  // ---------- Reiter ----------
+  function showTab(name) {
+    document.querySelectorAll("#tabs .tab").forEach(t => t.classList.toggle("tab-active", t.dataset.tab === name));
+    document.querySelectorAll("[data-panel]").forEach(p => p.classList.toggle("hidden", p.dataset.panel !== name));
+    try { localStorage.setItem("wagael_tab", name); } catch (e) {}
+    if (location.hash !== "#" + name) history.replaceState(null, "", "#" + name);
+    requestAnimationFrame(() => Object.values(charts).forEach(c => c.resize()));
+    window.scrollTo({ top: 0 });
+  }
+  document.querySelectorAll("#tabs .tab").forEach(t => t.addEventListener("click", () => showTab(t.dataset.tab)));
+  let startTab = location.hash.slice(1);
+  try { startTab = startTab || localStorage.getItem("wagael_tab"); } catch (e) {}
+  showTab(["overview", "history", "diagnose", "config", "plant"].includes(startTab) ? startTab : "overview");
+
+  // ---------- Design (daisyUI-Themes) ----------
+  const THEMES = [["night", "Night"], ["dim", "Dim"], ["business", "Business"], ["dracula", "Dracula"], ["sunset", "Sunset"],
+    ["abyss", "Abyss"], ["coffee", "Coffee"], ["light", "Hell"], ["corporate", "Corporate"], ["nord", "Nord"], ["winter", "Winter"]];
+  const themeSel = $("theme");
+  themeSel.innerHTML = THEMES.map(([v, t]) => `<option value="${v}">${t}</option>`).join("");
+  let theme = "night";
+  try { theme = localStorage.getItem("wagael_theme") || "night"; } catch (e) {}
+  document.documentElement.dataset.theme = theme; themeSel.value = theme;
+  themeSel.addEventListener("change", () => {
+    document.documentElement.dataset.theme = themeSel.value;
+    try { localStorage.setItem("wagael_theme", themeSel.value); } catch (e) {}
+    setTimeout(loadData, 30);   // Grafiken mit neuen Farben neu zeichnen
+  });
+</script>
+</body>
+</html>
