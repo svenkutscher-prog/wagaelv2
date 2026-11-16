@@ -70,6 +70,7 @@
       <a role="tab" class="tab whitespace-nowrap" data-tab="plant">Anlage</a>
     </nav>
     <div class="flex items-center gap-2">
+      <span id="faultBadge" class="hidden badge badge-error badge-sm sm:badge-md font-semibold cursor-pointer" title="Fehlercode der Anlage – Details im Reiter Diagnose"></span>
       <span id="lastPoll" class="hidden text-xs sm:text-sm opacity-70 whitespace-nowrap tabular-nums"></span>
       <span id="autoBadge" class="badge badge-ghost badge-sm sm:badge-md">Automatik …</span>
       <select id="theme" class="select select-sm w-32" title="Design"></select>
@@ -330,6 +331,21 @@
       <h2 class="card-title text-base">Heizkurven-Check</h2>
       <div class="dx">Ist-Wassertemperatur im Heizbetrieb gegen die eingestellte Kurve</div>
       <div class="chart chart-lg"><canvas id="cCurve"></canvas></div></div></div>
+  </div>
+  <div class="grid gap-4 xl:grid-cols-2 items-start mt-4">
+    <div class="card bg-base-200"><div class="card-body p-4 sm:p-5">
+      <h2 class="card-title text-base">Effizienz je Tag (COP, grob)</h2>
+      <div class="overflow-x-auto"><table class="table table-sm">
+        <thead><tr><th>Tag</th><th class="text-right">außen Ø</th><th class="text-right">Strom</th><th class="text-right">Wärme</th><th class="text-right">COP</th><th>Bewertung</th></tr></thead>
+        <tbody id="copRows"><tr><td colspan="6" class="empty">Lade …</td></tr></tbody></table></div>
+      <div class="dx">Wärme = Durchfluss × Spreizung (Vorlauf − Rücklauf) aus den Gerätedaten, nur bei laufendem Verdichter. Die Anlage liefert die Temperaturen nur in ganzen Grad – bei 2–4 K Spreizung ist der Wert daher grob (±25 %), über einen ganzen Tag gemittelt aber brauchbar. Orientierung: COP ≥ 4 gut, 3–4 ok, &lt; 3 auffällig. Einrichtung: 10_cycle_erweitert.sql.</div>
+    </div></div>
+    <div class="card bg-base-200"><div class="card-body p-4 sm:p-5 gap-2">
+      <h2 class="card-title text-base">🚨 Fehlercode nachschlagen</h2>
+      <input id="fcSearch" class="input input-bordered input-sm w-full" placeholder="z. B. E911, Durchfluss, Legionellen …" autocomplete="off">
+      <div id="fcList" class="max-h-[28rem] overflow-y-auto"></div>
+      <div class="dx">118 Codes laut dwellsee.com (Reverse Engineering, keine offizielle Samsung-Liste) – im Zweifel Samsung-Installationsanleitung bzw. Fachbetrieb. Meldet die Anlage einen Code über SmartThings, kommt eine Push-Nachricht (11_fehlercodes.sql).</div>
+    </div></div>
   </div>
 </section>
 
@@ -619,7 +635,8 @@
   // Entschlüsselte Gerätedaten (Tabelle hp_cycle, 5-Minuten-Raster)
   async function cycleRows(fromISO, toISO) {
     try {
-      const rows = await restAll(`hp_cycle?select=ts,out_air,comp_hz,fan_rpm,flow,ret,dhw&ts=gte.${fromISO}&ts=lt.${toISO}&order=ts.asc`);
+      const q = (cols) => restAll(`hp_cycle?select=${cols}&ts=gte.${fromISO}&ts=lt.${toISO}&order=ts.asc`);
+      const rows = await q("ts,out_air,comp_hz,fan_rpm,flow,ret,dhw,flow_lpm,pump_pct,discharge,evap,suction").catch(() => q("ts,out_air,comp_hz,fan_rpm,flow,ret,dhw"));
       return rows.map(r => ({ ...r, t: new Date(r.ts).getTime() }));
     } catch (e) { return []; }   // Tabelle noch nicht angelegt
   }
@@ -1811,7 +1828,7 @@
         <td>${z.rate == null ? "–" : fast ? '<span class="pill info">🚿 Wasser gezapft</span>' : '<span class="pill ok">🌡️ Wärmeverlust</span>'}</td></tr>`; }).join("")
       : `<tr><td colspan="6" class="empty">Keine Warmwasser-Ladung an diesem Tag.</td></tr>`;
     tCache = { rows, cyc, A, B, sun, sHK, sWW, sAB, sHS, slog, zyk, thr };
-    drawHours({ rows, reps, A, B, sun, sHS, HS_KW, hsInCounter, pWith, pWithout });
+    drawHours({ rows, cyc, reps, A, B, sun, sHS, HS_KW, hsInCounter, pWith, pWithout });
 
     $("tSun").textContent = sun.rise ? `☀️ Aufgang ${hhmm(sun.rise)} · Untergang ${hhmm(sun.set)} · PV nutzbar ca. ${sun.pvA ? hhmm(sun.pvA) + "–" + hhmm(sun.pvB) : "kaum (Sonne < 10°)"} · max. ${fmt(sun.max, 0)}°` : "";
     $("tTiles").innerHTML = rows.length < 2 ? `<div class="empty">Für diesen Tag gibt es noch keine Daten.</div>` : [
@@ -1820,6 +1837,10 @@
       stateTile("🚿", "Warmwasser", `${fmt(whWW / 1000, 1)} kWh`, `${sWW.length} Ladungen`, "info"),
       stateTile("☀️", "Warmwasser mit Sonne", whWW > 50 ? `${fmt(whWWpv / whWW * 100, 0)} %` : "–", "Anteil in der PV-Zeit", whWW > 50 ? (whWWpv / whWW >= 0.5 ? "ok" : "warn") : "info"),
       stateTile("🔌", "Heizstab", minHS ? `≈ ${fmt(whHS / 1000, 1)} kWh` : "Aus", minHS ? `${fmt(minHS, 0)} Min. × ${fmt(HS_KW, 1)} kW (geschätzt)` : "lief nicht", minHS ? "err" : "ok"),
+      ...(() => { const h = heatSplit(cyc, rows); if (h.n < 5) return [];
+        const cop = whAll > 100 ? h.all / (whAll / 1000) : null;
+        return [stateTile("🌡️", "Wärme erzeugt", `${fmt(h.all, 1)} kWh`, `Heizen ${fmt(h.hk, 1)} · Warmwasser ${fmt(h.ww, 1)} (grob)`, "info"),
+          stateTile("⚙️", "COP (grob)", cop != null ? fmt(cop, 1) : "–", "Wärme ÷ Strom · ≥ 4 gut, < 3 auffällig", copTone(cop))]; })(),
       stateTile("🧊", "Abtauen", `${sAB.length}×`, sAB.length ? `zusammen ${fmt(sAB.reduce((a, x) => a + x.end - x.start, 0) / 60000, 0)} Min.` : "", "info"),
     ].join("");
 
@@ -1994,7 +2015,7 @@
       let best = rows[0]; rows.forEach(rw => { if (Math.abs(rw.t - t) < Math.abs(best.t - t)) best = rw; });
       if (Math.abs(best.t - t) > 15 * 60000) { tip.classList.add("hidden"); return; }
       const c = nearest(cyc, best.t), a = sunAlt(best.t);
-      tip.innerHTML = `<b>${hhmm(best.t)}</b> · ${ST[best.st] || ""}${best.hp_booster === "on" ? " · 🔌 Heizstab" : ""}<br>Verdichter ${c ? fmt(c.comp_hz, 0) + " Hz" : "–"} · ${fmt(best.power_kw, 2)} kW<br>Speicher ${fmt(best.temperature)} °C · Vorlauf ${fmt(c?.flow ?? best.hp_flow_temp)} °C${c?.ret != null ? ` · Rücklauf ${fmt(c.ret)} °C` : ""} · außen ${fmt(c?.out_air ?? best.outdoor_temp)} °C<br>Sonne ${a < -0.833 ? "🌙 unter Horizont" : fmt(a, 0) + "°" + (a >= 10 ? " ☀️ PV" : "")}` +
+      tip.innerHTML = `<b>${hhmm(best.t)}</b> · ${ST[best.st] || ""}${best.hp_booster === "on" ? " · 🔌 Heizstab" : ""}<br>Verdichter ${c ? fmt(c.comp_hz, 0) + " Hz" : "–"}${c?.flow_lpm != null ? ` · Durchfluss ${fmt(c.flow_lpm, 1)} l/min · Pumpe ${fmt(c.pump_pct, 0)} %` : ""}${heatKW(c) ? ` · Wärme ≈ ${fmt(heatKW(c), 1)} kW` : ""}<br>Speicher ${fmt(best.temperature)} °C · Vorlauf ${fmt(c?.flow ?? best.hp_flow_temp)} °C${c?.ret != null ? ` · Rücklauf ${fmt(c.ret)} °C` : ""} · außen ${fmt(c?.out_air ?? best.outdoor_temp)} °C<br>Sonne ${a < -0.833 ? "🌙 unter Horizont" : fmt(a, 0) + "°" + (a >= 10 ? " ☀️ PV" : "")}` +
         `<br>⚙️ Soll Warmwasser ${fmt(wwSoll(best.t), 0)} °C · Soll Vorlauf ${fmt(hkSoll(best.t))} °C · Modus ${String(settingsAt(slog, best.t)["Warmwasser-Modus"] ?? "–").replace(/"/g, "").toUpperCase()}`;
       showSettings(best.t);
       tip.classList.remove("hidden");
@@ -2008,26 +2029,62 @@
   let tResize; window.addEventListener("resize", () => { clearTimeout(tResize); tResize = setTimeout(drawDay, 150); });
 
   // ---------- Strom je Stunde, aufgeteilt nach Verwendung ----------
-  function drawHours({ rows, reps, A, B, sun, sHS, HS_KW, hsInCounter, pWith, pWithout }) {
+  function drawHours({ rows, cyc, reps, A, B, sun, sHS, HS_KW, hsInCounter, pWith, pWithout }) {
     const K = [["hk", "Heizen", C.hk], ["ww", "Warmwasser", C.ww], ["hs", "Heizstab (geschätzt)", getComputedStyle(document.documentElement).getPropertyValue("--color-error").trim() || "#e34948"], ["sb", "Bereitschaft", "#888780"]];
-    const H = [];
-    for (let h = 0; h < 24; h++) {
-      const a = A + h * 3600e3, b = a + 3600e3, d = { h, hk: 0, ww: 0, hs: 0, sb: 0 };
-      if (a < Date.now()) {
-        const inH = rows.filter(r => r.t > a && r.t <= b);
-        let wh = reps && reps.length ? energyBetween(reps, a, Math.min(b, Date.now())) : inH.reduce((s2, r) => s2 + r.dWh, 0);
-        // Heizstab-Minuten in dieser Stunde
-        const hsMin = sHS.reduce((s2, x) => s2 + Math.max(0, Math.min(b, x.end) - Math.max(a, x.start)) / 60000, 0);
-        const hsWh = hsMin / 60 * HS_KW * 1000;
-        if (hsInCounter) { d.hs = Math.min(hsWh, wh); wh -= d.hs; } else d.hs = hsWh;
-        // Rest nach Leistung je Zustand aufteilen
-        const w = { hk: 0, ww: 0, sb: 0 };
-        inH.forEach(r => { const p = Math.max(r.power_kw ?? 0, 0.001); w[r.st === "ww" ? "ww" : r.st === "off" ? "sb" : "hk"] += p; });
-        const wSum = w.hk + w.ww + w.sb;
-        if (wSum > 0) { d.hk = wh * w.hk / wSum; d.ww = wh * w.ww / wSum; d.sb = wh * w.sb / wSum; } else d.sb = wh;
-      }
-      H.push(d);
+    // Aufteilung über die Zählerfenster (Zeitraum + gemessene Wh). Der gemeldete Leistungswert ist ein Fenster-
+    // Mittelwert und gilt auch in Pausen weiter – daher nicht nach kW gewichten, sondern nach Laufzeit des Verdichters.
+    const H = Array.from({ length: 24 }, (_, h) => ({ h, hk: 0, ww: 0, hs: 0, sb: 0 }));
+    const nowT = Math.min(B, Date.now());
+    const addSpan = (s0, e0, parts) => {          // Wh-Anteile eines Zeitraums anteilig auf die Stunden verteilen
+      const len = Math.max(e0 - s0, 60000);
+      for (let h = 0; h < 24; h++) { const a = A + h * 3600e3, b = a + 3600e3, ov = Math.min(b, e0) - Math.max(a, s0);
+        if (ov > 0) for (const k in parts) H[h][k] += parts[k] * Math.min(ov / len, 1); }
+    };
+    // Zählerfenster: sortieren, überlappende Doppelmeldungen verwerfen
+    const wins = [];
+    (reps || []).filter(r => r.e > A && r.s < nowT && r.wh != null && r.wh >= 0).sort((a, b) => a.s - b.s || b.e - a.e).forEach(r => {
+      const last = wins[wins.length - 1];
+      if (last && Math.min(last.e, r.e) - Math.max(last.s, r.s) > 0.5 * Math.max(r.e - r.s, 60000)) return;
+      wins.push(r);
+    });
+    // Lauf des Verdichters je Fenster aus den Gerätedaten (gleiche Uhr wie der Zähler), Ventil aus der Messung
+    const valveAt = (t) => { let b = null; for (const x of rows) { if (!b || Math.abs(x.t - t) < Math.abs(b.t - t)) b = x; } return b && Math.abs(b.t - t) <= 10 * 60000 ? b : null; };
+    wins.forEach(w => {
+      const pts = cyc.filter(c => c.t >= w.s - 60000 && c.t <= w.e + 60000);
+      w.hrs = Math.max(w.e - w.s, 60000) / 3600e3;
+      if (pts.length) { w.n = pts.length; w.run = pts.filter(c => (c.comp_hz ?? 0) > 0).map(c => ({ t: c.t, ww: (valveAt(c.t)?.hp_valve === "tank") })); }
+      else { const sm = rows.filter(x => x.t > w.s - 150000 && x.t <= w.e + 150000); w.n = sm.length; w.run = sm.filter(x => x.st !== "off").map(x => ({ t: x.t, ww: x.st === "ww" })); }
+    });
+    const idleW = wins.filter(w => w.n >= 2 && !w.run.length).map(w => w.wh / w.hrs);
+    const baseMeas = idleW.length ? median(idleW) : null, BASE_MAX = 150;
+    const baseW = baseMeas == null ? 30 : Math.min(baseMeas, BASE_MAX);
+    let winSum = 0, noData = 0;
+    if (wins.length) {
+      wins.forEach(w => {
+        winSum += w.wh;
+        if (!w.n) { const v = valveAt((w.s + w.e) / 2), sb = Math.min(w.wh, baseW * w.hrs); addSpan(w.s, w.e, { sb, [v?.hp_valve === "tank" ? "ww" : "hk"]: w.wh - sb }); noData++; return; }
+        const offFrac = 1 - w.run.length / w.n;
+        const sb = !w.run.length ? Math.min(w.wh, baseW * w.hrs) : Math.min(w.wh, baseW * w.hrs * offFrac);
+        const rest = w.wh - sb, nWW = w.run.filter(x => x.ww).length, nRun = w.run.length;
+        // Fenster ohne Lauf, aber mehr Verbrauch als Grundlast: Rest dem Zustand der Nachbarschaft zuordnen (Nachlauf/Anlauf)
+        if (!nRun) { const v = valveAt((w.s + w.e) / 2); addSpan(w.s, w.e, { sb, [v?.hp_valve === "tank" ? "ww" : "hk"]: rest }); return; }
+        addSpan(w.s, w.e, { sb, ww: rest * nWW / nRun, hk: rest * (nRun - nWW) / nRun });
+      });
+    } else {
+      rows.forEach(x => { if (x.t <= A || x.t > nowT) return; const k = x.st === "ww" ? "ww" : x.st === "off" ? "sb" : "hk"; addSpan(x.t - 5 * 60000, x.t, { [k]: x.dWh }); });
     }
+    // Abgleich mit dem Zählerstand des Tages (Summe darf nicht größer sein als gemessen)
+    const meterWh = rows.reduce((a2, r) => a2 + r.dWh, 0), allocWh = H.reduce((a2, d) => a2 + d.hk + d.ww + d.sb, 0);
+    const scale = meterWh > 100 && allocWh > meterWh * 1.03 ? meterWh / allocWh : 1;
+    if (scale !== 1) H.forEach(d => { d.hk *= scale; d.ww *= scale; d.sb *= scale; });
+    // Heizstab je Stunde (Laufzeit × Leistung); zählt der Zähler ihn mit, aus Heizen/Warmwasser herausrechnen
+    H.forEach(d => {
+      const a = A + d.h * 3600e3, b = a + 3600e3;
+      const hsWh = sHS.reduce((s2, x) => s2 + Math.max(0, Math.min(b, x.end) - Math.max(a, x.start)) / 3600e3, 0) * HS_KW * 1000;
+      if (!hsWh) return;
+      if (hsInCounter) { const pool = d.hk + d.ww, take = Math.min(hsWh, pool); if (pool > 0) { d.hk -= take * d.hk / pool; d.ww -= take * (d.ww / (pool || 1)); } d.hs = take; }
+      else d.hs = hsWh;
+    });
     const tot = (d) => d.hk + d.ww + d.hs + d.sb, all = H.reduce((s2, d) => s2 + tot(d), 0), sum = (k) => H.reduce((s2, d) => s2 + d[k], 0);
     $("hSum").textContent = `· ${fmt(all / 1000, 1)} kWh`;
     $("hSplit").innerHTML = all < 1 ? `<div class="empty">Noch keine Verbrauchsdaten für diesen Tag.</div>` : K.map(([k, n, c]) => { const v = sum(k);
@@ -2054,7 +2111,9 @@
     const zones = [["🌙 Nacht 22–6 Uhr", (h) => h >= 22 || h < 6], ["🌅 Morgen 6–10 Uhr", (h) => h >= 6 && h < 10], ["☀️ Mittag 10–16 Uhr", (h) => h >= 10 && h < 16], ["🌆 Abend 16–22 Uhr", (h) => h >= 16 && h < 22]];
     $("hZones").innerHTML = zones.map(([n, f]) => { const v = H.filter(d => f(d.h)).reduce((s2, d) => s2 + tot(d), 0);
       return `<tr><td>${n}</td><td class="text-right tabular-nums">${fmt(v / 1000, 2)} kWh</td><td class="text-right">${all ? fmt(v / all * 100, 0) : "–"} %</td></tr>`; }).join("");
-    $("hNote").innerHTML = `Summe je Stunde gemessen (Stromzähler der Wärmepumpe), Aufteilung nach Betriebsart abgeleitet. Heizstab = Laufzeit × ${fmt(HS_KW, 1)} kW (Stammdaten „Heizstab-Leistung“, sonst 3 kW). ` +
+    $("hNote").innerHTML = `Summe je Stunde gemessen (Stromzähler der Wärmepumpe), Aufteilung nach Laufzeit des Verdichters und Ventilstellung. ` +
+      `<b>Bereitschaft</b> = Verbrauch, während der Verdichter steht (Elektronik, Umwälzpumpe, ggf. Kurbelwannenheizung): ${baseMeas != null ? `gemessen Ø <b>${fmt(baseMeas, 0)} W</b> in ${idleW.length} Zählerfenstern ganz ohne Verdichterlauf${baseMeas > BASE_MAX ? ` – unplausibel hoch, gerechnet mit max. ${BASE_MAX} W, Rest dem Heizen/Warmwasser zugeordnet (Nachlauf von Pumpe/Abtauen)` : ""}` : "angenommen 30 W (noch kein Zählerfenster ganz ohne Verdichterlauf)"}. ` +
+      `Zählerstand heute ${fmt(meterWh / 1000, 2)} kWh, Zählerfenster ${fmt(winSum / 1000, 2)} kWh (${wins.length} Fenster${noData ? `, davon ${noData} ohne Gerätedaten` : ""})${scale !== 1 ? ` – auf den Zählerstand abgeglichen (×${fmt(scale, 2)})` : ""}. <span class="opacity-60">[Rechnung v3]</span> ` + `Heizstab = Laufzeit × ${fmt(HS_KW, 1)} kW (Stammdaten „Heizstab-Leistung“, sonst 3 kW). ` +
       (sHS.length ? (hsInCounter ? `Der Zähler <b>enthält</b> den Heizstab (Leistung mit Heizstab Ø ${fmt(pWith, 2)} kW statt ${fmt(pWithout, 2)} kW) – er ist aus der Summe herausgerechnet.`
         : `Der Zähler zeigt beim Heizstab <b>keinen</b> Mehrverbrauch (Ø ${fmt(pWith, 2)} kW mit, ${fmt(pWithout, 2)} kW ohne) – entweder hat er nicht wirklich geheizt, oder er hängt an einem eigenen Stromkreis. Er ist hier geschätzt <b>zusätzlich</b> eingerechnet.`) : "Heizstab lief an diesem Tag nicht.");
   }
@@ -2084,10 +2143,14 @@
     // feste Alarme (09_alarme_extra.sql) + ECO-Regel
     const flags = await rest("wagael_alarm_flags?select=key,label,enabled,state&order=key").catch(() => null);
     const eco = alRules["Warmwasser-Modus"];
+    const fe = (flags || []).find(f => f.key === "fehler"), codes = fe?.state?.codes || [];
+    $("faultBadge").classList.toggle("hidden", !codes.length);
+    if (codes.length) { $("faultBadge").textContent = `🚨 ${codes.join(", ")}`; $("faultBadge").dataset.code = codes[0];
+      const info = FAULTS.find(x => x.c === codes[0]); $("faultBadge").title = info ? `${info.c}: ${info.m} – ${info.a}` : "Fehlercode der Anlage"; }
     const fl = [
       { key: "eco", icon: "🌿", label: "ECO nicht aktiv", sub: "Warmwasser-Modus weicht von ECO ab – und Entwarnung", on: !!eco && eco.enabled && valDE(eco.expected) === "ECO" },
-      ...(flags || []).map(f => ({ key: f.key, icon: { heizstab: "🔌", erfassung: "⏸", token: "🔑" }[f.key] || "🔔", label: f.label, on: f.enabled,
-        sub: { heizstab: "Ein- und Ausschalten mit Laufzeit und ≈ kWh", erfassung: "20 Min. keine neue Abfrage – und wenn es wieder läuft", token: "2 Std. vor Ablauf und bei Ablauf" }[f.key] || "" })),
+      ...(flags || []).map(f => ({ key: f.key, icon: { heizstab: "🔌", erfassung: "⏸", token: "🔑", fehler: "🚨" }[f.key] || "🔔", label: f.label, on: f.enabled,
+        sub: { heizstab: "Ein- und Ausschalten mit Laufzeit und ≈ kWh", erfassung: "20 Min. keine neue Abfrage – und wenn es wieder läuft", token: "2 Std. vor Ablauf und bei Ablauf", fehler: "sofort bei jedem Fehlercode – falls SmartThings ihn liefert" }[f.key] || "" })),
     ];
     $("alFlags").innerHTML = fl.map(f => `<label class="flex items-start gap-3 rounded-box bg-base-100 border border-base-300 p-3 cursor-pointer">
         <input type="checkbox" class="checkbox checkbox-primary mt-0.5" data-flag="${f.key}" ${f.on ? "checked" : ""}>
@@ -2105,7 +2168,7 @@
     const n = notify?.[0];
     $("alInfo").innerHTML = n && n.topic !== "DEIN_NTFY_KANAL"
       ? `Nachrichten gehen an den ntfy-Kanal <code class="font-mono">${n.topic}</code>${n.enabled ? "" : ' <span class="pill warn">ausgeschaltet</span>'} – in der ntfy-App abonnieren.`
-      : `<span class="warn">Noch kein ntfy-Kanal eingetragen</span> – in 08_alarme.sql Zeile 22 eintragen und ausführen.`;
+      : `<span class="warn">Noch kein ntfy-Kanal eingetragen</span> – im SQL Editor ausführen: update public.wagael_notify set topic = 'DEIN-KANAL' where id = 1;`;
     const cur = settingsFromRaw(hp?.raw);
     const fsv = Object.fromEntries((hp?.raw?.components?.main?.["samsungce.ehsFsvSettings"]?.fsvSettings?.value || []).map(f => ["FSV " + f.id, f]));
     const keys = [...new Set([...Object.keys(cur), ...Object.keys(alRules)])].sort((a, b) => (a.startsWith("FSV") - b.startsWith("FSV")) || a.localeCompare(b, "de", { numeric: true }));
@@ -2140,9 +2203,52 @@
     catch (e) { msg.className = "text-sm err"; msg.textContent = "✗ " + e.message; }
   });
 
+  const FAULTS = [{"c": "E101", "g": "Kommunikation", "m": "Innengerät empfängt keine Daten vom Außengerät", "a": "Kabel beschädigt oder Platine defekt – Verbindungskabel prüfen", "p": 0}, {"c": "E102", "g": "Kommunikation", "m": "Außengerät kann nicht kommunizieren", "a": "Kabel- oder Platinenfehler – Verkabelung zwischen den Geräten prüfen", "p": 0}, {"c": "E108", "g": "Kommunikation", "m": "Wiederholter Adresskonflikt", "a": "Doppelte Adressen der Innengeräte – neu einstellen", "p": 0}, {"c": "E185", "g": "Kommunikation", "m": "Kommunikations- und Stromkabel vertauscht", "a": "Installationsfehler – Verkabelung korrigieren", "p": 0}, {"c": "E186", "g": "Kommunikation", "m": "SPi-Verbindungsfehler", "a": "SPi-Modul – Anschlüsse prüfen", "p": 0}, {"c": "E201", "g": "Kommunikation", "m": "Adress- oder Kommunikationsfehler Innengerät", "a": "DIP-Schalter falsch – Adressen und Verkabelung prüfen", "p": 0}, {"c": "E202", "g": "Kommunikation", "m": "Kommunikationsfehler Innen-/Außengerät", "a": "Kabelfehler oder Störung – Kabel prüfen", "p": 0}, {"c": "E203", "g": "Kommunikation", "m": "Kommunikationsfehler Haupt-/Nebenplatine außen", "a": "Platinenfehler – Anschlüsse prüfen", "p": 0}, {"c": "E205", "g": "Kommunikation", "m": "Kommunikationsfehler aller Außenplatinen", "a": "Mehrere Platinen betroffen – Fachbetrieb", "p": 1}, {"c": "E210", "g": "Kommunikation", "m": "Kommunikationsfehler Außengerät/MCU", "a": "Verkabelung oder MCU – MCU-Verkabelung prüfen", "p": 0}, {"c": "E601", "g": "Kommunikation", "m": "Kommunikationsfehler Bedienteil/Innengerät", "a": "Thermostat-Kabel lose – Kabel prüfen, 5 Min. stromlos schalten", "p": 0}, {"c": "E602", "g": "Kommunikation", "m": "Kommunikationsfehler Haupt-/Nebenbedienteil", "a": "Verbindungskabel prüfen", "p": 0}, {"c": "E603", "g": "Kommunikation", "m": "Kommunikationsfehler Wochenprogramm", "a": "Verbindung des Zeitprogramms prüfen", "p": 0}, {"c": "E604", "g": "Kommunikation", "m": "Zuordnungsfehler Bedienteil/Hydraulik", "a": "Konfiguration oder Verkabelung – Zuordnung neu einrichten", "p": 0}, {"c": "E121", "g": "Sensoren innen", "m": "Raumtemperaturfühler offen/Kurzschluss", "a": "Fühler tauschen", "p": 0}, {"c": "E122", "g": "Sensoren innen", "m": "Verdampfer-Eintrittsfühler offen/Kurzschluss", "a": "Fühler tauschen", "p": 0}, {"c": "E123", "g": "Sensoren innen", "m": "Verdampfer-Austrittsfühler offen/Kurzschluss", "a": "Fühler tauschen", "p": 0}, {"c": "E128", "g": "Sensoren innen", "m": "Verdampfer-Eintrittsfühler gelöst", "a": "Fühler wieder anbringen", "p": 0}, {"c": "E129", "g": "Sensoren innen", "m": "Verdampfer-Austrittsfühler gelöst", "a": "Fühler wieder anbringen", "p": 0}, {"c": "E130", "g": "Sensoren innen", "m": "Beide Verdampferfühler gelöst", "a": "Beide Fühler wieder anbringen", "p": 0}, {"c": "E131", "g": "Sensoren innen", "m": "Fühler Zusatzheizung 1 defekt", "a": "Fühler tauschen", "p": 0}, {"c": "E132", "g": "Sensoren innen", "m": "Fühler Zusatzheizung 2 defekt", "a": "Fühler tauschen", "p": 0}, {"c": "E133", "g": "Sensoren innen", "m": "Fühler Zusatzheizung 3 defekt", "a": "Fühler tauschen", "p": 0}, {"c": "E134", "g": "Sensoren innen", "m": "Klappenfühler defekt", "a": "Fühler tauschen", "p": 0}, {"c": "E135", "g": "Sensoren innen", "m": "Lüfterfühler/Drehzahlrückmeldung defekt", "a": "Lüfterfühler prüfen", "p": 0}, {"c": "E140", "g": "Sensoren innen", "m": "Temperaturfühler der Steuerung offen/Kurzschluss", "a": "Fühler tauschen", "p": 0}, {"c": "E151", "g": "Betrieb innen", "m": "Expansionsventil öffnet nicht", "a": "Ventil klemmt oder elektrischer Fehler – Verkabelung prüfen, Ventil tauschen", "p": 0}, {"c": "E152", "g": "Betrieb innen", "m": "Expansionsventil schließt nicht", "a": "Ventil klemmt – prüfen, tauschen", "p": 0}, {"c": "E153", "g": "Betrieb innen", "m": "Schwimmerschalter ausgelöst", "a": "Kondensat läuft über – Ablauf prüfen, Schwimmer reinigen", "p": 0}, {"c": "E154", "g": "Betrieb innen", "m": "Innenlüfter dreht nicht", "a": "Motor defekt oder blockiert – prüfen, Motor tauschen", "p": 0}, {"c": "E161", "g": "Betrieb innen", "m": "Gemischter Heiz-/Kühlbetrieb", "a": "Steuerungsfehler – zurücksetzen, Konfiguration prüfen", "p": 0}, {"c": "E162", "g": "Betrieb innen", "m": "EEPROM-Fehler", "a": "Speicher defekt – Innenplatine tauschen", "p": 0}, {"c": "E163", "g": "Betrieb innen", "m": "Optionscode falsch eingestellt", "a": "DIP-Schalter korrigieren", "p": 0}, {"c": "E165", "g": "Betrieb innen", "m": "Überhitzungsschutz Elektroheizung", "a": "Überhitzung – Heizung und Luftstrom prüfen", "p": 0}, {"c": "E166", "g": "Betrieb innen", "m": "Lüfter läuft nicht bei Heizstabbetrieb", "a": "Lüfter prüfen", "p": 0}, {"c": "E198", "g": "Betrieb innen", "m": "Thermosicherung innen ausgelöst", "a": "Überhitzungsschutz – Ursache suchen, Sicherung tauschen", "p": 0}, {"c": "E221", "g": "Sensoren außen", "m": "Außentemperaturfühler offen/Kurzschluss", "a": "Fühler tauschen", "p": 0}, {"c": "E226", "g": "Sensoren außen", "m": "Außentemperaturfühler getrennt", "a": "Fühler anschließen oder tauschen", "p": 0}, {"c": "E231", "g": "Sensoren außen", "m": "Fühler Verflüssigeraustritt (Haupt) offen/Kurzschluss", "a": "Fühler tauschen", "p": 0}, {"c": "E236", "g": "Sensoren außen", "m": "Fühler Verflüssigeraustritt 1 offen/Kurzschluss", "a": "Fühler tauschen", "p": 0}, {"c": "E251", "g": "Sensoren außen", "m": "Heißgasfühler Verdichter offen/Kurzschluss", "a": "Fühler tauschen", "p": 0}, {"c": "E271", "g": "Sensoren außen", "m": "Sumpftemperaturfühler offen/Kurzschluss", "a": "Fühler tauschen", "p": 0}, {"c": "E291", "g": "Sensoren außen", "m": "Hochdruckfühler defekt / mögliches Leck", "a": "Fühler und Dichtheit prüfen", "p": 0}, {"c": "E296", "g": "Sensoren außen", "m": "Niederdruckfühler defekt / mögliches Leck", "a": "Fühler und Dichtheit prüfen", "p": 0}, {"c": "E301", "g": "Sensoren außen", "m": "Hochdruckfühler getrennt", "a": "Fühler anschließen", "p": 0}, {"c": "E306", "g": "Sensoren außen", "m": "Niederdruckfühler getrennt", "a": "Fühler anschließen", "p": 0}, {"c": "E308", "g": "Sensoren außen", "m": "Sauggasfühler offen/Kurzschluss", "a": "Fühler tauschen", "p": 0}, {"c": "E311", "g": "Sensoren außen", "m": "Flüssigkeitsleitungsfühler offen/Kurzschluss", "a": "Fühler tauschen", "p": 0}, {"c": "E474", "g": "Sensoren außen", "m": "Kühlkörperfühler Inverter defekt", "a": "Fühler tauschen", "p": 0}, {"c": "E461", "g": "Verdichter/Inverter", "m": "Anlauffehler Inverter-Verdichter", "a": "Mechanischer oder elektrischer Fehler – Fachbetrieb", "p": 1}, {"c": "E462", "g": "Verdichter/Inverter", "m": "Gesamtstromfehler, Verdichter gestoppt", "a": "Überstrom – Stromversorgung prüfen", "p": 0}, {"c": "E464", "g": "Verdichter/Inverter", "m": "Überstrom Leistungsmodul (IPM)", "a": "Kurzschluss oder Verdichterschaden – Fachbetrieb", "p": 1}, {"c": "E465", "g": "Verdichter/Inverter", "m": "Spannungs-/Stromgrenze Verdichter überschritten", "a": "Stromversorgung prüfen", "p": 0}, {"c": "E466", "g": "Verdichter/Inverter", "m": "Zwischenkreisspannung außerhalb des Bereichs", "a": "Netzschwankung – Netzanschluss prüfen", "p": 0}, {"c": "E467", "g": "Verdichter/Inverter", "m": "Verdichterkabel fehlt oder gelöst", "a": "Verdichterkabel prüfen", "p": 0}, {"c": "E468", "g": "Verdichter/Inverter", "m": "Stromsensor Inverter-Ausgang defekt", "a": "Platine tauschen", "p": 0}, {"c": "E469", "g": "Verdichter/Inverter", "m": "Gleichspannungssensor Inverter defekt", "a": "Platine tauschen", "p": 0}, {"c": "E470", "g": "Verdichter/Inverter", "m": "Daten der Außenplatine fehlen", "a": "Außenplatine tauschen", "p": 0}, {"c": "E483", "g": "Verdichter/Inverter", "m": "Überspannungsschutz", "a": "Spannungsspitze – Stromversorgung prüfen", "p": 0}, {"c": "E500", "g": "Verdichter/Inverter", "m": "Kühlkörper überhitzt", "a": "Luftstrom behindert – Kühlkörper reinigen, Belüftung prüfen", "p": 0}, {"c": "E504", "g": "Verdichter/Inverter", "m": "Selbstdiagnose Verdichter fehlerhaft", "a": "Verdichterfehler – Fachbetrieb", "p": 1}, {"c": "E446", "g": "Lüfter außen", "m": "Lüfter 1 Funktionsfehler", "a": "Motor defekt – Lüftermotor tauschen", "p": 0}, {"c": "E447", "g": "Lüfter außen", "m": "Lüfter 1 Kabel nicht angeschlossen", "a": "Lüfterkabel anschließen", "p": 0}, {"c": "E448", "g": "Lüfter außen", "m": "Lüfter 1 blockiert", "a": "Hindernis oder Motor fest – frei machen oder Motor tauschen", "p": 0}, {"c": "E452", "g": "Lüfter außen", "m": "Kurzer Stromausfall", "a": "Stabilität der Stromversorgung prüfen", "p": 0}, {"c": "E453", "g": "Lüfter außen", "m": "Lüfter 1 überhitzt", "a": "Hohe Last oder Lagerschaden – abkühlen lassen, Motor tauschen", "p": 0}, {"c": "E458", "g": "Lüfter außen", "m": "Allgemeiner Fehler Außenlüfter", "a": "Motor defekt – Lüftermotor tauschen", "p": 0}, {"c": "E915", "g": "Lüfter außen", "m": "Gleichstromlüfter läuft nicht", "a": "Lüfter tauschen", "p": 0}, {"c": "E401", "g": "Kältekreis/Druck", "m": "Einfrierschutz 1", "a": "Zu wenig Kältemittel, schlechter Luftstrom oder verschmutzter Wärmetauscher – Füllmenge prüfen, Wärmetauscher reinigen", "p": 0}, {"c": "E402", "g": "Kältekreis/Druck", "m": "Einfrierschutz 2", "a": "Zu wenig Kältemittel, schlechter Luftstrom oder verschmutzter Wärmetauscher – Füllmenge prüfen, Wärmetauscher reinigen", "p": 0}, {"c": "E403", "g": "Kältekreis/Druck", "m": "Einfrierschutz 3", "a": "Zu wenig Kältemittel, schlechter Luftstrom oder verschmutzter Wärmetauscher – Füllmenge prüfen, Wärmetauscher reinigen", "p": 0}, {"c": "E407", "g": "Kältekreis/Druck", "m": "Hochdruckschutz 1", "a": "Verflüssiger blockiert, Überfüllung oder Lüfterausfall – Luftstrom und Füllmenge prüfen", "p": 0}, {"c": "E408", "g": "Kältekreis/Druck", "m": "Hochdruckschutz 2", "a": "Verflüssiger blockiert, Überfüllung oder Lüfterausfall – Luftstrom und Füllmenge prüfen", "p": 0}, {"c": "E409", "g": "Kältekreis/Druck", "m": "Hochdruckschutz 3", "a": "Verflüssiger blockiert, Überfüllung oder Lüfterausfall – Luftstrom und Füllmenge prüfen", "p": 0}, {"c": "E410", "g": "Kältekreis/Druck", "m": "Niederdruckschutz 1", "a": "Leck oder Filtertrockner verstopft – Dichtheit und Trockner prüfen", "p": 0}, {"c": "E411", "g": "Kältekreis/Druck", "m": "Niederdruckschutz 2", "a": "Leck oder Filtertrockner verstopft – Dichtheit und Trockner prüfen", "p": 0}, {"c": "E412", "g": "Kältekreis/Druck", "m": "Niederdruckschutz 3", "a": "Leck oder Filtertrockner verstopft – Dichtheit und Trockner prüfen", "p": 0}, {"c": "E413", "g": "Kältekreis/Druck", "m": "Sumpfschutz 1", "a": "Flüssiges Kältemittel im Verdichtersumpf – Expansionsventil und Überhitzung prüfen", "p": 0}, {"c": "E414", "g": "Kältekreis/Druck", "m": "Sumpfschutz 2", "a": "Flüssiges Kältemittel im Verdichtersumpf – Expansionsventil und Überhitzung prüfen", "p": 0}, {"c": "E415", "g": "Kältekreis/Druck", "m": "Sumpfschutz 3", "a": "Flüssiges Kältemittel im Verdichtersumpf – Expansionsventil und Überhitzung prüfen", "p": 0}, {"c": "E416", "g": "Kältekreis/Druck", "m": "Heißgastemperatur-Schutz 1", "a": "Zu wenig Kältemittel oder hohes Druckverhältnis – Füllmenge prüfen", "p": 0}, {"c": "E417", "g": "Kältekreis/Druck", "m": "Heißgastemperatur-Schutz 2", "a": "Zu wenig Kältemittel oder hohes Druckverhältnis – Füllmenge prüfen", "p": 0}, {"c": "E418", "g": "Kältekreis/Druck", "m": "Heißgastemperatur-Schutz 3", "a": "Zu wenig Kältemittel oder hohes Druckverhältnis – Füllmenge prüfen", "p": 0}, {"c": "E419", "g": "Kältekreis/Druck", "m": "Selbstdiagnose Expansionsventil 1", "a": "Expansionsventil prüfen oder tauschen", "p": 0}, {"c": "E420", "g": "Kältekreis/Druck", "m": "Selbstdiagnose Expansionsventil 2", "a": "Expansionsventil prüfen oder tauschen", "p": 0}, {"c": "E421", "g": "Kältekreis/Druck", "m": "Selbstdiagnose Expansionsventil 3", "a": "Expansionsventil prüfen oder tauschen", "p": 0}, {"c": "E422", "g": "Kältekreis/Druck", "m": "Selbstdiagnose Expansionsventil 4", "a": "Expansionsventil prüfen oder tauschen", "p": 0}, {"c": "E423", "g": "Kältekreis/Druck", "m": "Selbstdiagnose Expansionsventil 5", "a": "Expansionsventil prüfen oder tauschen", "p": 0}, {"c": "E424", "g": "Kältekreis/Druck", "m": "Selbstdiagnose Expansionsventil 6", "a": "Expansionsventil prüfen oder tauschen", "p": 0}, {"c": "E425", "g": "Kältekreis/Druck", "m": "Phasenfolge falsch 1", "a": "Anschlussfehler – zwei Phasen tauschen (Elektriker)", "p": 0}, {"c": "E426", "g": "Kältekreis/Druck", "m": "Phasenfolge falsch 2", "a": "Anschlussfehler – zwei Phasen tauschen (Elektriker)", "p": 0}, {"c": "E427", "g": "Kältekreis/Druck", "m": "Phasenfolge falsch 3", "a": "Anschlussfehler – zwei Phasen tauschen (Elektriker)", "p": 0}, {"c": "E428", "g": "Kältekreis/Druck", "m": "Druckverhältnis-Fehler 1", "a": "Ungewöhnlicher Druckunterschied – Kreislauf und Ventile prüfen", "p": 0}, {"c": "E429", "g": "Kältekreis/Druck", "m": "Druckverhältnis-Fehler 2", "a": "Ungewöhnlicher Druckunterschied – Kreislauf und Ventile prüfen", "p": 0}, {"c": "E430", "g": "Kältekreis/Druck", "m": "Druckverhältnis-Fehler 3", "a": "Ungewöhnlicher Druckunterschied – Kreislauf und Ventile prüfen", "p": 0}, {"c": "E439", "g": "Kältekreis/Druck", "m": "Kältemittelleck erkannt", "a": "Dichtheitsprüfung, Reparatur, neu befüllen", "p": 1}, {"c": "E442", "g": "Kältekreis/Druck", "m": "Füllfehler im Heizbetrieb", "a": "Füllmenge korrigieren", "p": 0}, {"c": "E503", "g": "Kältekreis/Druck", "m": "Serviceventil geschlossen", "a": "Nach Wartung nicht geöffnet – Ventil öffnen", "p": 0}, {"c": "E554", "g": "Kältekreis/Druck", "m": "Kompletter Kältemittelverlust", "a": "NOTFALL – sofort Fachbetrieb", "p": 1}, {"c": "E901", "g": "Wasser/Hydraulik", "m": "Fühler Wassereintritt Kurzschluss/offen", "a": "Fühler tauschen", "p": 0}, {"c": "E902", "g": "Wasser/Hydraulik", "m": "Fühler Wasseraustritt Kurzschluss/offen", "a": "Fühler tauschen", "p": 0}, {"c": "E904", "g": "Wasser/Hydraulik", "m": "Speicherfühler Kurzschluss/offen", "a": "Fühler tauschen", "p": 0}, {"c": "E907", "g": "Wasser/Hydraulik", "m": "Rohrbruchschutz", "a": "Ungewöhnlicher Druck oder Durchfluss – Leitungen prüfen", "p": 0}, {"c": "E908", "g": "Wasser/Hydraulik", "m": "Frostschutz (behebbar)", "a": "Frostschutzmittel und Dämmung prüfen", "p": 0}, {"c": "E909", "g": "Wasser/Hydraulik", "m": "Frostschutz (nicht behebbar)", "a": "Kritischer Frostfall – Fachbetrieb", "p": 1}, {"c": "E910", "g": "Wasser/Hydraulik", "m": "Fühler Wasseraustritt gelöst", "a": "Fühler wieder in die Tauchhülse stecken", "p": 0}, {"c": "E911", "g": "Wasser/Hydraulik", "m": "Durchflussschalter: Pumpe aus oder zu wenig Durchfluss", "a": "Filter reinigen, entlüften, Ventile prüfen, Pumpendrehzahl prüfen, ggf. Überströmventil", "p": 0}, {"c": "E912", "g": "Wasser/Hydraulik", "m": "Durchfluss ohne Anforderung", "a": "Relais/Ventil klemmt, Platine oder Schwerkraftzirkulation – Ventile prüfen, Rückschlagventil", "p": 0}, {"c": "E913", "g": "Wasser/Hydraulik", "m": "6 Durchflussfehler – Sperre", "a": "Durchflussproblem beheben, dann Gerät zurücksetzen", "p": 0}, {"c": "E914", "g": "Wasser/Hydraulik", "m": "Thermostat falsch angeschlossen", "a": "Nach Installationsanleitung neu verdrahten", "p": 0}, {"c": "E917", "g": "Wasser/Hydraulik", "m": "Speicherfühler falsch konfiguriert", "a": "Fühler richtig konfigurieren", "p": 0}, {"c": "E919", "g": "Wasser/Hydraulik", "m": "Legionellen-Schaltung erreichte 60 °C nicht in 8 Std.", "a": "Heizstab, Fühlerposition und Einstellung prüfen", "p": 0}, {"c": "Ch", "g": "Hinweise (normal)", "m": "Verdichter-Startverzögerung / Kurbelwannenheizung", "a": "Normal – nichts tun", "p": 0}, {"c": "CF", "g": "Hinweise (normal)", "m": "Erinnerung Filterreinigung", "a": "Filter reinigen", "p": 0}, {"c": "CI", "g": "Hinweise (normal)", "m": "Automatische Reinigung", "a": "Normal – nichts tun", "p": 0}, {"c": "dF", "g": "Hinweise (normal)", "m": "Abtauen läuft", "a": "Normal – nichts tun", "p": 0}, {"c": "E551", "g": "Hinweise (normal)", "m": "Abtaubetrieb", "a": "Normal – nichts tun", "p": 0}, {"c": "E553", "g": "Hinweise (normal)", "m": "Ausgleichsbetrieb", "a": "Normal – nichts tun", "p": 0}];
+  // Heizleistung aus Durchfluss × Spreizung (nur bei laufendem Verdichter)
+  const heatKW = (c) => c && (c.comp_hz ?? 0) > 0 && (c.flow_lpm ?? 0) > 3 && c.flow != null && c.ret != null && c.flow > c.ret ? c.flow_lpm / 60 * 4.186 * (c.flow - c.ret) : 0;
+  function heatSplit(cyc, rows) {   // kWh Wärme gesamt / Heizen / Warmwasser
+    const out = { all: 0, hk: 0, ww: 0, n: 0 };
+    cyc.forEach((c, i) => {
+      const nx = cyc[i + 1], dtH = Math.min(nx ? nx.t - c.t : 5 * 60000, 10 * 60000) / 3600e3, kWh = heatKW(c) * dtH;
+      if (c.flow_lpm != null) out.n++;
+      if (!kWh) return;
+      let b = null; for (const r of rows) { if (!b || Math.abs(r.t - c.t) < Math.abs(b.t - c.t)) b = r; }
+      out.all += kWh; out[b && b.hp_valve === "tank" ? "ww" : "hk"] += kWh;
+    });
+    return out;
+  }
+  const copTone = (v) => v == null ? "info" : v >= 4 ? "ok" : v >= 3 ? "warn" : "err";
+  async function loadCop() {
+    const to = new Date(), from = new Date(to.getTime() - 7 * 864e5); from.setHours(0, 0, 0, 0);
+    const [rowsRaw, cyc] = await Promise.all([hpRows(from.toISOString(), to.toISOString()), cycleRows(from.toISOString(), to.toISOString())]);
+    if (!cyc.some(c => c.flow_lpm != null)) { $("copRows").innerHTML = `<tr><td colspan="6" class="empty">Noch keine Durchflussdaten – 10_cycle_erweitert.sql ausführen.</td></tr>`; return; }
+    const rows = withDeltas(rowsRaw), days = [];
+    for (let d = new Date(from); d < to; d = new Date(d.getTime() + 864e5)) {
+      const a = d.getTime(), b = a + 864e5, rr = rows.filter(r => r.t >= a && r.t < b), cc = cyc.filter(c => c.t >= a && c.t < b);
+      const el = rr.reduce((s2, r) => s2 + r.dWh, 0) / 1000, h = heatSplit(cc, rr), outs = rr.map(r => r.outdoor_temp).filter(v => v != null);
+      if (el > 0.5 && h.n > 20) days.push({ a, el, heat: h.all, out: outs.length ? outs.reduce((x, y) => x + y, 0) / outs.length : null, part: rr.length < 250 });
+    }
+    $("copRows").innerHTML = days.length ? days.reverse().map(x => { const cop = x.el ? x.heat / x.el : null;
+      return `<tr><td>${new Date(x.a).toLocaleDateString("de-DE", { weekday: "short", day: "2-digit", month: "2-digit" })}${x.part ? ' <span class="opacity-60">(Teil)</span>' : ""}</td><td class="text-right">${fmt(x.out)} °C</td>
+        <td class="text-right tabular-nums">${fmt(x.el, 1)} kWh</td><td class="text-right tabular-nums">${fmt(x.heat, 1)} kWh</td><td class="text-right font-semibold tabular-nums">${fmt(cop, 1)}</td>
+        <td><span class="pill ${copTone(cop)}">${cop == null ? "–" : cop >= 4 ? "gut" : cop >= 3 ? "ok" : "auffällig"}</span></td></tr>`; }).join("")
+      : `<tr><td colspan="6" class="empty">Noch zu wenig Daten.</td></tr>`;
+  }
+  function renderFaults() {
+    const q = ($("fcSearch").value || "").trim().toLowerCase();
+    const hit = FAULTS.filter(f => !q || (f.c + " " + f.m + " " + f.a + " " + f.g).toLowerCase().includes(q));
+    const groups = [...new Set(hit.map(f => f.g))];
+    $("fcList").innerHTML = hit.length ? groups.map(g => `<div class="text-xs font-semibold opacity-70 mt-3 mb-1">${g}</div>` + hit.filter(f => f.g === g).map(f =>
+      `<div class="flex gap-3 py-1.5 border-b border-base-300 text-sm"><span class="font-mono font-semibold w-12 shrink-0">${f.c}</span><span><b>${f.m}</b>${f.p ? ' <span class="pill err">Fachbetrieb</span>' : ""}<br><span class="opacity-75">${f.a}</span></span></div>`).join("")).join("")
+      : `<div class="empty">Kein Code gefunden.</div>`;
+  }
+  $("fcSearch").addEventListener("input", renderFaults);
+  renderFaults();
+  $("faultBadge").addEventListener("click", () => { showTab("diagnose"); $("fcSearch").value = $("faultBadge").dataset.code || ""; renderFaults(); });
+
   async function loadData() {
     applyPalette();
-    try { await Promise.all([loadTiles(), loadEnergy(), loadHistory(), loadAuto(), loadDiagnose(), loadMonth(), loadCurve(), loadBench(), loadAnlage(), loadState(), loadKlima(), loadDay(), loadAlarms()]); }
+    try { await Promise.all([loadTiles(), loadEnergy(), loadHistory(), loadAuto(), loadDiagnose(), loadMonth(), loadCurve(), loadBench(), loadAnlage(), loadState(), loadKlima(), loadDay(), loadAlarms(), loadCop()]); }
     catch (e) { setMsg("Daten konnten nicht geladen werden: " + e.message, "err"); }
   }
 
