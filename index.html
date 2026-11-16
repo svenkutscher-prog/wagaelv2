@@ -63,12 +63,14 @@
     <nav role="tablist" class="tabs tabs-box tabs-sm sm:tabs-md order-last w-full overflow-x-auto flex-nowrap lg:order-none lg:w-auto lg:mx-auto" id="tabs">
       <a role="tab" class="tab whitespace-nowrap" data-tab="overview">Übersicht</a>
       <a role="tab" class="tab whitespace-nowrap" data-tab="history">Verlauf</a>
+      <a role="tab" class="tab whitespace-nowrap" data-tab="day">Tagesablauf</a>
       <a role="tab" class="tab whitespace-nowrap" data-tab="klima">Klima</a>
       <a role="tab" class="tab whitespace-nowrap" data-tab="diagnose">Diagnose</a>
       <a role="tab" class="tab whitespace-nowrap" data-tab="config">Konfigurator</a>
       <a role="tab" class="tab whitespace-nowrap" data-tab="plant">Anlage</a>
     </nav>
     <div class="flex items-center gap-2">
+      <span id="lastPoll" class="hidden text-xs sm:text-sm opacity-70 whitespace-nowrap tabular-nums"></span>
       <span id="autoBadge" class="badge badge-ghost badge-sm sm:badge-md">Automatik …</span>
       <select id="theme" class="select select-sm w-32" title="Design"></select>
       <div id="userBox" class="hidden dropdown dropdown-end">
@@ -253,6 +255,49 @@
   </div>
 </section>
 
+<!-- ===================== TAGESABLAUF ===================== -->
+<section data-panel="day" class="space-y-4 lg:space-y-6 hidden">
+  <div class="flex flex-wrap items-center gap-2" id="tRanges">
+    <span class="font-semibold mr-2">Was hat die Wärmepumpe wann gemacht?</span>
+    <button data-r="yesterday" class="btn btn-sm">Gestern</button>
+    <button data-r="today" class="btn btn-sm on">Heute</button>
+    <input type="date" id="tDay" class="input input-bordered input-sm w-auto" title="Tag wählen">
+    <span id="tSun" class="text-sm opacity-70"></span>
+  </div>
+  <div id="tTiles" class="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-6 gap-3"></div>
+  <div class="card bg-base-200"><div class="card-body p-4 gap-2">
+    <div class="flex flex-col gap-1.5" id="tLegend"></div>
+    <div id="tWrap" class="relative w-full"><svg id="tSvg" class="w-full block" role="img" aria-label="Tageszeitleiste der Wärmepumpe"></svg>
+      <div id="tTip" class="hidden absolute pointer-events-none rounded-box bg-base-100 border border-base-300 px-2 py-1 text-xs shadow"></div></div>
+    <div class="flex flex-wrap items-baseline gap-x-2 text-sm mt-1"><span class="font-semibold">⚙️ Einstellungen laut Anlage</span><span id="tSetWhen" class="opacity-70"></span></div>
+    <div id="tSet" class="flex flex-wrap gap-1.5 text-xs"></div>
+    <div class="text-xs opacity-70">Dunkel = Nacht · gelb = Sonne, kräftig ab 10° Sonnenhöhe (ab da liefert die PV nennenswert Strom – berechnet für Linnich, bis die FoxESS-Daten da sind) · Maus/Finger auf die Grafik = Werte zur Uhrzeit</div>
+  </div></div>
+  <div class="card bg-base-200"><div class="card-body p-4 gap-3">
+    <div class="ctitle">Wohin ging der Strom – und wann? <span id="hSum" class="font-semibold"></span></div>
+    <div id="hSplit" class="space-y-1"></div>
+    <div class="chart chart-lg"><canvas id="cHours"></canvas></div>
+    <div class="grid gap-4 md:grid-cols-2">
+      <div><div class="text-sm opacity-70 mb-1">Teuerste Stunden</div><table class="table table-sm"><tbody id="hTop"></tbody></table></div>
+      <div><div class="text-sm opacity-70 mb-1">Nach Tageszeit</div><table class="table table-sm"><tbody id="hZones"></tbody></table></div>
+    </div>
+    <div id="hNote" class="text-xs opacity-70"></div>
+  </div></div>
+  <div class="card bg-base-200"><div class="card-body p-4">
+    <div class="ctitle">Ereignisse</div>
+    <div class="overflow-x-auto"><table class="table table-sm">
+      <thead><tr><th>Zeit</th><th>Was</th><th>Details</th><th class="text-right">kWh</th><th>Sonne</th></tr></thead>
+      <tbody id="tEvents"><tr><td colspan="5" class="empty">Lade …</td></tr></tbody></table></div>
+  </div></div>
+  <div class="card bg-base-200"><div class="card-body p-4">
+    <div class="ctitle">Speicher-Zyklen – wie lange hält eine Warmwasser-Ladung? <span id="zSum" class="font-semibold"></span></div>
+    <div class="overflow-x-auto"><table class="table table-sm">
+      <thead><tr><th>voll</th><th>nächste Ladung</th><th class="text-right">gehalten</th><th class="text-right">abgekühlt auf</th><th class="text-right">Abkühlung</th><th>wahrscheinlich</th></tr></thead>
+      <tbody id="zRows"><tr><td colspan="6" class="empty">Lade …</td></tr></tbody></table></div>
+    <div class="text-xs opacity-70">„voll“ = höchste Speichertemperatur nach einer Ladung · Abkühlung unter 1,5 K/h = nur Wärmeverlust des Speichers, darüber wurde Warmwasser gezapft (Erfahrungswert) · Nachlade-Schwelle = typische Starttemperatur der Ladungen</div>
+  </div></div>
+</section>
+
 <!-- ===================== KLIMA / HALLE ===================== -->
 <section data-panel="klima" class="space-y-4 lg:space-y-6 hidden">
   <div class="flex flex-wrap items-center gap-2" id="kRanges">
@@ -356,6 +401,21 @@
       <div class="dx">Beschreibungen nur für bekannte Werte – übrige in der Samsung-Installationsanleitung.</div>
     </div></div>
   </div>
+  <div class="card bg-base-200"><div class="card-body p-4 sm:p-5 gap-3">
+    <div class="flex flex-wrap items-center gap-2 justify-between">
+      <h2 class="card-title text-base">🔔 Alarme – Soll-Zustand festlegen</h2>
+      <div class="flex flex-wrap gap-2"><button id="alTest" class="btn btn-sm">Testnachricht senden</button><button id="alSave" class="btn btn-sm btn-primary">Speichern</button></div>
+    </div>
+    <div id="alInfo" class="text-sm"></div>
+    <div class="text-sm font-semibold mt-1">Allgemeine Alarme</div>
+    <div id="alFlags" class="grid gap-2 sm:grid-cols-2"></div>
+    <div class="text-sm font-semibold mt-2">Soll-Werte der Einstellungen</div>
+    <div class="overflow-x-auto"><table class="table table-sm">
+      <thead><tr><th>Alarm</th><th>Einstellung</th><th>aktuell</th><th>Soll</th><th>Zustand</th></tr></thead>
+      <tbody id="alRows"><tr><td colspan="5" class="empty">Lade …</td></tr></tbody></table></div>
+    <div id="alMsg" class="text-sm"></div>
+    <div class="dx">Weicht die Anlage vom Soll ab, kommt sofort eine Push-Nachricht (App „ntfy“) – und noch eine, wenn sie wieder stimmt. Soll leer lassen = keine Überwachung. Einrichtung: 08_alarme.sql.</div>
+  </div></div>
 </section>
 
 </main>
@@ -483,6 +543,14 @@
     }
     b.className = "badge badge-sm sm:badge-md tabular-nums " + cls;
     b.textContent = txt;
+    // letzte Abfrage der Automatik im Kopf; älter als 20 Min. = rot
+    const lp = $("lastPoll");
+    if (lp && s.last_auto) {
+      const ageMin = (Date.now() - new Date(s.last_auto).getTime()) / 6e4;
+      lp.textContent = `letzte Abfrage ${new Date(s.last_auto).toLocaleString("de-DE", { weekday: "short", hour: "2-digit", minute: "2-digit" })}`;
+      lp.className = "text-xs sm:text-sm whitespace-nowrap tabular-nums " + (ageMin > 20 ? "err font-semibold" : "opacity-70");
+      lp.title = ageMin > 20 ? `seit ${Math.round(ageMin)} Min. keine neue Abfrage – Automatik prüfen` : "";
+    }
     b.title = s.expires_at ? `Läuft ab ca. ${new Date(s.expires_at).toLocaleString("de-DE", { weekday: "short", hour: "2-digit", minute: "2-digit" })}` : "";
   }
   setInterval(tokenBadge, 30000);
@@ -523,14 +591,14 @@
   function applyPalette() {
     const cs = getComputedStyle(document.documentElement);
     const dark = (cs.colorScheme || "").includes("dark");
-    Object.assign(C, PAL[dark ? "dark" : "light"]);
+    Object.assign(C, PAL[dark ? "dark" : "light"]); C.dark = dark;
     C.tick = cs.getPropertyValue("--color-base-content").trim() || "#888";
     C.grid = cs.getPropertyValue("--color-base-300").trim() || "#444";
     C.curve = C.tick;
     if (window.Chart) { Chart.defaults.color = C.tick; Chart.defaults.font.family = getComputedStyle(document.body).fontFamily; }
   }
   const ON_KW = 0.15;            // ab dieser Leistung gilt der Verdichter als "läuft"
-  const HP_COLS = "captured_at,temperature,hp_flow_temp,hp_valve,hp_booster,hp_defrost,power_kw,energy_wh,outdoor_temp";
+  const HP_COLS = "captured_at,temperature,setpoint,hp_flow_temp,hp_valve,hp_booster,hp_defrost,power_kw,energy_wh,outdoor_temp";
   let charts = {};
 
   // PostgREST liefert max. 1000 Zeilen pro Abruf → seitenweise holen
@@ -1022,6 +1090,20 @@
 
   // ---------- Heizkurve – einfach erklärt ----------
   const FSV_INFO = {
+    "1031": "Heizen: max. Vorlauftemperatur",
+    "1032": "Heizen: min. Vorlauftemperatur",
+    "1051": "Warmwasser: höchster einstellbarer Sollwert",
+    "1052": "Warmwasser: niedrigster einstellbarer Sollwert",
+    "2091": "Externer Raumthermostat Kreis 1",
+    "2092": "Externer Raumthermostat Kreis 2",
+    "2093": "Raumregelung über Bedienteil",
+    "3011": "Warmwasser-Betrieb",
+    "3071": "Richtung 3-Wege-Ventil",
+    "4011": "Vorrang Warmwasser / Heizen",
+    "4012": "Außentemperatur für Heiz-Vorrang",
+    "4021": "Zusatzheizung (Backup-Heizstab) im Heizkreis",
+    "4042": "Mischer: Ziel-Spreizung",
+    "4061": "Zonenregelung",
     "2011": "Heizkurve: Außentemperatur „kalt“",
     "2012": "Heizkurve: Außentemperatur „mild“",
     "2021": "Heizkurve Kreis 1: Wasser bei „kalt“",
@@ -1626,9 +1708,441 @@
     });
   }
 
+  // ---------- Tagesablauf (Zeitleiste) ----------
+  const LAT = 50.98, LON = 6.27;   // Linnich
+  // Sonnenhöhe in Grad (Formeln nach suncalc/NOAA, genau genug für Auf-/Untergang ±2 Min.)
+  function sunAlt(ms) {
+    const rad = Math.PI / 180, d = ms / 864e5 - 0.5 + 2440588 - 2451545, e = rad * 23.4397;
+    const M = rad * (357.5291 + 0.98560028 * d);
+    const L = M + rad * (1.9148 * Math.sin(M) + 0.02 * Math.sin(2 * M) + 0.0003 * Math.sin(3 * M)) + rad * 102.9372 + Math.PI;
+    const dec = Math.asin(Math.sin(L) * Math.sin(e)), ra = Math.atan2(Math.sin(L) * Math.cos(e), Math.cos(L));
+    const H = rad * (280.16 + 360.9856235 * d) + rad * LON - ra, phi = rad * LAT;
+    return Math.asin(Math.sin(phi) * Math.sin(dec) + Math.cos(phi) * Math.cos(dec) * Math.cos(H)) / rad;
+  }
+  function sunTimes(from, to) {
+    const out = { rise: null, set: null, pvA: null, pvB: null, noon: null, max: -90 };
+    let prev = sunAlt(from);
+    for (let t = from + 60000; t <= to; t += 60000) {
+      const a = sunAlt(t);
+      if (prev < -0.833 && a >= -0.833) out.rise = t;
+      if (prev >= -0.833 && a < -0.833) out.set = t;
+      if (prev < 10 && a >= 10) out.pvA = t;
+      if (prev >= 10 && a < 10) out.pvB = t;
+      if (a > out.max) { out.max = a; out.noon = t; }
+      prev = a;
+    }
+    return out;
+  }
+  let tRange = "today", tCache = null;
+  const tDay = $("tDay");
+  tDay.value = new Date().toLocaleDateString("sv-SE");
+  function tBounds() {
+    const sod = (d) => { const x = new Date(d); x.setHours(0, 0, 0, 0); return x; };
+    if (tRange === "yesterday") { const t = sod(new Date()); return [new Date(t.getTime() - 864e5), t]; }
+    if (tRange === "date") { const f = new Date(tDay.value + "T00:00:00"); return [f, new Date(f.getTime() + 864e5)]; }
+    const f = sod(new Date()); return [f, new Date(f.getTime() + 864e5)];
+  }
+  document.querySelectorAll("#tRanges button").forEach(b => b.addEventListener("click", () => {
+    document.querySelectorAll("#tRanges button").forEach(x => x.classList.remove("on"));
+    b.classList.add("on"); tRange = b.dataset.r; loadDay();
+  }));
+  tDay.addEventListener("change", () => { document.querySelectorAll("#tRanges button").forEach(x => x.classList.remove("on")); tRange = "date"; loadDay(); });
+
+  async function loadDay() {
+    const [from, to] = tBounds();
+    const [rowsRaw, cyc, reps, stamm, slogRaw, [base]] = await Promise.all([hpRows(from.toISOString(), to.toISOString()), cycleRows(from.toISOString(), to.toISOString()), energyReports(from.toISOString(), to.toISOString()), rest("hp_stammdaten?select=key,value").catch(() => []),
+      restAll(`hp_settings_log?select=ts,setting,old_value,new_value&ts=lt.${to.toISOString()}&order=ts.asc,id.asc`).catch(() => []),
+      // Ausgangsstand: letzter Rohdatensatz vor Tagesbeginn (sonst erster des Tages)
+      rest(`snapshots?select=captured_at,raw&hp_valve=not.is.null&captured_at=lte.${from.toISOString()}&order=captured_at.desc&limit=1`)
+        .then(r => r.length ? r : rest(`snapshots?select=captured_at,raw&hp_valve=not.is.null&captured_at=gte.${from.toISOString()}&order=captured_at.asc&limit=1`)).catch(() => [])]);
+    const rows = withDeltas(rowsRaw);
+    const A = from.getTime(), B = to.getTime(), sun = sunTimes(A, B);
+    // Änderungsprotokoll enthält nur Änderungen → Ausgangsstand aus den Rohdaten, danach die Änderungen
+    const baseT = base && isFinite(new Date(base.captured_at).getTime()) ? new Date(base.captured_at).getTime() : -Infinity;
+    const slog = [...Object.entries(settingsFromRaw(base?.raw)).map(([k, v]) => ({ setting: k, new_value: v, old_value: null, t: baseT, base: true })),
+      ...slogRaw.filter(x => x.setting !== "Start").map(x => ({ ...x, t: new Date(x.ts).getTime() })).filter(x => x.t > baseT)].sort((a, b) => a.t - b.t);
+    const HS_KW = numIn(stamm.find(x => x.key === "Heizstab-Leistung")?.value) ?? 3;
+    // Zustand je Messpunkt
+    rows.forEach(r => {
+      const c = nearest(cyc, r.t); r.hz = c ? (c.comp_hz ?? 0) : null;
+      const run = r.hz != null ? r.hz > 0 : r.on;
+      r.st = r.hp_defrost === "on" ? "ab" : !run ? "off" : r.hp_valve === "tank" ? "ww" : "hk";
+    });
+    // Segmente (aufeinanderfolgende gleiche Zustände)
+    const segs = (key, val) => {
+      const out = []; let cur = null;
+      rows.forEach((r, i) => {
+        const nx = rows[i + 1], end = nx && nx.t - r.t <= 7.5 * 60000 ? nx.t : r.t + 5 * 60000;
+        if (val(r) === key) { if (cur && r.t - cur.end <= 60000) cur.end = end; else { if (cur) out.push(cur); cur = { start: r.t, end }; } }
+      });
+      if (cur) out.push(cur); return out;
+    };
+    const sHK = segs("hk", r => r.st), sWW = segs("ww", r => r.st), sAB = segs("ab", r => r.st), sHS = segs("on", r => r.hp_booster);
+    const segWh = (sg) => sg.reduce((a, x) => a + (reps && reps.length ? energyBetween(reps, x.start, x.end) : rows.filter(r => r.t > x.start && r.t <= x.end).reduce((s, r) => s + r.dWh, 0)), 0);
+    const inPV = (t) => sun.pvA && sun.pvB && t >= sun.pvA && t <= sun.pvB;
+    const whAll = rows.reduce((a, r) => a + r.dWh, 0), whWW = segWh(sWW), whHK = Math.max(0, whAll - whWW);
+    const whWWpv = segWh(sWW.filter(x => inPV((x.start + x.end) / 2)));
+    const minHS = sHS.reduce((a, x) => a + (x.end - x.start) / 60000, 0);
+    // Zählt der Stromzähler den Heizstab mit? Leistung mit Heizstab vs. ohne (bei laufendem Verdichter)
+    const pAvg = (f) => { const v = rows.filter(f).map(r => r.power_kw).filter(x => x != null); return v.length ? v.reduce((a, b) => a + b, 0) / v.length : null; };
+    const pWith = pAvg(r => r.hp_booster === "on"), pWithout = pAvg(r => r.hp_booster !== "on" && r.st !== "off");
+    const hsInCounter = pWith != null && pWithout != null && pWith - pWithout >= 0.6 * HS_KW;
+    const whHS = minHS / 60 * HS_KW * 1000;
+    const runsHK = sHK.filter(x => x.end - x.start >= 4 * 60000);
+    // Speicher-Zyklen: voll (Höchstwert nach Ladung) → Start der nächsten Ladung
+    const dr = dhwRuns(rows), zyk = [];
+    dr.forEach((x, i) => {
+      const after = rows.filter(r => r.t >= x.start && r.t <= x.end + 25 * 60000 && r.temperature != null);
+      if (!after.length) return;
+      const peak = Math.max(...after.map(r => r.temperature)), full = after.find(r => r.temperature >= peak - 0.2);
+      const nx = dr[i + 1], endT = nx ? nx.start : Math.min(B, Date.now());
+      const between = rows.filter(r => r.t > full.t && r.t <= endT && r.temperature != null);
+      const lo = nx ? (nx.startTemp ?? (between.length ? Math.min(...between.map(r => r.temperature)) : null)) : (between.length ? between[between.length - 1].temperature : null);
+      const hrs = (endT - full.t) / 3600e3;
+      if (hrs > 0.1) zyk.push({ full: full.t, peak, next: nx ? nx.start : null, end: endT, lo, hrs, rate: lo != null && hrs > 0 ? (peak - lo) / hrs : null });
+    });
+    const thr = median(dr.map(x => x.startTemp).filter(v => v != null));
+    const closed = zyk.filter(z => z.next);
+    const dur = (h) => { const m = Math.round(h * 60); return `${Math.floor(m / 60)} Std. ${String(m % 60).padStart(2, "0")}`; };
+    $("zSum").textContent = closed.length ? `· Ø ${dur(closed.reduce((a, z) => a + z.hrs, 0) / closed.length)} Min.${thr != null ? ` · Nachladen bei ≈ ${fmt(thr, 0)} °C` : ""}` : "";
+    $("zRows").innerHTML = zyk.length ? zyk.map(z => { const fast = z.rate != null && z.rate > 1.5;
+      return `<tr><td>${hhmm(z.full)} <span class="opacity-60">(${fmt(z.peak, 0)} °C)</span></td><td>${z.next ? hhmm(z.next) : '<span class="opacity-60">noch nicht</span>'}</td>
+        <td class="text-right tabular-nums">${z.next ? "" : "seit "}${dur(z.hrs)}</td><td class="text-right tabular-nums">${fmt(z.lo)} °C</td><td class="text-right tabular-nums">${fmt(z.rate)} K/h</td>
+        <td>${z.rate == null ? "–" : fast ? '<span class="pill info">🚿 Wasser gezapft</span>' : '<span class="pill ok">🌡️ Wärmeverlust</span>'}</td></tr>`; }).join("")
+      : `<tr><td colspan="6" class="empty">Keine Warmwasser-Ladung an diesem Tag.</td></tr>`;
+    tCache = { rows, cyc, A, B, sun, sHK, sWW, sAB, sHS, slog, zyk, thr };
+    drawHours({ rows, reps, A, B, sun, sHS, HS_KW, hsInCounter, pWith, pWithout });
+
+    $("tSun").textContent = sun.rise ? `☀️ Aufgang ${hhmm(sun.rise)} · Untergang ${hhmm(sun.set)} · PV nutzbar ca. ${sun.pvA ? hhmm(sun.pvA) + "–" + hhmm(sun.pvB) : "kaum (Sonne < 10°)"} · max. ${fmt(sun.max, 0)}°` : "";
+    $("tTiles").innerHTML = rows.length < 2 ? `<div class="empty">Für diesen Tag gibt es noch keine Daten.</div>` : [
+      stateTile("⚡", "Strom gesamt", `${fmt(whAll / 1000, 1)} kWh`, `${rows.length} Messpunkte`, "info"),
+      stateTile("🔥", "Heizen", `${fmt(whHK / 1000, 1)} kWh`, `${runsHK.length} Läufe · Ø ${runsHK.length ? fmt(runsHK.reduce((a, x) => a + x.end - x.start, 0) / runsHK.length / 60000, 0) : "–"} Min.`, runsHK.length > 30 ? "warn" : "info"),
+      stateTile("🚿", "Warmwasser", `${fmt(whWW / 1000, 1)} kWh`, `${sWW.length} Ladungen`, "info"),
+      stateTile("☀️", "Warmwasser mit Sonne", whWW > 50 ? `${fmt(whWWpv / whWW * 100, 0)} %` : "–", "Anteil in der PV-Zeit", whWW > 50 ? (whWWpv / whWW >= 0.5 ? "ok" : "warn") : "info"),
+      stateTile("🔌", "Heizstab", minHS ? `≈ ${fmt(whHS / 1000, 1)} kWh` : "Aus", minHS ? `${fmt(minHS, 0)} Min. × ${fmt(HS_KW, 1)} kW (geschätzt)` : "lief nicht", minHS ? "err" : "ok"),
+      stateTile("🧊", "Abtauen", `${sAB.length}×`, sAB.length ? `zusammen ${fmt(sAB.reduce((a, x) => a + x.end - x.start, 0) / 60000, 0)} Min.` : "", "info"),
+    ].join("");
+
+    // Ereignisse
+    const sunTag = (t) => sun.rise && (t < sun.rise || t > sun.set) ? "🌙 Nacht" : inPV(t) ? "☀️ PV" : "🌅 Dämmerung/schwach";
+    const ev = [];
+    dhwRuns(rows).forEach(x => {
+      const legio = (x.peak ?? 0) >= 58 || x.booster;
+      ev.push({ t: x.start, html: `<tr><td>${hhmm(x.start)}–${hhmm(x.end + 5 * 60000)}</td><td>${legio ? "🦠 Legionellen-Schaltung" : "🚿 Warmwasser-Ladung"}</td>
+        <td>${fmt(x.startTemp, 0)} → ${fmt(x.peak, 0)} °C${x.booster ? ' · <span class="pill err">Heizstab</span>' : ""}</td><td class="text-right">${fmt(runWh(x, reps) / 1000, 2)}</td><td>${sunTag(x.start)}</td></tr>` });
+    });
+    sAB.forEach(x => { const r = rows.find(y => y.t >= x.start); const c = nearest(cyc, x.start);
+      ev.push({ t: x.start, html: `<tr><td>${hhmm(x.start)}</td><td>🧊 Abtauen</td><td>${fmt((x.end - x.start) / 60000, 0)} Min.${c?.out_air != null ? ` · ${fmt(c.out_air, 0)} °C außen` : r?.outdoor_temp != null ? ` · ${fmt(r.outdoor_temp, 0)} °C außen` : ""}</td><td></td><td>${sunTag(x.start)}</td></tr>` }); });
+    sHS.forEach(x => ev.push({ t: x.start + 1, html: `<tr><td>${hhmm(x.start)}–${hhmm(x.end)}</td><td>🔌 Heizstab an</td><td>${fmt((x.end - x.start) / 60000, 0)} Min. × ${fmt(HS_KW, 1)} kW (geschätzt)</td><td class="text-right">≈ ${fmt((x.end - x.start) / 3600e3 * HS_KW, 2)}</td><td>${sunTag(x.start)}</td></tr>` }));
+    slog.filter(x => !x.base && x.t >= A && x.t < B).forEach(x => ev.push({ t: x.t, html: `<tr><td>${hhmm(x.t)}</td><td>⚙️ Einstellung geändert</td><td>${setName(x.setting)}: <b>${valDE(x.old_value)} → ${valDE(x.new_value)}</b></td><td></td><td>${sunTag(x.t)}</td></tr>` }));
+    if (runsHK.length) ev.push({ t: B, html: `<tr><td>ganzer Tag</td><td>🔥 Heizen</td><td>${runsHK.length} Läufe · erster ${hhmm(runsHK[0].start)}, letzter ${hhmm(runsHK[runsHK.length - 1].end)}</td><td class="text-right">${fmt(whHK / 1000, 2)}</td><td></td></tr>` });
+    ev.sort((a, b) => a.t - b.t);
+    $("tEvents").innerHTML = ev.length ? ev.map(e => e.html).join("") : `<tr><td colspan="5" class="empty">Keine Ereignisse.</td></tr>`;
+    drawDay();
+  }
+
+  // gleiche Einstellungen wie hp_settings() in 05_anlage.sql, aus einem Rohdatensatz
+  function settingsFromRaw(raw) {
+    const c = raw?.components || {}, m = c.main || {}, st = {};
+    (m["samsungce.ehsFsvSettings"]?.fsvSettings?.value || []).forEach(f => { if (f.value != null) st["FSV " + f.id] = String(f.value); });
+    const put = (k, v) => { if (v != null) st[k] = String(v); };
+    put("Warmwasser-Soll", m.thermostatCoolingSetpoint?.coolingSetpoint?.value);
+    put("Warmwasser-Modus", m.airConditionerMode?.airConditionerMode?.value);
+    put("Anlage an/aus", m.switch?.switch?.value);
+    put("Heizkreis 1", c.INDOOR1?.switch?.switch?.value);
+    put("Heizkreis 2", c.INDOOR2?.switch?.switch?.value);
+    put("Abwesenheit", m["custom.outingMode"]?.outingMode?.value);
+    put("Regelung nach", m["samsungce.ehsTemperatureReference"]?.temperatureReference?.value);
+    return st;
+  }
+  // Einstellungen zu einem Zeitpunkt aus dem Änderungsprotokoll
+  function settingsAt(slog, t) { const st = {}; for (const x of slog) { if (x.t > t) break; st[x.setting] = x.new_value; } return st; }
+  const setName = (k) => { const m = /^FSV (\d+)$/.exec(k); return m ? `${k} – ${FSV_INFO[m[1]] ?? "Installateur-Wert"}` : k; };
+  const valDE = (v) => { const x = String(v ?? "–").replace(/"/g, ""); return ({ on: "an", off: "aus", water: "Wasser", air: "Luft" })[x] ?? (/^(eco|std|power|force)$/.test(x) ? x.toUpperCase() : x); };
+  const numS = (v) => v == null ? null : Number(String(v).replace(/"/g, ""));
+  const curveSet = (st) => { const c = { xLo: numS(st["FSV 2011"]), xHi: numS(st["FSV 2012"]), yLo: numS(st["FSV 2021"]), yHi: numS(st["FSV 2022"]) };
+    return [c.xLo, c.xHi, c.yLo, c.yHi].every(v => v != null && isFinite(v)) ? c : null; };
+  function showSettings(t) {
+    if (!tCache) return;
+    const { slog, A } = tCache, now = settingsAt(slog, t), start = settingsAt(slog, Math.max(A, slog.find(x => x.base)?.t ?? A));
+    const keys = Object.keys(now).sort((a, b) => (a.startsWith("FSV") - b.startsWith("FSV")) || a.localeCompare(b, "de", { numeric: true }));
+    $("tSetWhen").textContent = keys.length ? `Stand ${ddmm(t)} ${hhmm(t)} – Maus/Finger auf die Grafik zeigt den Stand zur Uhrzeit` : "";
+    $("tSet").innerHTML = keys.length ? keys.map(k => { const chg = start[k] !== now[k];
+      return `<span class="badge ${chg ? "badge-warning" : "badge-ghost"} badge-sm h-auto py-0.5" title="${setName(k)}${chg ? ` – heute geändert, vorher ${valDE(start[k])}` : ""}">${k.startsWith("FSV") ? k.replace("FSV ", "FSV&nbsp;") : k}: <b class="ml-1">${valDE(now[k])}</b></span>`; }).join("")
+      : `<span class="opacity-70">Keine Einstellungen gespeichert (05_anlage.sql ausgeführt?).</span>`;
+  }
+
+  // Sichtbarkeit der Linien/Spuren im Tagesablauf (wird im Browser gemerkt)
+  const T_DEFAULT_OFF = { hw: true, rt: true };
+  let tVis = {};
+  try { tVis = JSON.parse(localStorage.getItem("wagael_tvis") || "{}"); } catch (e) {}
+  const tOn = (k) => tVis[k] ?? !T_DEFAULT_OFF[k];
+  function tToggle(k) { tVis[k] = !tOn(k); try { localStorage.setItem("wagael_tvis", JSON.stringify(tVis)); } catch (e) {} drawDay(); }
+  // feste, gut unterscheidbare Farben (validierte Palette, hell/dunkel)
+  const TPAL = {
+    light: { ww: "#2a78d6", hk: "#eb6834", sv: "#1baf7a", rt: "#eda100", sw: "#e87ba4", out: "#008300", hz: "#6250d6", hs: "#e34948", hw: "#888780" },
+    dark:  { ww: "#3987e5", hk: "#d95926", sv: "#199e70", rt: "#c98500", sw: "#d55181", out: "#0ca30c", hz: "#9085e9", hs: "#e66767", hw: "#a3a29a" },
+  };
+
+  function drawDay() {
+    if (!tCache) return;
+    const P = TPAL[C.dark ? "dark" : "light"];
+    const { rows, cyc, A, B, sun, sHK, sWW, sAB, sHS, slog, zyk = [], thr } = tCache;
+    const svg = $("tSvg"), W = Math.max(320, $("tWrap").clientWidth || 800), small = W < 640;
+    const L = small ? 62 : 84, R = 10, fs = 11;
+    const X = (t) => L + (t - A) / (B - A) * (W - L - R);
+    const cs = getComputedStyle(document.documentElement);
+    const ink = C.tick, grid = C.grid, red = P.hs, sunC = "#eda100", nightC = C.dark ? "#000000" : "#1e293b";
+    // Spuren
+    const y = { sun: 4, set: 36, op: 62, hs: 92, hz: 118, hzH: 46, tTop: 184, tBot: 352 }, H = 378;
+    let s = "";
+    const r = (x1, x2, yy, h, fill, extra = "") => x2 - x1 > 0.3 ? `<rect x="${x1.toFixed(1)}" y="${yy}" width="${(x2 - x1).toFixed(1)}" height="${h}" fill="${fill}" ${extra}/>` : "";
+    // Hintergrund: Nacht / Dämmerung / PV-Zeit
+    for (let t = A; t < B && tOn("bg"); t += 5 * 60000) {
+      const a = sunAlt(t + 150000), x1 = X(t), x2 = X(t + 5 * 60000);
+      if (a < -6) s += r(x1, x2, 0, y.tBot, nightC, `opacity="${C.dark ? 0.45 : 0.10}"`);
+      else if (a < -0.833) s += r(x1, x2, 0, y.tBot, nightC, `opacity="${C.dark ? 0.22 : 0.05}"`);
+      else if (a >= 10) s += r(x1, x2, 0, y.tBot, sunC, 'opacity="0.12"');
+    }
+    // Sonnenkurve
+    let sp = `M${X(A)},${y.sun + 26}`;
+    for (let t = A; t <= B; t += 10 * 60000) { const a = Math.max(0, sunAlt(t)); sp += `L${X(t).toFixed(1)},${(y.sun + 26 - a / Math.max(20, sun.max) * 24).toFixed(1)}`; }
+    if (tOn("sun")) s += `<path d="${sp}L${X(B)},${y.sun + 26}Z" fill="${sunC}" opacity="0.55"/>`;
+    [[sun.rise, "↑"], [sun.set, "↓"]].forEach(([t, k]) => { if (t && tOn("sun")) { s += `<line x1="${X(t)}" x2="${X(t)}" y1="0" y2="${y.tBot}" stroke="${sunC}" stroke-dasharray="3 3"/><text x="${X(t) + 3}" y="${y.sun + 10}" font-size="${fs}" fill="${ink}">${k} ${hhmm(t)}</text>`; } });
+    // Beschriftung links
+    [["Sonne", y.sun + 18], ["Einstellung", y.set + 13], ["Betrieb", y.op + 15], ["Heizstab", y.hs + 12], ["Verdichter", y.hz + 20], ["°C", (y.tTop + y.tBot) / 2]].forEach(([n, yy]) => s += `<text x="0" y="${yy}" font-size="${fs + 1}" fill="${ink}">${n}</text>`);
+    // Betrieb / Heizstab
+    if (tOn("bhk")) sHK.forEach(x => s += r(X(x.start), X(x.end) - 1, y.op, 20, P.hk, 'rx="3"'));
+    if (tOn("bww")) sWW.forEach(x => s += r(X(x.start), X(x.end) - 1, y.op, 20, P.ww, 'rx="3"'));
+    if (tOn("bab")) sAB.forEach(x => s += r(X(x.start), Math.max(X(x.end) - 1, X(x.start) + 3), y.op, 20, ink, 'rx="3" opacity="0.6"'));
+    s += `<line x1="${L}" x2="${W - R}" y1="${y.hs + 15}" y2="${y.hs + 15}" stroke="${grid}"/>`;
+    if (tOn("hs")) sHS.forEach(x => s += r(X(x.start), Math.max(X(x.end) - 1, X(x.start) + 3), y.hs, 15, red, 'rx="3"'));
+    // Verdichter-Hz
+    const hzMax = Math.max(60, ...cyc.map(c => c.comp_hz ?? 0)), yHz = (v) => y.hz + y.hzH - v / hzMax * y.hzH;
+    s += `<line x1="${L}" x2="${W - R}" y1="${yHz(0)}" y2="${yHz(0)}" stroke="${grid}"/><text x="${W - R - 2}" y="${yHz(hzMax) + 8}" font-size="${fs}" fill="${ink}" opacity=".6" text-anchor="end">${fmt(hzMax, 0)} Hz</text>`;
+    let hp = "", prevT = null;
+    cyc.forEach(c => { const gap = prevT == null || c.t - prevT > 7.5 * 60000; hp += `${gap ? "M" : "L"}${X(c.t).toFixed(1)},${yHz(c.comp_hz ?? 0).toFixed(1)}`; prevT = c.t; });
+    if (hp && tOn("hz")) s += `<path d="${hp}" fill="none" stroke="${P.hz}" stroke-width="1.5" stroke-linejoin="round"/>`;
+    // Temperaturen
+    const flowOf = (rw) => { const c = nearest(cyc, rw.t); return c?.flow ?? rw.hp_flow_temp; };
+    const vals = rows.flatMap(rw => [rw.temperature, flowOf(rw), rw.outdoor_temp]).filter(v => v != null).concat(Object.values(settingsAt(slog, B)).length ? [numS(settingsAt(slog, B)["Warmwasser-Soll"]) ?? 0] : []);
+    const tMin = Math.floor(Math.min(0, ...vals) / 10) * 10, tMax = Math.ceil(Math.max(60, ...vals) / 10) * 10;
+    const yT = (v) => y.tBot - (v - tMin) / (tMax - tMin) * (y.tBot - y.tTop);
+    for (let v = tMin; v <= tMax; v += 10) s += `<line x1="${L}" x2="${W - R}" y1="${yT(v)}" y2="${yT(v)}" stroke="${grid}"/><text x="${L - 4}" y="${yT(v) + 4}" font-size="${fs}" fill="${ink}" opacity=".6" text-anchor="end">${v}</text>`;
+    const line = (get, col, dash = "") => { let d = "", pt = null; rows.forEach(rw => { const v = get(rw); if (v == null) { pt = null; return; } d += `${pt == null || rw.t - pt > 20 * 60000 ? "M" : "L"}${X(rw.t).toFixed(1)},${yT(v).toFixed(1)}`; pt = rw.t; });
+      return d ? `<path d="${d}" fill="none" stroke="${col}" stroke-width="2" stroke-linejoin="round" ${dash ? `stroke-dasharray="${dash}"` : ""}/>` : ""; };
+    const sline = (get, col) => { let d = "", pv = null; for (let t = A; t <= Math.min(B, Date.now()); t += 5 * 60000) { const v = get(t);
+        if (v == null || !isFinite(v)) { pv = null; continue; } const yy = yT(v).toFixed(1); d += pv == null ? `M${X(t).toFixed(1)},${yy}` : `L${X(t).toFixed(1)},${yy}`; pv = v; }
+      return d ? `<path d="${d}" fill="none" stroke="${col}" stroke-width="6" stroke-linejoin="round" stroke-linecap="round" opacity="0.45"/>` : ""; };
+    const wwSoll = (t) => { const v = numS(settingsAt(slog, t)["Warmwasser-Soll"]); if (v != null && isFinite(v)) return v; let b = null; rows.forEach(rw => { if (rw.setpoint != null && (!b || Math.abs(rw.t - t) < Math.abs(b.t - t))) b = rw; }); return b?.setpoint ?? null; };
+    const outAt = (t) => { const c = nearest(cyc, t); if (c?.out_air != null) return c.out_air; let b = null; rows.forEach(rw => { if (!b || Math.abs(rw.t - t) < Math.abs(b.t - t)) b = rw; }); return b && Math.abs(b.t - t) < 30 * 60000 ? b.outdoor_temp : null; };
+    const hkSoll = (t) => { const st = settingsAt(slog, t), c = curveSet(st), o = outAt(t); return c && o != null && String(st["Heizkreis 1"]).includes("on") ? curveAt(c, o) : null; };
+    // Warmwasser-Ladung inkl. 15 Min. davor / 10 Min. danach: Ventil und Temperatur werden nicht gleichzeitig gemeldet,
+    // sonst rutschen heiße Ladewerte in "Vorlauf Heizen"
+    const wwTimes = rows.filter(rw => rw.st === "ww" || rw.hp_valve === "tank").map(rw => rw.t);
+    const isWW = (rw) => wwTimes.some(t => (t - rw.t <= 16 * 60000 && t - rw.t >= 0) || (rw.t - t <= 11 * 60000 && rw.t - t >= 0));
+    if (tOn("sw")) s += sline(wwSoll, P.sw);
+    if (tOn("sv")) s += sline(hkSoll, P.sv);
+    if (tOn("out")) s += line(rw => rw.outdoor_temp, P.out, "5 3");
+    if (tOn("rt")) s += line(rw => nearest(cyc, rw.t)?.ret ?? null, P.rt);
+    if (tOn("hw")) s += line(rw => isWW(rw) ? flowOf(rw) : null, P.hw, "2 2");
+    if (tOn("hk")) s += line(rw => isWW(rw) ? null : flowOf(rw), P.hk);
+    if (tOn("ww")) s += line(rw => rw.temperature, P.ww);
+    if (tOn("zyk")) {
+      if (thr != null) s += `<line x1="${L}" x2="${W - R}" y1="${yT(thr)}" y2="${yT(thr)}" stroke="${ink}" stroke-dasharray="4 4" opacity=".5"/><text x="${W - R - 2}" y="${yT(thr) - 3}" font-size="${fs}" fill="${ink}" opacity=".7" text-anchor="end">≈ Nachlade-Schwelle ${fmt(thr, 0)} °C</text>`;
+      zyk.forEach(z => { const x1 = X(z.full), x2 = X(z.end), yy = yT(z.peak) - 12, m = Math.round(z.hrs * 60);
+        s += `<path d="M${x1},${yy + 7}V${yy}H${x2}V${yy + 7}" fill="none" stroke="${ink}" stroke-width="1" ${z.next ? "" : 'stroke-dasharray="3 3"'}/>`;
+        if (x2 - x1 > 46) s += `<text x="${(x1 + x2) / 2}" y="${yy - 4}" font-size="${fs}" fill="${ink}" text-anchor="middle">${z.next ? "" : "seit "}${Math.floor(m / 60)}:${String(m % 60).padStart(2, "0")} h</text>`;
+        s += `<circle cx="${x1}" cy="${yT(z.peak)}" r="3.5" fill="${P.ww}" stroke="${C.dark ? "#1a1a19" : "#ffffff"}" stroke-width="1.5"/>`; });
+    }
+    // Einstellungen: Modus-Abschnitte + Änderungen; Sollwerte als dicke Linien
+    const chg = slog.filter(x => !x.base && x.t >= A && x.t < B);
+    const cuts = [A, ...chg.map(x => x.t), Math.min(B, Math.max(A, Date.now()))].filter((v, i, a) => a.indexOf(v) === i).sort((a, b) => a - b);
+    for (let i = 0; i < cuts.length - 1 && tOn("set"); i++) {
+      const st = settingsAt(slog, cuts[i]), x1 = X(cuts[i]), x2 = X(cuts[i + 1]);
+      const txt = [st["Warmwasser-Modus"] ? String(st["Warmwasser-Modus"]).replace(/"/g, "").toUpperCase() : null, st["Heizkreis 1"] ? `Heizung ${valDE(st["Heizkreis 1"])}` : null, st["Warmwasser-Soll"] ? `WW ${valDE(st["Warmwasser-Soll"])} °C` : null, st["Abwesenheit"] === "on" || st["Abwesenheit"] === '"on"' ? "Abwesend" : null].filter(Boolean).join(" · ");
+      s += r(x1, x2 - 1, y.set, 18, ink, 'rx="3" opacity="0.12"');
+      if (x2 - x1 > 60 && txt) s += `<text x="${x1 + 5}" y="${y.set + 13}" font-size="${fs}" fill="${ink}">${txt}</text>`;
+    }
+    if (tOn("set")) chg.forEach(x => { s += `<line x1="${X(x.t)}" x2="${X(x.t)}" y1="${y.set}" y2="${y.tBot}" stroke="${C.warn || "#eda100"}" stroke-width="1.5" stroke-dasharray="1 3"/><path d="M${X(x.t) - 5},${y.set - 1}L${X(x.t) + 5},${y.set - 1}L${X(x.t)},${y.set + 7}Z" fill="#eda100"/>`; });
+    // Zeitachse + jetzt
+    for (let h = 0; h <= 24; h += small ? 6 : 3) { const t = A + h * 3600e3; s += `<text x="${X(t)}" y="${H - 6}" font-size="${fs}" fill="${ink}" opacity=".7" text-anchor="middle">${String(h).padStart(2, "0")}:00</text>`; }
+    if (Date.now() > A && Date.now() < B) s += `<line x1="${X(Date.now())}" x2="${X(Date.now())}" y1="0" y2="${y.tBot}" stroke="${ink}" stroke-width="1.5"/><text x="${X(Date.now()) - 3}" y="${y.tBot + 12}" font-size="${fs}" fill="${ink}" text-anchor="end">jetzt</text>`;
+    s += `<line id="tCross" x1="0" x2="0" y1="0" y2="${y.tBot}" stroke="${ink}" opacity="0" />`;
+    svg.setAttribute("viewBox", `0 0 ${W} ${H}`); svg.setAttribute("height", H); svg.innerHTML = s;
+
+    // Legende = Schalter: antippen blendet ein/aus
+    const chip = (k, label, sym) => `<button type="button" data-k="${k}" class="btn btn-xs rounded-full font-normal gap-1.5 ${tOn(k) ? "btn-outline" : "btn-ghost line-through opacity-50"}">${sym}${label}</button>`;
+    const box = (c, o = 1) => `<svg width="12" height="10" aria-hidden="true"><rect x="1" y="1" width="10" height="8" rx="2" fill="${c}" opacity="${o}"/></svg>`;
+    const ln = (c, w = 2, dash = "", o = 1) => `<svg width="22" height="10" aria-hidden="true"><line x1="2" x2="20" y1="5" y2="5" stroke="${c}" stroke-width="${w}" stroke-dasharray="${dash}" stroke-linecap="round" opacity="${o}"/></svg>`;
+    $("tLegend").innerHTML =
+      `<div class="w-full flex flex-wrap items-center gap-1.5"><span class="text-xs opacity-60 w-24">Spuren</span>` +
+        chip("bhk", "Heizen", box(P.hk)) + chip("bww", "Warmwasser", box(P.ww)) + chip("bab", "Abtauen", box(ink, .6)) + chip("hs", "Heizstab", box(P.hs)) +
+        chip("hz", "Verdichter Hz", ln(P.hz, 1.5)) + chip("set", "Einstellungen", box(ink, .3)) + chip("sun", "Sonne", box(sunC, .6)) + chip("bg", "Nacht / PV-Zeit", box(nightC, C.dark ? .6 : .25)) + `</div>` +
+      `<div class="w-full flex flex-wrap items-center gap-1.5"><span class="text-xs opacity-60 w-24">Ist (dünn)</span>` +
+        chip("ww", "Speicher", ln(P.ww)) + chip("hk", "Vorlauf Heizen", ln(P.hk)) + chip("hw", "Vorlauf bei Warmwasser", ln(P.hw, 2, "2 2")) + chip("rt", "Rücklauf", ln(P.rt)) + chip("out", "Außen", ln(P.out, 2, "5 3")) + chip("zyk", "Speicher-Zyklen ⊓", ln(ink, 1, "4 4")) + `</div>` +
+      `<div class="w-full flex flex-wrap items-center gap-1.5"><span class="text-xs opacity-60 w-24">Soll (dick)</span>` +
+        chip("sw", "Soll Warmwasser", ln(P.sw, 6, "", .45)) + chip("sv", "Soll Vorlauf (Heizkurve)", ln(P.sv, 6, "", .45)) + `<span class="text-xs opacity-60 ml-2">▼ = Einstellung geändert · antippen = ein/aus</span></div>`;
+    $("tLegend").querySelectorAll("button[data-k]").forEach(b => b.onclick = () => tToggle(b.dataset.k));
+
+    // Werte unter dem Finger/Mauszeiger
+    const tip = $("tTip"), cross = $("tCross"), ST = { hk: "🔥 heizt", ww: "🚿 Warmwasser", ab: "🧊 taut ab", off: "⏸ Pause" };
+    const move = (ev) => {
+      const b = svg.getBoundingClientRect(), px = (ev.touches ? ev.touches[0].clientX : ev.clientX) - b.left, xs = px * W / b.width;
+      if (xs < L || xs > W - R || !rows.length) { tip.classList.add("hidden"); cross.setAttribute("opacity", 0); return; }
+      const t = A + (xs - L) / (W - L - R) * (B - A);
+      let best = rows[0]; rows.forEach(rw => { if (Math.abs(rw.t - t) < Math.abs(best.t - t)) best = rw; });
+      if (Math.abs(best.t - t) > 15 * 60000) { tip.classList.add("hidden"); return; }
+      const c = nearest(cyc, best.t), a = sunAlt(best.t);
+      tip.innerHTML = `<b>${hhmm(best.t)}</b> · ${ST[best.st] || ""}${best.hp_booster === "on" ? " · 🔌 Heizstab" : ""}<br>Verdichter ${c ? fmt(c.comp_hz, 0) + " Hz" : "–"} · ${fmt(best.power_kw, 2)} kW<br>Speicher ${fmt(best.temperature)} °C · Vorlauf ${fmt(c?.flow ?? best.hp_flow_temp)} °C${c?.ret != null ? ` · Rücklauf ${fmt(c.ret)} °C` : ""} · außen ${fmt(c?.out_air ?? best.outdoor_temp)} °C<br>Sonne ${a < -0.833 ? "🌙 unter Horizont" : fmt(a, 0) + "°" + (a >= 10 ? " ☀️ PV" : "")}` +
+        `<br>⚙️ Soll Warmwasser ${fmt(wwSoll(best.t), 0)} °C · Soll Vorlauf ${fmt(hkSoll(best.t))} °C · Modus ${String(settingsAt(slog, best.t)["Warmwasser-Modus"] ?? "–").replace(/"/g, "").toUpperCase()}`;
+      showSettings(best.t);
+      tip.classList.remove("hidden");
+      const left = Math.min(px + 12, b.width - tip.offsetWidth - 4); tip.style.left = Math.max(0, left) + "px"; tip.style.top = "8px";
+      cross.setAttribute("x1", X(best.t)); cross.setAttribute("x2", X(best.t)); cross.setAttribute("opacity", 0.5);
+    };
+    svg.onmousemove = move; svg.ontouchmove = move; svg.ontouchstart = move;
+    svg.onmouseleave = () => { tip.classList.add("hidden"); cross.setAttribute("opacity", 0); showSettings(Math.min(B - 1, Date.now())); };
+    showSettings(Math.min(B - 1, Date.now()));
+  }
+  let tResize; window.addEventListener("resize", () => { clearTimeout(tResize); tResize = setTimeout(drawDay, 150); });
+
+  // ---------- Strom je Stunde, aufgeteilt nach Verwendung ----------
+  function drawHours({ rows, reps, A, B, sun, sHS, HS_KW, hsInCounter, pWith, pWithout }) {
+    const K = [["hk", "Heizen", C.hk], ["ww", "Warmwasser", C.ww], ["hs", "Heizstab (geschätzt)", getComputedStyle(document.documentElement).getPropertyValue("--color-error").trim() || "#e34948"], ["sb", "Bereitschaft", "#888780"]];
+    const H = [];
+    for (let h = 0; h < 24; h++) {
+      const a = A + h * 3600e3, b = a + 3600e3, d = { h, hk: 0, ww: 0, hs: 0, sb: 0 };
+      if (a < Date.now()) {
+        const inH = rows.filter(r => r.t > a && r.t <= b);
+        let wh = reps && reps.length ? energyBetween(reps, a, Math.min(b, Date.now())) : inH.reduce((s2, r) => s2 + r.dWh, 0);
+        // Heizstab-Minuten in dieser Stunde
+        const hsMin = sHS.reduce((s2, x) => s2 + Math.max(0, Math.min(b, x.end) - Math.max(a, x.start)) / 60000, 0);
+        const hsWh = hsMin / 60 * HS_KW * 1000;
+        if (hsInCounter) { d.hs = Math.min(hsWh, wh); wh -= d.hs; } else d.hs = hsWh;
+        // Rest nach Leistung je Zustand aufteilen
+        const w = { hk: 0, ww: 0, sb: 0 };
+        inH.forEach(r => { const p = Math.max(r.power_kw ?? 0, 0.001); w[r.st === "ww" ? "ww" : r.st === "off" ? "sb" : "hk"] += p; });
+        const wSum = w.hk + w.ww + w.sb;
+        if (wSum > 0) { d.hk = wh * w.hk / wSum; d.ww = wh * w.ww / wSum; d.sb = wh * w.sb / wSum; } else d.sb = wh;
+      }
+      H.push(d);
+    }
+    const tot = (d) => d.hk + d.ww + d.hs + d.sb, all = H.reduce((s2, d) => s2 + tot(d), 0), sum = (k) => H.reduce((s2, d) => s2 + d[k], 0);
+    $("hSum").textContent = `· ${fmt(all / 1000, 1)} kWh`;
+    $("hSplit").innerHTML = all < 1 ? `<div class="empty">Noch keine Verbrauchsdaten für diesen Tag.</div>` : K.map(([k, n, c]) => { const v = sum(k);
+      return `<div class="grid items-center gap-2 text-sm" style="grid-template-columns:minmax(110px,170px) 1fr auto"><span class="flex items-center gap-2"><i style="width:10px;height:10px;border-radius:2px;background:${c};display:inline-block"></i>${n}</span>
+        <div class="rounded bg-base-100 h-3"><div class="h-3 rounded-r" style="width:${Math.max(0.5, v / all * 100)}%;background:${c}"></div></div><span class="text-right tabular-nums whitespace-nowrap">${fmt(v / 1000, 2)} kWh · ${fmt(v / all * 100, 0)} %</span></div>`; }).join("");
+    // Hintergrund Nacht / PV je Stunde
+    const night = H.map(d => sunAlt(A + (d.h + 0.5) * 3600e3) < -0.833), pv = H.map(d => sunAlt(A + (d.h + 0.5) * 3600e3) >= 10);
+    const bg = { id: "hBg", beforeDatasetsDraw(ch) { const { ctx, chartArea: ca, scales: { x } } = ch; if (!ca) return; const half = (x.getPixelForValue(1) - x.getPixelForValue(0)) / 2;
+      ctx.save(); H.forEach((d, i) => { if (!night[i] && !pv[i]) return; ctx.fillStyle = night[i] ? (C.dark ? "rgba(0,0,0,.35)" : "rgba(30,41,59,.08)") : "rgba(237,161,0,.14)";
+        ctx.fillRect(x.getPixelForValue(i) - half, ca.top, half * 2, ca.bottom - ca.top); }); ctx.restore(); } };
+    drawChart("cHours", {
+      type: "bar",
+      data: { labels: H.map(d => String(d.h).padStart(2, "0")), datasets: K.map(([k, n, c]) => ({ label: n, data: H.map(d => d[k] / 1000), backgroundColor: c, borderRadius: 3, borderSkipped: "bottom", categoryPercentage: 0.85, barPercentage: 0.95 })) },
+      options: (() => { const o = baseOptions("kWh"); o.scales.x.stacked = true; o.scales.y.stacked = true; o.scales.y.beginAtZero = true;
+        o.plugins.tooltip.callbacks.title = (it) => `${it[0].label}–${String(+it[0].label + 1).padStart(2, "0")} Uhr · ${fmt(tot(H[it[0].dataIndex]) / 1000, 2)} kWh${night[it[0].dataIndex] ? " · 🌙 Nacht" : pv[it[0].dataIndex] ? " · ☀️ PV-Zeit" : ""}`;
+        o.plugins.tooltip.callbacks.label = (c) => c.raw ? `${c.dataset.label}: ${fmt(c.raw, 2)} kWh` : null;
+        o.scales.x.ticks.maxTicksLimit = 24; return o; })(),
+      plugins: [bg],
+    });
+    const lbl = (d) => `${String(d.h).padStart(2, "0")}–${String(d.h + 1).padStart(2, "0")} Uhr`;
+    const main = (d) => K.filter(([k]) => d[k] > 0).sort((a, b) => d[b[0]] - d[a[0]])[0]?.[1] ?? "–";
+    $("hTop").innerHTML = [...H].filter(d => tot(d) > 0).sort((a, b) => tot(b) - tot(a)).slice(0, 5).map(d =>
+      `<tr><td>${lbl(d)}</td><td>${main(d)}</td><td class="text-right tabular-nums">${fmt(tot(d) / 1000, 2)} kWh</td><td>${night[d.h] ? "🌙" : pv[d.h] ? "☀️" : "🌅"}</td></tr>`).join("") || `<tr><td class="empty">–</td></tr>`;
+    const zones = [["🌙 Nacht 22–6 Uhr", (h) => h >= 22 || h < 6], ["🌅 Morgen 6–10 Uhr", (h) => h >= 6 && h < 10], ["☀️ Mittag 10–16 Uhr", (h) => h >= 10 && h < 16], ["🌆 Abend 16–22 Uhr", (h) => h >= 16 && h < 22]];
+    $("hZones").innerHTML = zones.map(([n, f]) => { const v = H.filter(d => f(d.h)).reduce((s2, d) => s2 + tot(d), 0);
+      return `<tr><td>${n}</td><td class="text-right tabular-nums">${fmt(v / 1000, 2)} kWh</td><td class="text-right">${all ? fmt(v / all * 100, 0) : "–"} %</td></tr>`; }).join("");
+    $("hNote").innerHTML = `Summe je Stunde gemessen (Stromzähler der Wärmepumpe), Aufteilung nach Betriebsart abgeleitet. Heizstab = Laufzeit × ${fmt(HS_KW, 1)} kW (Stammdaten „Heizstab-Leistung“, sonst 3 kW). ` +
+      (sHS.length ? (hsInCounter ? `Der Zähler <b>enthält</b> den Heizstab (Leistung mit Heizstab Ø ${fmt(pWith, 2)} kW statt ${fmt(pWithout, 2)} kW) – er ist aus der Summe herausgerechnet.`
+        : `Der Zähler zeigt beim Heizstab <b>keinen</b> Mehrverbrauch (Ø ${fmt(pWith, 2)} kW mit, ${fmt(pWithout, 2)} kW ohne) – entweder hat er nicht wirklich geheizt, oder er hängt an einem eigenen Stromkreis. Er ist hier geschätzt <b>zusätzlich</b> eingerechnet.`) : "Heizstab lief an diesem Tag nicht.");
+  }
+
+  // ---------- Alarme (Soll-Zustand, Push über ntfy) ----------
+  async function restWrite(method, path, body, prefer = "") {
+    const headers = { apikey: SUPABASE_KEY, "Content-Type": "application/json" };
+    if (accessToken) headers.Authorization = `Bearer ${accessToken}`;
+    if (prefer) headers.Prefer = prefer;
+    const r = await fetch(`${SUPABASE_URL}/rest/v1/${path}`, { method, headers, body: body == null ? undefined : JSON.stringify(body) });
+    if (!r.ok) throw new Error(`${r.status} ${await r.text()}`);
+    const t = await r.text(); try { return JSON.parse(t); } catch (e) { return t; }
+  }
+  const AL_CHOICES = {
+    "Warmwasser-Modus": ["eco", "std", "power", "force"], "Anlage an/aus": ["on", "off"], "Heizkreis 1": ["on", "off"],
+    "Heizkreis 2": ["on", "off"], "Abwesenheit": ["on", "off"], "Regelung nach": ["water", "air"],
+  };
+  let alRules = {};
+  async function loadAlarms() {
+    const [[hp], rules, notify] = await Promise.all([
+      rest("snapshots?select=raw&hp_valve=not.is.null&order=captured_at.desc&limit=1"),
+      rest("wagael_alarm_rules?select=setting,expected,enabled").catch(() => null),
+      rest("wagael_notify?select=topic,enabled").catch(() => []),
+    ]);
+    if (rules == null) { $("alRows").innerHTML = `<tr><td colspan="5" class="empty">Noch nicht eingerichtet – 08_alarme.sql im SQL Editor ausführen.</td></tr>`; $("alInfo").textContent = ""; return; }
+    alRules = Object.fromEntries(rules.map(r => [r.setting, r]));
+    // feste Alarme (09_alarme_extra.sql) + ECO-Regel
+    const flags = await rest("wagael_alarm_flags?select=key,label,enabled,state&order=key").catch(() => null);
+    const eco = alRules["Warmwasser-Modus"];
+    const fl = [
+      { key: "eco", icon: "🌿", label: "ECO nicht aktiv", sub: "Warmwasser-Modus weicht von ECO ab – und Entwarnung", on: !!eco && eco.enabled && valDE(eco.expected) === "ECO" },
+      ...(flags || []).map(f => ({ key: f.key, icon: { heizstab: "🔌", erfassung: "⏸", token: "🔑" }[f.key] || "🔔", label: f.label, on: f.enabled,
+        sub: { heizstab: "Ein- und Ausschalten mit Laufzeit und ≈ kWh", erfassung: "20 Min. keine neue Abfrage – und wenn es wieder läuft", token: "2 Std. vor Ablauf und bei Ablauf" }[f.key] || "" })),
+    ];
+    $("alFlags").innerHTML = fl.map(f => `<label class="flex items-start gap-3 rounded-box bg-base-100 border border-base-300 p-3 cursor-pointer">
+        <input type="checkbox" class="checkbox checkbox-primary mt-0.5" data-flag="${f.key}" ${f.on ? "checked" : ""}>
+        <span><span class="font-semibold">${f.icon} ${f.label}</span><br><span class="text-xs opacity-70">${f.sub}</span></span></label>`).join("") +
+      (flags == null ? `<div class="text-xs warn sm:col-span-2">Heizstab-, Erfassungs- und Token-Alarm: 09_alarme_extra.sql im SQL Editor ausführen.</div>` : "");
+    $("alFlags").querySelectorAll("[data-flag]").forEach(cb => cb.onchange = async () => {
+      const msg = $("alMsg"); msg.className = "text-sm"; msg.textContent = "Speichere …";
+      try {
+        if (cb.dataset.flag === "eco") await restWrite("POST", "wagael_alarm_rules?on_conflict=setting", [{ setting: "Warmwasser-Modus", expected: "eco", enabled: cb.checked, updated_at: new Date().toISOString() }], "resolution=merge-duplicates,return=minimal");
+        else await restWrite("PATCH", `wagael_alarm_flags?key=eq.${cb.dataset.flag}`, { enabled: cb.checked, updated_at: new Date().toISOString() }, "return=minimal");
+        msg.className = "text-sm ok"; msg.textContent = `✓ Alarm „${fl.find(x => x.key === cb.dataset.flag).label}“ ${cb.checked ? "eingeschaltet" : "ausgeschaltet"}.`;
+        await loadAlarms();
+      } catch (e) { msg.className = "text-sm err"; msg.textContent = "✗ " + e.message; cb.checked = !cb.checked; }
+    });
+    const n = notify?.[0];
+    $("alInfo").innerHTML = n && n.topic !== "DEIN_NTFY_KANAL"
+      ? `Nachrichten gehen an den ntfy-Kanal <code class="font-mono">${n.topic}</code>${n.enabled ? "" : ' <span class="pill warn">ausgeschaltet</span>'} – in der ntfy-App abonnieren.`
+      : `<span class="warn">Noch kein ntfy-Kanal eingetragen</span> – in 08_alarme.sql Zeile 22 eintragen und ausführen.`;
+    const cur = settingsFromRaw(hp?.raw);
+    const fsv = Object.fromEntries((hp?.raw?.components?.main?.["samsungce.ehsFsvSettings"]?.fsvSettings?.value || []).map(f => ["FSV " + f.id, f]));
+    const keys = [...new Set([...Object.keys(cur), ...Object.keys(alRules)])].sort((a, b) => (a.startsWith("FSV") - b.startsWith("FSV")) || a.localeCompare(b, "de", { numeric: true }));
+    $("alRows").innerHTML = keys.map((k, i) => {
+      const r = alRules[k], exp = r?.expected ?? "", choices = AL_CHOICES[k], f = fsv[k];
+      const input = choices
+        ? `<select class="select select-bordered select-xs w-28" data-k="${k}"><option value="">– kein Soll –</option>${choices.map(c => `<option value="${c}" ${valDE(c) === valDE(exp) ? "selected" : ""}>${valDE(c)}</option>`).join("")}</select>`
+        : `<input class="input input-bordered input-xs w-24" data-k="${k}" value="${exp}" placeholder="–" ${f ? `type="number" min="${f.minValue}" max="${f.maxValue}" step="${f.resolution || 1}"` : ""}>`;
+      const st = !exp ? '<span class="opacity-50">–</span>' : valDE(cur[k]) === valDE(exp) ? '<span class="pill ok">✓ passt</span>' : '<span class="pill err">⚠ weicht ab</span>';
+      return `<tr><td><input type="checkbox" class="toggle toggle-xs toggle-primary" data-on="${k}" ${!r || r.enabled ? "checked" : ""}></td>
+        <td>${setName(k)}</td><td class="font-semibold">${valDE(cur[k])}</td><td>${input}</td><td>${st}</td></tr>`;
+    }).join("");
+  }
+  $("alSave").addEventListener("click", async () => {
+    const msg = $("alMsg"); msg.className = "text-sm"; msg.textContent = "Speichere …";
+    try {
+      const ups = [], dels = [];
+      document.querySelectorAll("#alRows [data-k]").forEach(el => {
+        const k = el.dataset.k, v = el.value.trim(), on = document.querySelector(`#alRows [data-on="${CSS.escape(k)}"]`)?.checked ?? true, r = alRules[k];
+        if (!v) { if (r) dels.push(k); return; }
+        if (!r || r.expected !== v || r.enabled !== on) ups.push({ setting: k, expected: v, enabled: on, updated_at: new Date().toISOString() });
+      });
+      if (ups.length) await restWrite("POST", "wagael_alarm_rules?on_conflict=setting", ups, "resolution=merge-duplicates,return=minimal");
+      for (const k of dels) await restWrite("DELETE", `wagael_alarm_rules?setting=eq.${encodeURIComponent(k)}`, null, "return=minimal");
+      msg.className = "text-sm ok"; msg.textContent = `✓ Gespeichert (${ups.length} geändert, ${dels.length} entfernt). Weicht etwas schon jetzt ab, kommt gleich eine Nachricht.`;
+      await loadAlarms();
+    } catch (e) { msg.className = "text-sm err"; msg.textContent = "✗ " + e.message; }
+  });
+  $("alTest").addEventListener("click", async () => {
+    const msg = $("alMsg"); msg.className = "text-sm"; msg.textContent = "Sende …";
+    try { const r = await restWrite("POST", "rpc/wagael_notify_test", {}); msg.className = "text-sm " + (String(r).includes("gesendet") ? "ok" : "warn"); msg.textContent = String(r).includes("gesendet") ? "✓ Testnachricht gesendet – kommt sie in der ntfy-App an?" : String(r); }
+    catch (e) { msg.className = "text-sm err"; msg.textContent = "✗ " + e.message; }
+  });
+
   async function loadData() {
     applyPalette();
-    try { await Promise.all([loadTiles(), loadEnergy(), loadHistory(), loadAuto(), loadDiagnose(), loadMonth(), loadCurve(), loadBench(), loadAnlage(), loadState(), loadKlima()]); }
+    try { await Promise.all([loadTiles(), loadEnergy(), loadHistory(), loadAuto(), loadDiagnose(), loadMonth(), loadCurve(), loadBench(), loadAnlage(), loadState(), loadKlima(), loadDay(), loadAlarms()]); }
     catch (e) { setMsg("Daten konnten nicht geladen werden: " + e.message, "err"); }
   }
 
@@ -1652,6 +2166,7 @@
     $("appView").classList.toggle("hidden", !loggedIn);
     $("tabs").classList.toggle("invisible", !loggedIn);
     $("autoBadge").classList.toggle("hidden", !loggedIn);
+    if (!loggedIn) $("lastPoll").classList.add("hidden");
     $("userBox").classList.toggle("hidden", !loggedIn);
     if (!loggedIn) return;
     $("userEmail").textContent = session.user?.email || "";
@@ -1705,13 +2220,13 @@
     document.querySelectorAll("[data-panel]").forEach(p => p.classList.toggle("hidden", p.dataset.panel !== name));
     try { localStorage.setItem("wagael_tab", name); } catch (e) {}
     if (location.hash !== "#" + name) history.replaceState(null, "", "#" + name);
-    requestAnimationFrame(() => Object.values(charts).forEach(c => c.resize()));
+    requestAnimationFrame(() => { Object.values(charts).forEach(c => c.resize()); if (name === "day") drawDay(); });
     window.scrollTo({ top: 0 });
   }
   document.querySelectorAll("#tabs .tab").forEach(t => t.addEventListener("click", () => showTab(t.dataset.tab)));
   let startTab = location.hash.slice(1);
   try { startTab = startTab || localStorage.getItem("wagael_tab"); } catch (e) {}
-  showTab(["overview", "history", "klima", "diagnose", "config", "plant"].includes(startTab) ? startTab : "overview");
+  showTab(["overview", "history", "day", "klima", "diagnose", "config", "plant"].includes(startTab) ? startTab : "overview");
 
   // ---------- Design (daisyUI-Themes) ----------
   const THEMES = [["night", "Night"], ["dim", "Dim"], ["business", "Business"], ["dracula", "Dracula"], ["sunset", "Sunset"],
