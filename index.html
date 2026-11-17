@@ -115,6 +115,23 @@
 <!-- ===================== ÜBERSICHT ===================== -->
 <section data-panel="overview" class="space-y-4 lg:space-y-6">
   <div class="card bg-base-200">
+    <div class="card-body p-3 sm:p-4 gap-2">
+      <div class="flex flex-wrap items-center justify-between gap-2">
+        <h2 class="card-title text-base">Anlage live</h2>
+        <div class="flex items-center gap-2">
+          <button id="lvPlay" class="btn btn-xs" title="Heutigen Tag abspielen">▶︎ Tag abspielen</button>
+          <button id="lvLive" class="btn btn-xs btn-primary">Live</button>
+        </div>
+      </div>
+      <div class="flex items-center gap-3">
+        <input id="lvSlider" type="range" min="0" max="0" value="0" class="range range-xs range-primary flex-1" aria-label="Uhrzeit im Tagesverlauf">
+        <span id="lvTime" class="text-sm tabular-nums whitespace-nowrap w-28 text-right"></span>
+      </div>
+      <svg id="lvSvg" class="w-full block max-w-4xl mx-auto" viewBox="0 0 680 440" role="img" aria-label="Anlagenschema mit aktuellen Werten"></svg>
+      <div class="text-xs opacity-70">Bewegte Linie = Wasser bzw. Strom fließt · Werte aus der letzten Abfrage (alle 5 Min.) · Puffer-Ist und Vorlauf hinter dem Mischer liefert die Anlage nicht · Heizstab-Leistung geschätzt · Schieberegler oder „Tag abspielen“ = Zustand zu jeder Uhrzeit von heute</div>
+    </div>
+  </div>
+  <div class="card bg-base-200">
     <div class="card-body p-4 sm:p-5 gap-3">
       <div class="flex flex-wrap items-baseline justify-between gap-2">
         <h2 class="card-title text-base">Zustand auf einen Blick</h2>
@@ -295,7 +312,8 @@
     <div class="overflow-x-auto"><table class="table table-sm">
       <thead><tr><th>voll</th><th>nächste Ladung</th><th class="text-right">gehalten</th><th class="text-right">abgekühlt auf</th><th class="text-right">Abkühlung</th><th>wahrscheinlich</th></tr></thead>
       <tbody id="zRows"><tr><td colspan="6" class="empty">Lade …</td></tr></tbody></table></div>
-    <div class="text-xs opacity-70">„voll“ = höchste Speichertemperatur nach einer Ladung · Abkühlung unter 1,5 K/h = nur Wärmeverlust des Speichers, darüber wurde Warmwasser gezapft (Erfahrungswert) · Nachlade-Schwelle = typische Starttemperatur der Ladungen</div>
+    <div id="zLoss" class="text-sm"></div>
+    <div class="text-xs opacity-70">„voll“ = höchste Speichertemperatur nach einer Ladung · Abkühlung = (voll − abgekühlt) ÷ Dauer, Durchschnitt über den Zyklus · Vergleichswert ist die Abkühlung nachts (0–5 Uhr, da wird normalerweise nicht gezapft); deutlich schneller = Warmwasser gezapft · Nachlade-Schwelle = typische Starttemperatur der Ladungen</div>
   </div></div>
 </section>
 
@@ -339,6 +357,15 @@
         <thead><tr><th>Tag</th><th class="text-right">außen Ø</th><th class="text-right">Strom</th><th class="text-right">Wärme</th><th class="text-right">COP</th><th>Bewertung</th></tr></thead>
         <tbody id="copRows"><tr><td colspan="6" class="empty">Lade …</td></tr></tbody></table></div>
       <div class="dx">Wärme = Durchfluss × Spreizung (Vorlauf − Rücklauf) aus den Gerätedaten, nur bei laufendem Verdichter. Die Anlage liefert die Temperaturen nur in ganzen Grad – bei 2–4 K Spreizung ist der Wert daher grob (±25 %), über einen ganzen Tag gemittelt aber brauchbar. Orientierung: COP ≥ 4 gut, 3–4 ok, &lt; 3 auffällig. Einrichtung: 10_cycle_erweitert.sql.</div>
+    </div></div>
+    <div class="card bg-base-200 xl:col-span-2"><div class="card-body p-4 sm:p-5 gap-2">
+      <div class="flex flex-wrap items-center justify-between gap-2">
+        <h2 class="card-title text-base">🚿 Warmwasser: ECO gegen STD</h2>
+        <select id="mcDays" class="select select-bordered select-xs"><option value="7">7 Tage</option><option value="14" selected>14 Tage</option><option value="30">30 Tage</option></select>
+      </div>
+      <div id="mcVerdict"></div>
+      <div class="overflow-x-auto"><table class="table table-sm"><thead id="mcHead"></thead><tbody id="mcRows"><tr><td class="empty">Lade …</td></tr></tbody></table></div>
+      <div id="mcNote" class="dx"></div>
     </div></div>
     <div class="card bg-base-200"><div class="card-body p-4 sm:p-5 gap-2">
       <h2 class="card-title text-base">🚨 Fehlercode nachschlagen</h2>
@@ -419,6 +446,20 @@
   </div>
   <div class="card bg-base-200"><div class="card-body p-4 sm:p-5 gap-3">
     <div class="flex flex-wrap items-center gap-2 justify-between">
+      <h2 class="card-title text-base">🧯 Fehlerprotokoll – wie stabil läuft WAGAEL?</h2>
+      <div class="flex flex-wrap gap-2 items-center">
+        <select id="erDays" class="select select-bordered select-xs"><option value="1">24 Std.</option><option value="7" selected>7 Tage</option><option value="30">30 Tage</option><option value="90">90 Tage</option></select>
+        <button id="erCopy" class="btn btn-xs">Kopieren</button>
+      </div>
+    </div>
+    <div id="erSum" class="grid grid-cols-2 sm:grid-cols-4 gap-3"></div>
+    <div class="overflow-x-auto"><table class="table table-sm">
+      <thead><tr><th>Quelle</th><th>Meldung</th><th class="text-right">Anzahl</th><th>zuerst</th><th>zuletzt</th><th>Geräte · Version</th></tr></thead>
+      <tbody id="erRows"><tr><td colspan="6" class="empty">Lade …</td></tr></tbody></table></div>
+    <div class="dx">Seite = Fehler im Browser (iPad/Mac) · Laden = ein Bereich konnte keine Daten holen · Automatik = Fehler der 5-Minuten-Abfrage bei SmartThings. Gleiche Meldungen sind zusammengefasst. Einrichtung: 12_fehlerprotokoll.sql.</div>
+  </div></div>
+  <div class="card bg-base-200"><div class="card-body p-4 sm:p-5 gap-3">
+    <div class="flex flex-wrap items-center gap-2 justify-between">
       <h2 class="card-title text-base">🔔 Alarme – Soll-Zustand festlegen</h2>
       <div class="flex flex-wrap gap-2"><button id="alTest" class="btn btn-sm">Testnachricht senden</button><button id="alSave" class="btn btn-sm btn-primary">Speichern</button></div>
     </div>
@@ -460,6 +501,27 @@
   }
 
   function setMsg(text, cls = "") { $("msg").className = cls; $("msg").textContent = text; }
+
+  // ---------- Fehlerprotokoll: jeden Fehler nach Supabase (wagael_errors) ----------
+  const APP_VERSION = "2026-11-17b";
+  const erQueue = [], erSent = {};
+  const erDevice = () => { const u = navigator.userAgent; const d = /iPad|Macintosh.*Mobile|Macintosh(?=.*Safari)(?!.*Chrome)/.test(u) && navigator.maxTouchPoints > 1 ? "iPad" : /iPhone/.test(u) ? "iPhone" : /Macintosh/.test(u) ? "Mac" : /Android/.test(u) ? "Android" : "anderes";
+    return `${d} · ${/Edg\//.test(u) ? "Edge" : /Chrome\//.test(u) ? "Chrome" : /Firefox\//.test(u) ? "Firefox" : /Safari\//.test(u) ? "Safari" : "Browser"} · ${innerWidth}px`; };
+  function logError(message, source = "seite") {
+    const msg = String(message || "unbekannt").slice(0, 2000), key = source + "|" + msg;
+    if (erSent[key] && Date.now() - erSent[key] < 10 * 60000) return;   // gleiche Meldung höchstens alle 10 Min.
+    erSent[key] = Date.now();
+    erQueue.push({ source, message: msg, tab: (localStorage.getItem("wagael_tab") || "overview"), device: erDevice(), version: APP_VERSION });
+    erFlush();
+  }
+  async function erFlush() {
+    if (!accessToken || !erQueue.length) return;
+    const batch = erQueue.splice(0, erQueue.length);
+    try { await fetch(`${SUPABASE_URL}/rest/v1/wagael_errors`, { method: "POST", headers: { apikey: SUPABASE_KEY, Authorization: `Bearer ${accessToken}`, "Content-Type": "application/json", Prefer: "return=minimal" }, body: JSON.stringify(batch) }); }
+    catch (e) { /* Protokoll nicht erreichbar – nicht erneut melden */ }
+  }
+  window.addEventListener("error", (e) => logError(`${e.message}${e.filename ? ` (Zeile ${e.lineno})` : ""}`, "seite"));
+  window.addEventListener("unhandledrejection", (e) => logError(e.reason?.message || String(e.reason), "seite"));
 
   $("go").addEventListener("click", async () => {
     const token = $("token").value.trim();
@@ -1750,7 +1812,7 @@
     }
     return out;
   }
-  let tRange = "today", tCache = null;
+  let tRange = "today", tCache = null, tCacheLoss = null;
   const tDay = $("tDay");
   tDay.value = new Date().toLocaleDateString("sv-SE");
   function tBounds() {
@@ -1822,11 +1884,17 @@
     const closed = zyk.filter(z => z.next);
     const dur = (h) => { const m = Math.round(h * 60); return `${Math.floor(m / 60)} Std. ${String(m % 60).padStart(2, "0")}`; };
     $("zSum").textContent = closed.length ? `· Ø ${dur(closed.reduce((a, z) => a + z.hrs, 0) / closed.length)} Min.${thr != null ? ` · Nachladen bei ≈ ${fmt(thr, 0)} °C` : ""}` : "";
-    $("zRows").innerHTML = zyk.length ? zyk.map(z => { const fast = z.rate != null && z.rate > 1.5;
+    // Bezug „nur Wärmeverlust“: Zyklen, die überwiegend nachts (0–5 Uhr) liegen – da zapft normalerweise niemand
+    const nightShare = (z) => { let n = 0, all = 0; for (let t = z.full; t < z.end; t += 10 * 60000) { all++; const h = new Date(t).getHours(); if (h < 5) n++; } return all ? n / all : 0; };
+    const nightRates = zyk.filter(z => z.rate != null && nightShare(z) >= 0.6).map(z => z.rate);
+    const lossRef = nightRates.length ? Math.min(...nightRates) : null;
+    $("zRows").innerHTML = zyk.length ? zyk.map(z => { const night = nightShare(z) >= 0.6;
+      const fast = z.rate != null && (lossRef != null ? z.rate > lossRef * 1.4 + 0.3 : z.rate > 1.5);
       return `<tr><td>${hhmm(z.full)} <span class="opacity-60">(${fmt(z.peak, 0)} °C)</span></td><td>${z.next ? hhmm(z.next) : '<span class="opacity-60">noch nicht</span>'}</td>
-        <td class="text-right tabular-nums">${z.next ? "" : "seit "}${dur(z.hrs)}</td><td class="text-right tabular-nums">${fmt(z.lo)} °C</td><td class="text-right tabular-nums">${fmt(z.rate)} K/h</td>
-        <td>${z.rate == null ? "–" : fast ? '<span class="pill info">🚿 Wasser gezapft</span>' : '<span class="pill ok">🌡️ Wärmeverlust</span>'}</td></tr>`; }).join("")
+        <td class="text-right tabular-nums">${z.next ? "" : "seit "}${dur(z.hrs)}</td><td class="text-right tabular-nums">${fmt(z.lo)} °C</td><td class="text-right tabular-nums">${fmt(z.rate)} °C/Std.</td>
+        <td>${z.rate == null ? "–" : night ? '<span class="pill ok">🌙 nachts – Wärmeverlust</span>' : fast ? '<span class="pill info">🚿 Wasser gezapft</span>' : '<span class="pill ok">🌡️ wie nachts – kaum gezapft</span>'}</td></tr>`; }).join("")
       : `<tr><td colspan="6" class="empty">Keine Warmwasser-Ladung an diesem Tag.</td></tr>`;
+    $("zLoss").innerHTML = lossRef != null ? `Wärmeverlust ohne Zapfen (nachts gemessen): <b>${fmt(lossRef, 1)} °C pro Stunde</b>${lossRef >= 0.8 ? ' – <span class="warn">auffällig hoch</span>: ein gut gedämmter Speicher verliert meist nur 0,3–0,5 °C pro Stunde. Häufige Ursachen: Zirkulationspumpe läuft dauernd, Rohranschlüsse ungedämmt, Schwerkraftzirkulation (fehlende Rückschlagventile).' : ""}` : "";
     tCache = { rows, cyc, A, B, sun, sHK, sWW, sAB, sHS, slog, zyk, thr };
     drawHours({ rows, cyc, reps, A, B, sun, sHS, HS_KW, hsInCounter, pWith, pWithout });
 
@@ -2149,8 +2217,8 @@
       const info = FAULTS.find(x => x.c === codes[0]); $("faultBadge").title = info ? `${info.c}: ${info.m} – ${info.a}` : "Fehlercode der Anlage"; }
     const fl = [
       { key: "eco", icon: "🌿", label: "ECO nicht aktiv", sub: "Warmwasser-Modus weicht von ECO ab – und Entwarnung", on: !!eco && eco.enabled && valDE(eco.expected) === "ECO" },
-      ...(flags || []).map(f => ({ key: f.key, icon: { heizstab: "🔌", erfassung: "⏸", token: "🔑", fehler: "🚨" }[f.key] || "🔔", label: f.label, on: f.enabled,
-        sub: { heizstab: "Ein- und Ausschalten mit Laufzeit und ≈ kWh", erfassung: "20 Min. keine neue Abfrage – und wenn es wieder läuft", token: "2 Std. vor Ablauf und bei Ablauf", fehler: "sofort bei jedem Fehlercode – falls SmartThings ihn liefert" }[f.key] || "" })),
+      ...(flags || []).map(f => ({ key: f.key, icon: { heizstab: "🔌", erfassung: "⏸", token: "🔑", fehler: "🚨", wagael: "🧯" }[f.key] || "🔔", label: f.label, on: f.enabled,
+        sub: { heizstab: "Ein- und Ausschalten mit Laufzeit und ≈ kWh", erfassung: "20 Min. keine neue Abfrage – und wenn es wieder läuft", token: "2 Std. vor Ablauf und bei Ablauf", fehler: "sofort bei jedem Fehlercode – falls SmartThings ihn liefert", wagael: "neuer Fehler der Seite oder Automatik (je Meldung höchstens 1× am Tag)" }[f.key] || "" })),
     ];
     $("alFlags").innerHTML = fl.map(f => `<label class="flex items-start gap-3 rounded-box bg-base-100 border border-base-300 p-3 cursor-pointer">
         <input type="checkbox" class="checkbox checkbox-primary mt-0.5" data-flag="${f.key}" ${f.on ? "checked" : ""}>
@@ -2246,10 +2314,200 @@
   renderFaults();
   $("faultBadge").addEventListener("click", () => { showTab("diagnose"); $("fcSearch").value = $("faultBadge").dataset.code || ""; renderFaults(); });
 
+  // ---------- Anlage live (Schema) + Tag abspielen ----------
+  let lv = null, lvTimer = null, lvIdx = -1;
+  async function loadLive() {
+    const from = new Date(); from.setHours(0, 0, 0, 0); const to = new Date(from.getTime() + 864e5);
+    const [rowsRaw, cyc, reps, acRows, [base], stamm] = await Promise.all([
+      hpRows(from.toISOString(), to.toISOString()), cycleRows(from.toISOString(), to.toISOString()), energyReports(from.toISOString(), to.toISOString()),
+      rest(`snapshots?select=captured_at,temperature,humidity,switch_state&${AC_FILTER}&captured_at=gte.${from.toISOString()}&order=captured_at.asc`).catch(() => []),
+      rest("snapshots?select=raw&hp_valve=not.is.null&order=captured_at.desc&limit=1").catch(() => []),
+      rest("hp_stammdaten?select=key,value").catch(() => [])]);
+    const rows = rowsRaw.map(r => ({ ...r, t: new Date(r.captured_at).getTime() }));
+    if (!rows.length) { $("lvSvg").innerHTML = `<text x="340" y="220" text-anchor="middle" font-size="14" fill="${C.tick}">Heute noch keine Daten</text>`; return; }
+    const st = settingsFromRaw(base?.raw), wasLive = !lv || lvIdx < 0 || lvIdx >= lv.rows.length - 1;
+    lv = { rows, cyc, reps, ac: acRows.map(r => ({ ...r, t: new Date(r.captured_at).getTime() })), curve: curveSet(st), wwSoll: numS(st["Warmwasser-Soll"]),
+      hsKW: numIn(stamm.find(x => x.key === "Heizstab-Leistung")?.value) ?? 3 };
+    $("lvSlider").max = rows.length - 1;
+    if (wasLive && !lvTimer) lvIdx = rows.length - 1;
+    lvIdx = Math.min(lvIdx, rows.length - 1);
+    $("lvSlider").value = lvIdx; drawLive(lvIdx);
+  }
+  function lvState(i) {
+    const r = lv.rows[i], c = nearest(lv.cyc, r.t);
+    const run = c ? (c.comp_hz ?? 0) > 0 : (r.power_kw ?? 0) > ON_KW;
+    let kw = r.power_kw;   // Strom: Leistung im Zählerfenster, das diesen Zeitpunkt enthält
+    const w = (lv.reps || []).find(x => x.s <= r.t && x.e >= r.t - 60000 && x.e > x.s);
+    if (w) kw = w.wh / ((w.e - w.s) / 3600e3) / 1000;
+    let a = null; lv.ac.forEach(x => { if (!a || Math.abs(x.t - r.t) < Math.abs(a.t - r.t)) a = x; });
+    const out = c?.out_air ?? r.outdoor_temp;
+    return { t: r.t, run, hz: c?.comp_hz ?? null, kw, heat: heatKW(c), lpm: c?.flow_lpm ?? null, pump: c?.pump_pct ?? null,
+      vl: c?.flow ?? r.hp_flow_temp, rl: c?.ret ?? null, valve: r.hp_valve, ww: r.temperature, wwSoll: r.setpoint ?? lv.wwSoll,
+      hs: r.hp_booster === "on", ab: r.hp_defrost === "on", out, puffer: lv.curve && out != null ? curveAt(lv.curve, out) : null,
+      halle: a && Math.abs(a.t - r.t) < 3600e3 ? a.temperature : null, hum: a && Math.abs(a.t - r.t) < 3600e3 ? a.humidity : null,
+      age: Math.round((Date.now() - r.t) / 60000) };
+  }
+  function drawLive(i) {
+    if (!lv || !lv.rows[i]) return;
+    const s = lvState(i), dk = C.dark, f1 = (v, d = 1) => v == null || !isFinite(v) ? "–" : fmt(v, d);
+    const ink = dk ? "#e8e6dc" : "#2c2c2a", mut = dk ? "#a3a29a" : "#6b6a64", card = dk ? "#262624" : "#ffffff", edge = dk ? "#4a4945" : "#d3d1c7", bg2 = dk ? "#1f1f1d" : "#f6f5f0", pb = dk ? "#3a3936" : "#e6e4dc";
+    const HOT = dk ? "#e2683a" : "#e5602b", RET = dk ? "#4f8fd8" : "#3b7fd0", DHW = dk ? "#d55181" : "#d9467a", RED = "#e34948", PWR = dk ? "#c98500" : "#eda100";
+    const tcol = (v) => v == null ? (dk ? "#5f5e5a" : "#b4b2a9") : v >= 55 ? "#c9372c" : v >= 47 ? "#e5602b" : v >= 40 ? "#ee8a3c" : v >= 30 ? "#f2b45a" : "#6aa5e6";
+    const pumpOn = (s.pump ?? (s.run ? 100 : 0)) > 0, flow = s.run || pumpOn, toW = s.valve === "tank", toP = !toW;
+    const pp = (d, col, on, w = 6) => `<path d="${d}" fill="none" stroke="${pb}" stroke-width="${w + 4}" stroke-linecap="round" stroke-linejoin="round"/><path d="${d}" fill="none" stroke="${col}" stroke-width="${w}" stroke-linecap="round" stroke-linejoin="round" class="${on ? "lv-on" : "lv-off"}"/>`;
+    const pump = (x, y, on) => `<circle cx="${x}" cy="${y}" r="11" fill="${card}" stroke="${edge}" stroke-width="1.5"/><g class="${on ? "lv-spin" : ""}"><path d="M${x - 5} ${y - 6} L${x + 7} ${y} L${x - 5} ${y + 6} Z" fill="${mut}"/></g>`;
+    const tank = (x, y, w, h, fill, title, label, extra = "") => `<rect x="${x}" y="${y}" width="${w}" height="${h}" rx="${w / 2.2}" fill="${card}" stroke="${edge}" stroke-width="1.5"/><rect x="${x + 8}" y="${y + 10}" width="${w - 16}" height="${h - 20}" rx="${w / 2.8}" fill="${fill}" opacity=".85"/><text x="${x + w / 2}" y="${y + h / 2 + 5}" text-anchor="middle" font-size="14" font-weight="600" fill="#fff" style="paint-order:stroke;stroke:#0006;stroke-width:3px">${label}</text><text x="${x + w / 2}" y="${y - 8}" text-anchor="middle" font-size="12" fill="${ink}">${title}</text>${extra}`;
+    const T = (x, y, txt, o = {}) => `<text x="${x}" y="${y}" text-anchor="${o.a || "middle"}" font-size="${o.fs || 11}" ${o.b ? 'font-weight="600"' : ""} fill="${o.c || mut}">${txt}</text>`;
+    const icon = s.ab ? "🧊" : !s.run ? "⏸" : toW ? "🚿" : "🔥", name = s.ab ? "Abtauen" : !s.run ? "Pause – Verdichter steht" : toW ? "Lädt Warmwasser" : "Heizt den Puffer";
+    const hsKW = s.hs ? lv.hsKW : 0, cop = s.run && s.heat && s.kw > 0.1 ? s.heat / s.kw : null;
+    let g = `<style>@keyframes lvfl{to{stroke-dashoffset:-28}}@keyframes lvsp{to{transform:rotate(360deg)}}.lv-on{stroke-dasharray:10 4;animation:lvfl .8s linear infinite}.lv-off{opacity:.18}.lv-spin{transform-box:fill-box;transform-origin:center;animation:lvsp 1.2s linear infinite}</style>`;
+    g += `<rect x="0" y="0" width="680" height="440" rx="14" fill="${bg2}"/>`;
+    // Strom-Eingang
+    g += `<rect x="20" y="8" width="130" height="40" rx="10" fill="${card}" stroke="${edge}" stroke-width="1.5"/>` + T(42, 33, "⚡", { fs: 16 }) + T(100, 25, "Strom", { c: ink, fs: 12 }) +
+      T(100, 41, `${f1(s.kw, 2)} kW${hsKW ? ` + Stab ≈ ${f1(hsKW)}` : ""}`, { c: ink, b: true });
+    g += pp("M85 48 V70", PWR, (s.kw ?? 0) > 0.05, 4);
+    if (hsKW) g += pp("M150 28 H300 V312 H318", RED, true, 3);
+    g += `<rect x="168" y="8" width="120" height="40" rx="10" fill="${card}" stroke="${edge}" stroke-width="1.5" stroke-dasharray="4 3"/>` + T(186, 33, "☀️", { fs: 16 }) + T(238, 25, "PV", { c: ink, fs: 12 }) + T(238, 41, "folgt (FoxESS)");
+    // Haus
+    g += `<path d="M498 160 L583 102 L668 160" fill="none" stroke="${edge}" stroke-width="2"/><rect x="508" y="160" width="150" height="200" fill="none" stroke="${edge}" stroke-width="2"/>` +
+      T(583, 186, "Halle", { c: ink, fs: 12 }) + T(583, 208, `${f1(s.halle, 0)} °C`, { c: ink, fs: 14, b: true }) + T(583, 224, `Luftfeuchte ${f1(s.hum, 0)} %`) + T(583, 348, "Fußbodenheizung");
+    // Rohre Primärkreis
+    g += pp("M150 130 H231", HOT, flow) + pp("M259 130 H318", HOT, flow && toP) + pp("M245 144 V330 H318", DHW, flow && toW) +
+      pp("M318 246 H245", RET, flow && toP) + pp("M318 400 H228 V246", RET, flow && toW) + pp("M245 246 H150", RET, flow);
+    // Sekundärkreis (Zustand unbekannt → als laufend angenommen)
+    g += pp("M392 130 H428", HOT, true, 5) + pp("M452 130 H480 V316 H530", HOT, true, 5) +
+      `<path d="M530 316 h96 q14 0 14 -12 t-14 -12 h-96 q-14 0 -14 -12 t14 -12 h96 q14 0 14 -12 t-14 -12 h-96" fill="none" stroke="${HOT}" stroke-width="4" class="lv-on"/>` + pp("M530 244 H500 V266 H392", RET, true, 5);
+    // Wärmepumpe
+    g += `<rect x="20" y="70" width="130" height="210" rx="14" fill="${card}" stroke="${edge}" stroke-width="1.5"/><circle cx="85" cy="128" r="38" fill="none" stroke="${edge}" stroke-width="1.5"/>` +
+      `<g class="${s.run ? "lv-spin" : ""}" style="animation-duration:${s.run ? Math.max(.4, 2.4 - (s.hz || 20) / 25) : 1}s">${[0, 120, 240].map(a => `<path d="M85 128 q14 -30 0 -34 q-10 4 0 34" fill="${mut}" transform="rotate(${a} 85 128)"/>`).join("")}</g><circle cx="85" cy="128" r="5" fill="${ink}"/>` +
+      T(85, 190, `${icon} ${s.hz != null ? f1(s.hz, 0) + " Hz" : ""}`, { c: ink, fs: 14, b: true }) + T(85, 208, `Wärme ${s.run && s.heat ? "≈ " + f1(s.heat) + " kW" : "–"}`) +
+      T(85, 225, `COP ${cop ? "≈ " + f1(cop) : "–"}`, { c: cop ? ink : mut }) + T(85, 242, `außen ${f1(s.out, 0)} °C`) + T(85, 266, "Wärmepumpe", { c: ink, fs: 12 });
+    g += pump(190, 246, pumpOn) + T(190, 274, `Pumpe ${s.pump != null ? f1(s.pump, 0) + " %" : "–"}${s.lpm != null ? " · " + f1(s.lpm, 0) + " l/min" : ""}`, { c: pumpOn && !s.run ? RED : mut });
+    g += `<rect x="160" y="106" width="54" height="22" rx="11" fill="${card}" stroke="${edge}"/>` + T(187, 121, `${f1(s.vl, 0)} °C`, { c: ink }) +
+      `<rect x="148" y="214" width="54" height="22" rx="11" fill="${card}" stroke="${edge}"/>` + T(175, 229, `${f1(s.rl, 0)} °C`, { c: ink });
+    g += `<circle cx="245" cy="130" r="14" fill="${card}" stroke="${edge}" stroke-width="1.5"/><path d="M237 124 L253 136 M237 136 L253 124" stroke="${toW ? DHW : HOT}" stroke-width="2.5"/>` + T(245, 104, `Ventil → ${toW ? "Warmwasser" : "Puffer"}`);
+    g += tank(318, 100, 74, 170, dk ? "#5f5e5a" : "#b4b2a9", "Puffer", "?", T(355, 286, `Soll ≈ ${f1(s.puffer, 0)} °C (Heizkurve)`) + T(355, 300, "Ist: nicht über API"));
+    g += tank(318, 326, 74, 92, tcol(s.ww), "Warmwasser", `${f1(s.ww)} °C`, T(404, 362, `Soll ${f1(s.wwSoll, 0)} °C`, { a: "start" }) +
+      `<rect x="402" y="374" width="70" height="18" rx="9" fill="${s.hs ? RED : card}" stroke="${s.hs ? RED : edge}"/>` + T(437, 387, `Heizstab ${s.hs ? "an" : "aus"}`, { c: s.hs ? "#fff" : mut }));
+    g += `<circle cx="440" cy="130" r="12" fill="${card}" stroke="${edge}" stroke-width="1.5"/><path d="M432 124 L448 136 L448 124 L432 136 Z" fill="${mut}"/>` + T(440, 110, "Mischer") + pump(480, 200, true);
+    g += `<rect x="20" y="402" width="${name.length * 7 + 120}" height="26" rx="13" fill="${card}" stroke="${edge}"/>` + T(34, 419, `${icon} ${name} · ${hhmm(s.t)}${s.age > 10 ? "" : " (aktuell)"}`, { a: "start", c: ink, fs: 12 });
+    $("lvSvg").innerHTML = g;
+    $("lvTime").textContent = `${hhmm(s.t)} Uhr${i === lv.rows.length - 1 ? " · live" : ""}`;
+  }
+  function lvStop() { clearInterval(lvTimer); lvTimer = null; $("lvPlay").textContent = "▶︎ Tag abspielen"; }
+  $("lvSlider").addEventListener("input", (e) => { lvStop(); lvIdx = +e.target.value; drawLive(lvIdx); });
+  $("lvLive").addEventListener("click", () => { lvStop(); if (!lv) return; lvIdx = lv.rows.length - 1; $("lvSlider").value = lvIdx; drawLive(lvIdx); });
+  $("lvPlay").addEventListener("click", () => {
+    if (lvTimer) return lvStop();
+    if (!lv) return;
+    if (lvIdx >= lv.rows.length - 1) lvIdx = 0;
+    $("lvPlay").textContent = "⏸ Pause";
+    lvTimer = setInterval(() => { lvIdx++; if (lvIdx >= lv.rows.length) { lvIdx = lv.rows.length - 1; lvStop(); } $("lvSlider").value = lvIdx; drawLive(lvIdx); }, 300);
+  });
+
+  let erGroups = [];
+  async function loadErrors() {
+    const days = +($("erDays").value || 7), since = new Date(Date.now() - days * 864e5).toISOString();
+    let rows;
+    try { rows = await restAll(`wagael_errors?select=ts,source,message,tab,device,version&ts=gte.${since}&order=ts.desc`); }
+    catch (e) { $("erRows").innerHTML = `<tr><td colspan="6" class="empty">Noch nicht eingerichtet – 12_fehlerprotokoll.sql ausführen.</td></tr>`; $("erSum").innerHTML = ""; return; }
+    const g = {};
+    rows.forEach(r => { const k = r.source + "|" + r.message; const x = g[k] ??= { source: r.source, message: r.message, n: 0, first: r.ts, last: r.ts, dev: new Set(), ver: new Set(), tabs: new Set() };
+      x.n++; if (r.ts < x.first) x.first = r.ts; if (r.ts > x.last) x.last = r.ts; if (r.device) x.dev.add(r.device.split(" · ")[0]); if (r.version) x.ver.add(r.version); if (r.tab) x.tabs.add(r.tab); });
+    erGroups = Object.values(g).sort((a, b) => b.last.localeCompare(a.last));
+    const cnt = (s) => rows.filter(r => r.source === s).length, dt = (t) => `${ddmm(new Date(t).getTime())} ${hhmm(new Date(t).getTime())}`;
+    $("erSum").innerHTML = [
+      stateTile(rows.length ? "⚠️" : "✅", `Fehler (${days === 1 ? "24 Std." : days + " Tage"})`, `${rows.length}`, rows.length ? `${erGroups.length} verschiedene` : "keine – läuft stabil", rows.length ? "warn" : "ok"),
+      stateTile("🖥️", "Seite", `${cnt("seite")}`, "Fehler im Browser", cnt("seite") ? "warn" : "ok"),
+      stateTile("📥", "Laden", `${cnt("laden")}`, "Bereich ohne Daten", cnt("laden") ? "warn" : "ok"),
+      stateTile("⏱️", "Automatik", `${cnt("automatik")}`, "SmartThings-Abfrage", cnt("automatik") ? "warn" : "ok"),
+    ].join("");
+    const SRC = { seite: "🖥️ Seite", laden: "📥 Laden", automatik: "⏱️ Automatik" };
+    $("erRows").innerHTML = erGroups.length ? erGroups.map(x => `<tr><td class="whitespace-nowrap">${SRC[x.source] || x.source}</td><td class="text-xs break-all">${x.message.replace(/</g, "&lt;")}${x.tabs.size ? `<br><span class="opacity-60">Reiter: ${[...x.tabs].join(", ")}</span>` : ""}</td>
+      <td class="text-right tabular-nums">${x.n}×</td><td class="whitespace-nowrap">${dt(x.first)}</td><td class="whitespace-nowrap">${dt(x.last)}</td><td class="text-xs">${[...x.dev].join(", ") || "–"}<br><span class="opacity-60">${[...x.ver].join(", ")}</span></td></tr>`).join("")
+      : `<tr><td colspan="6" class="empty">✅ Keine Fehler im gewählten Zeitraum.</td></tr>`;
+  }
+  $("erDays").addEventListener("change", loadErrors);
+  $("erCopy").addEventListener("click", async () => {
+    const txt = erGroups.map(x => `[${x.source}] ${x.n}× ${x.first} … ${x.last} | ${[...x.dev].join(",")} | ${[...x.ver].join(",")}\n  ${x.message}`).join("\n") || "keine Fehler";
+    try { await navigator.clipboard.writeText(`WAGAEL Fehlerprotokoll (${APP_VERSION})\n` + txt); $("erCopy").textContent = "✓ kopiert"; setTimeout(() => $("erCopy").textContent = "Kopieren", 2000); } catch (e) { alert(txt); }
+  });
+
+  // ---------- Warmwasser-Ladungen je Modus (ECO / STD / POWER / FORCE) ----------
+  async function loadModeCmp() {
+    const days = +($("mcDays").value || 14), to = new Date(), from = new Date(to.getTime() - days * 864e5);
+    const F = from.toISOString(), T = to.toISOString();
+    const [rowsRaw, reps, slogRaw, [base], stamm] = await Promise.all([hpRows(F, T), energyReports(F, T),
+      restAll(`hp_settings_log?select=ts,setting,old_value,new_value&setting=eq.Warmwasser-Modus&ts=lt.${T}&order=ts.asc`).catch(() => []),
+      rest(`snapshots?select=captured_at,raw&hp_valve=not.is.null&captured_at=lte.${F}&order=captured_at.desc&limit=1`)
+        .then(r => r.length ? r : rest(`snapshots?select=captured_at,raw&hp_valve=not.is.null&order=captured_at.asc&limit=1`)).catch(() => []),
+      rest("hp_stammdaten?select=key,value").catch(() => [])]);
+    const rows = withDeltas(rowsRaw);
+    const LITER = numIn(stamm.find(x => /warmwasser.*(speicher|liter)|speicher.*warmwasser/i.test(x.key))?.value) ?? 260;
+    const HSKW = numIn(stamm.find(x => x.key === "Heizstab-Leistung")?.value) ?? 3;
+    const baseT = base?.raw && isFinite(new Date(base.captured_at).getTime()) ? new Date(base.captured_at).getTime() : -Infinity;
+    const slog = [{ setting: "Warmwasser-Modus", new_value: settingsFromRaw(base?.raw)["Warmwasser-Modus"], t: baseT },
+      ...slogRaw.map(x => ({ ...x, t: new Date(x.ts).getTime() })).filter(x => x.t > baseT)];
+    const modeAt = (t) => { let m = null; for (const x of slog) { if (x.t > t) break; m = x.new_value; } return m ? String(m).replace(/"/g, "").toLowerCase() : "?"; };
+    const runs = dhwRuns(rows).map(x => {
+      const before = rows.filter(r => r.t < x.start && r.temperature != null).pop();
+      const after = rows.filter(r => r.t >= x.start && r.t <= x.end + 25 * 60000 && r.temperature != null);
+      const t0 = before && x.start - before.t <= 15 * 60000 ? before.temperature : x.startTemp, peak = after.length ? Math.max(...after.map(r => r.temperature)) : x.peak;
+      const hsMin = rows.filter(r => r.t >= x.start && r.t <= x.end + 5 * 60000 && r.hp_booster === "on").length * 5;
+      const el = runWh(x, reps) + hsMin / 60 * HSKW * 1000, dK = peak != null && t0 != null ? peak - t0 : null;   // Heizstab geschätzt dazu
+      return { ...x, mode: modeAt(x.start), t0, peak, el, dK, heat: dK != null && dK > 0 ? LITER * 1.163 * dK : null, hsMin, legio: (peak ?? 0) >= 58, dur: (x.end - x.start) / 60000 + 5 };
+    }).filter(x => x.el > 20 && x.dK != null && x.dK >= 1);
+    const order = ["eco", "std", "power", "force", "?"];
+    const groups = {};
+    runs.forEach(x => { const k = x.legio ? "legio" : x.mode; (groups[k] ??= []).push(x); });
+    const cols = [...order.filter(k => groups[k]), ...(groups.legio ? ["legio"] : [])];
+    const NAME = { eco: "🌿 ECO", std: "STD", power: "POWER", force: "FORCE", "?": "unbekannt", legio: "🦠 Legionellen" };
+    if (!cols.length) { $("mcHead").innerHTML = ""; $("mcRows").innerHTML = `<tr><td class="empty">Noch keine Warmwasser-Ladungen im Zeitraum.</td></tr>`; $("mcVerdict").innerHTML = ""; return; }
+    const sum = (a, f) => a.reduce((s2, x) => s2 + (f(x) || 0), 0), avg = (a, f) => a.length ? sum(a, f) / a.length : null;
+    const st = Object.fromEntries(cols.map(k => { const a = groups[k], el = sum(a, x => x.el), heat = sum(a, x => x.heat), dK = sum(a, x => x.dK);
+      return [k, { n: a.length, perDay: a.length / days, dur: avg(a, x => x.dur), t0: avg(a, x => x.t0), peak: avg(a, x => x.peak), kwh: el / a.length / 1000,
+        whK: dK ? el / dK : null, cop: el ? heat / el : null, hs: sum(a, x => x.hsMin), kwhAll: el / 1000 }]; }));
+    $("mcHead").innerHTML = `<tr><th></th>${cols.map(k => `<th class="text-right">${NAME[k]}</th>`).join("")}</tr>`;
+    const best = (key, low) => { const v = cols.filter(k => k !== "legio" && st[k][key] != null).map(k => st[k][key]); return v.length > 1 ? (low ? Math.min(...v) : Math.max(...v)) : null; };
+    const line = (label, key, fmtF, low, hint) => { const b = best(key, low);
+      return `<tr><td>${label}${hint ? `<br><span class="text-xs opacity-60">${hint}</span>` : ""}</td>${cols.map(k => { const v = st[k][key];
+        return `<td class="text-right tabular-nums ${b != null && v === b && k !== "legio" ? "font-semibold ok" : ""}">${v == null ? "–" : fmtF(v)}</td>`; }).join("")}</tr>`; };
+    $("mcRows").innerHTML = [
+      line("Ladungen", "n", v => `${v} <span class="opacity-60">(${fmt(v / days, 1)}/Tag)</span>`),
+      line("Ø Dauer", "dur", v => `${fmt(v, 0)} Min.`),
+      line("Ø Speicher vorher → nachher", "t0", (v) => v, false),
+      line("Strom je Ladung", "kwh", v => `${fmt(v, 2)} kWh`, true),
+      line("Strom je °C Anstieg", "whK", v => `${fmt(v, 0)} Wh/°C`, true, "bereinigt um die Endtemperatur"),
+      line("Speicher-COP", "cop", v => fmt(v, 1), false, `Wärme im Speicher (${LITER} l) ÷ Strom`),
+      line("Heizstab", "hs", v => v ? `${fmt(v, 0)} Min.` : "–", true),
+      line("Strom gesamt", "kwhAll", v => `${fmt(v, 1)} kWh`),
+    ].join("");
+    // Zeile vorher → nachher richtig füllen
+    const rowsHtml = $("mcRows").querySelectorAll("tr")[2];
+    if (rowsHtml) rowsHtml.innerHTML = `<td>Ø Speicher vorher → nachher</td>${cols.map(k => `<td class="text-right tabular-nums">${fmt(st[k].t0, 1)} → ${fmt(st[k].peak, 1)} °C</td>`).join("")}`;
+    // Fazit ECO vs STD
+    const e = st.eco, d = st.std;
+    let v = "";
+    if (e && d && e.cop && d.cop) {
+      const diff = (e.whK - d.whK) / d.whK * 100, few = e.n < 5 || d.n < 5;
+      v = verdict(Math.abs(diff) < 8 ? "info" : "ok", diff < -8 ? "ECO ist sparsamer" : diff > 8 ? "STD ist sparsamer" : "Kaum Unterschied",
+        `COP ${fmt(e.cop, 1)} vs ${fmt(d.cop, 1)}`,
+        `Für 1 °C mehr im Speicher braucht ECO ${fmt(e.whK, 0)} Wh, STD ${fmt(d.whK, 0)} Wh (${diff > 0 ? "+" : ""}${fmt(diff, 0)} %). ECO lädt dafür nur bis Ø ${fmt(e.peak, 0)} °C, STD bis ${fmt(d.peak, 0)} °C${d.hs ? `, und STD nutzte ${fmt(d.hs, 0)} Min. den Heizstab` : ""}.` +
+        (few ? " <b>Noch wenige Ladungen – Ergebnis vorläufig.</b>" : ""));
+    } else v = `<div class="text-sm opacity-70">Für den Vergleich braucht es Ladungen in ECO <i>und</i> STD im Zeitraum.</div>`;
+    $("mcVerdict").innerHTML = v ? `<div class="card bg-base-100"><div class="card-body p-3">${v}</div></div>` : "";
+    $("mcNote").innerHTML = `Modus zum Start jeder Ladung (Änderungsprotokoll). Strom aus den Zählerfenstern der Ladung, plus Heizstab geschätzt (Laufzeit × ${fmt(HSKW, 1)} kW), weil der Zähler ihn vermutlich nicht erfasst; Wärme = ${LITER} l × 1,163 Wh × Temperaturanstieg am Speicherfühler (ohne Abkühlverluste während der Ladung, daher eher zu niedrig). Legionellen-Ladungen (≥ 58 °C) getrennt. Achtung: Bei dir hängt der Modus an der Uhrzeit (STD vormittags) – Unterschiede können auch an Tageszeit, Verbrauch und Außentemperatur liegen. Speichergröße aus Stammdaten, sonst 260 l.`;
+  }
+  $("mcDays").addEventListener("change", loadModeCmp);
+
   async function loadData() {
     applyPalette();
-    try { await Promise.all([loadTiles(), loadEnergy(), loadHistory(), loadAuto(), loadDiagnose(), loadMonth(), loadCurve(), loadBench(), loadAnlage(), loadState(), loadKlima(), loadDay(), loadAlarms(), loadCop()]); }
-    catch (e) { setMsg("Daten konnten nicht geladen werden: " + e.message, "err"); }
+    const L = { loadTiles, loadEnergy, loadHistory, loadAuto, loadDiagnose, loadMonth, loadCurve, loadBench, loadAnlage, loadState, loadKlima, loadDay, loadAlarms, loadCop, loadLive, loadErrors, loadModeCmp };
+    const names = Object.keys(L), res = await Promise.allSettled(names.map(n => L[n]()));
+    const bad = res.map((r, i) => r.status === "rejected" ? `${names[i]}: ${r.reason?.message || r.reason}` : null).filter(Boolean);
+    bad.forEach(m => logError(m, "laden"));
+    setMsg(bad.length ? `Daten konnten nicht vollständig geladen werden (${bad.length} Bereich${bad.length > 1 ? "e" : ""}): ${bad[0]}` : "", bad.length ? "err" : "");
+    erFlush();
   }
 
   // ---------- Login (Supabase Auth, E-Mail-Link oder Code) ----------
@@ -2276,6 +2534,8 @@
     $("userBox").classList.toggle("hidden", !loggedIn);
     if (!loggedIn) return;
     $("userEmail").textContent = session.user?.email || "";
+    $("userEmail").title = "WAGAEL Version " + APP_VERSION;
+    erFlush();
     if (!was) {
       await loadData();
       // Freischaltung prüfen: angemeldet, aber RLS liefert nichts
