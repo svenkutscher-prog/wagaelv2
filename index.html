@@ -64,6 +64,7 @@
       <a role="tab" class="tab whitespace-nowrap" data-tab="overview">Übersicht</a>
       <a role="tab" class="tab whitespace-nowrap" data-tab="history">Verlauf</a>
       <a role="tab" class="tab whitespace-nowrap" data-tab="day">Tagesablauf</a>
+      <a role="tab" class="tab whitespace-nowrap" data-tab="solar">Solar</a>
       <a role="tab" class="tab whitespace-nowrap" data-tab="klima">Klima</a>
       <a role="tab" class="tab whitespace-nowrap" data-tab="diagnose">Diagnose</a>
       <a role="tab" class="tab whitespace-nowrap" data-tab="opt">Optimierung</a>
@@ -129,7 +130,8 @@
         <span id="lvTime" class="text-sm tabular-nums whitespace-nowrap w-28 text-right"></span>
       </div>
       <svg id="lvSvg" class="w-full block max-w-4xl mx-auto" viewBox="0 0 680 440" role="img" aria-label="Anlagenschema mit aktuellen Werten"></svg>
-      <div class="text-xs opacity-70">Bewegte Linie = Wasser bzw. Strom fließt · Werte aus der letzten Abfrage (alle 5 Min.) · Puffer-Ist und Vorlauf hinter dem Mischer liefert die Anlage nicht · Heizstab-Leistung geschätzt · Schieberegler oder „Tag abspielen“ = Zustand zu jeder Uhrzeit von heute</div>
+      <div id="lvToday" class="grid grid-cols-1 sm:grid-cols-3 gap-3"></div>
+      <div class="text-xs opacity-70">Bewegte Linie = Wasser bzw. Strom fließt · Werte aus der letzten Abfrage (alle 5 Min.) · Puffer-Ist und Vorlauf hinter dem Mischer liefert die Anlage nicht · Heizstab-Leistung geschätzt · Solar, Akku, Netz und Haus aus FoxESS (alle 5 Min.) · Schieberegler oder „Tag abspielen“ = Zustand zu jeder Uhrzeit von heute</div>
     </div>
   </div>
   <div class="card bg-base-200">
@@ -290,7 +292,13 @@
       <div id="tTip" class="hidden absolute pointer-events-none rounded-box bg-base-100 border border-base-300 px-2 py-1 text-xs shadow"></div></div>
     <div class="flex flex-wrap items-baseline gap-x-2 text-sm mt-1"><span class="font-semibold">⚙️ Einstellungen laut Anlage</span><span id="tSetWhen" class="opacity-70"></span></div>
     <div id="tSet" class="flex flex-wrap gap-1.5 text-xs"></div>
-    <div class="text-xs opacity-70">Dunkel = Nacht · gelb = Sonne, kräftig ab 10° Sonnenhöhe (ab da liefert die PV nennenswert Strom – berechnet für Linnich, bis die FoxESS-Daten da sind) · Maus/Finger auf die Grafik = Werte zur Uhrzeit</div>
+    <div class="text-xs opacity-70">Dunkel = Nacht · gelb = Sonne, kräftig ab 10° Sonnenhöhe · oberste Spur: echte PV-Leistung aus FoxESS, solange keine PV-Daten da sind die berechnete Sonnenhöhe · Maus/Finger auf die Grafik = Werte zur Uhrzeit</div>
+  </div></div>
+  <div class="card bg-base-200"><div class="card-body p-4 gap-3">
+    <div class="ctitle">☀️ Strom im Haus – woher kam er, wohin ging er? <span id="pvSum" class="font-semibold"></span></div>
+    <div id="pvTiles" class="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-6 gap-3"></div>
+    <div id="pvBars" class="grid gap-4 lg:grid-cols-3"></div>
+    <div id="pvNote" class="text-xs opacity-70"></div>
   </div></div>
   <div class="card bg-base-200"><div class="card-body p-4 gap-3">
     <div class="ctitle">Wohin ging der Strom – und wann? <span id="hSum" class="font-semibold"></span></div>
@@ -315,6 +323,21 @@
       <tbody id="zRows"><tr><td colspan="6" class="empty">Lade …</td></tr></tbody></table></div>
     <div id="zLoss" class="text-sm"></div>
     <div class="text-xs opacity-70">„voll“ = höchste Speichertemperatur nach einer Ladung · Abkühlung = (voll − abgekühlt) ÷ Dauer, Durchschnitt über den Zyklus · Vergleichswert ist die Abkühlung nachts (0–5 Uhr, da wird normalerweise nicht gezapft); deutlich schneller = Warmwasser gezapft · Nachlade-Schwelle = typische Starttemperatur der Ladungen</div>
+  </div></div>
+</section>
+
+<!-- ===================== SOLAR ===================== -->
+<section data-panel="solar" class="space-y-4 lg:space-y-6 hidden">
+  <div class="flex flex-wrap items-center justify-between gap-2">
+    <div><div class="font-semibold">☀️ Strom pro Tag</div><div class="text-sm opacity-70">Was hat die Solaranlage erzeugt, was hat das Haus verbraucht – und wie viel davon lief die Wärmepumpe mit Sonne?</div></div>
+    <select id="soDays" class="select select-bordered select-sm"><option value="7" selected>7 Tage</option><option value="14">14 Tage</option><option value="30">30 Tage</option></select>
+  </div>
+  <div class="card bg-base-200"><div class="card-body p-4 gap-3">
+    <div class="overflow-x-auto"><table class="table table-sm">
+      <thead><tr><th>Tag</th><th class="text-right">☀️ Erzeugt</th><th class="text-right">🏠 Verbraucht</th><th class="text-right">⚡ Gekauft</th><th class="text-right">↗️ Verkauft</th><th class="text-right">♨️ Wärmepumpe</th><th>davon mit Sonne</th></tr></thead>
+      <tbody id="soRows"><tr><td colspan="7" class="empty">Lade …</td></tr></tbody>
+      <tfoot id="soFoot"></tfoot></table></div>
+    <div id="soNote" class="text-xs opacity-70"></div>
   </div></div>
 </section>
 
@@ -471,7 +494,7 @@
     <div class="overflow-x-auto"><table class="table table-sm">
       <thead><tr><th>Quelle</th><th>Meldung</th><th class="text-right">Anzahl</th><th>zuerst</th><th>zuletzt</th><th>Geräte · Version</th></tr></thead>
       <tbody id="erRows"><tr><td colspan="6" class="empty">Lade …</td></tr></tbody></table></div>
-    <div class="dx">Seite = Fehler im Browser (iPad/Mac) · Laden = ein Bereich konnte keine Daten holen · Automatik = Fehler der 5-Minuten-Abfrage bei SmartThings. Gleiche Meldungen sind zusammengefasst. Einrichtung: 12_fehlerprotokoll.sql.</div>
+    <div class="dx">Seite = Fehler im Browser (iPad/Mac) · Laden = ein Bereich konnte keine Daten holen · Automatik = Fehler der 5-Minuten-Abfrage bei SmartThings · PV = Fehler der FoxESS-Abfrage (Edge Function „fox“). Gleiche Meldungen sind zusammengefasst. Einrichtung: 12_fehlerprotokoll.sql.</div>
   </div></div>
   <div class="card bg-base-200"><div class="card-body p-4 sm:p-5 gap-3">
     <div class="flex flex-wrap items-center gap-2 justify-between">
@@ -518,7 +541,7 @@
   function setMsg(text, cls = "") { $("msg").className = cls; $("msg").textContent = text; }
 
   // ---------- Fehlerprotokoll: jeden Fehler nach Supabase (wagael_errors) ----------
-  const APP_VERSION = "2026-11-18a";
+  const APP_VERSION = "2026-11-18f";
   const erQueue = [], erSent = {};
   const erDevice = () => { const u = navigator.userAgent; const d = /iPad|Macintosh.*Mobile|Macintosh(?=.*Safari)(?!.*Chrome)/.test(u) && navigator.maxTouchPoints > 1 ? "iPad" : /iPhone/.test(u) ? "iPhone" : /Macintosh/.test(u) ? "Mac" : /Android/.test(u) ? "Android" : "anderes";
     return `${d} · ${/Edg\//.test(u) ? "Edge" : /Chrome\//.test(u) ? "Chrome" : /Firefox\//.test(u) ? "Firefox" : /Safari\//.test(u) ? "Safari" : "Browser"} · ${innerWidth}px`; };
@@ -803,6 +826,52 @@
   }
   // kWh einer Warmwasser-Ladung: aus Zählerfenstern, sonst aus den Zählerständen
   const runWh = (x, reps) => reps && reps.length ? energyBetween(reps, x.start - 2.5 * 60000, x.end + 2.5 * 60000) : x.wh;
+
+  // ---------- PV (FoxESS, Tabelle pv_snapshots – 14_pv.sql) ----------
+  const PV_COLS = "captured_at,fox_time,pv_kw,load_kw,grid_kw,feedin_kw,soc,bat_charge_kw,bat_discharge_kw,pv_total_kwh,load_total_kwh,grid_total_kwh,feedin_total_kwh,bat_charge_total_kwh,bat_discharge_total_kwh";
+  async function pvRows(fromISO, toISO) {
+    try {
+      const r = await restAll(`pv_snapshots?select=${PV_COLS}&captured_at=gte.${fromISO}&captured_at=lt.${toISO}&order=captured_at.asc`);
+      return r.map(x => ({ ...x, t: new Date(x.fox_time || x.captured_at).getTime() }));
+    } catch (e) {
+      if (/404|42P01|PGRST205/.test(e.message)) return [];   // Tabelle noch nicht angelegt
+      throw new Error("PV-Daten: " + e.message);            // andere Fehler sichtbar machen (Fehlerprotokoll)
+    }
+  }
+  // Herkunft des Hausstroms in einem Moment: Anteile Sonne direkt / Akku / Netz (zusammen 1)
+  function pvMix(p) {
+    if (!p || p.load_kw == null) return null;
+    const load = Math.max(p.load_kw, 0.01), cl = (v) => Math.min(1, Math.max(0, (v ?? 0) / load));
+    const grid = cl(p.grid_kw), bat = Math.min(cl(p.bat_discharge_kw), 1 - grid);
+    return { sun: 1 - grid - bat, bat, grid };
+  }
+  // Mittel über die PV-Messungen im Zeitraum [a, b], sonst nächste Messung (max. 6 Min. entfernt)
+  function pvMixBetween(pv, a, b) {
+    const pts = pv.filter(p => p.t >= a && p.t <= b).map(pvMix).filter(Boolean);
+    if (!pts.length) return pvMix(nearest(pv, (a + b) / 2));
+    const avg = (k) => pts.reduce((s2, m) => s2 + m[k], 0) / pts.length;
+    return { sun: avg("sun"), bat: avg("bat"), grid: avg("grid") };
+  }
+  // Wärmepumpe: jeden 5-Minuten-Verbrauch (Wh) mit dem Strom-Mix des ganzen Hauses zu dieser Zeit bewerten
+  function wpSunSplit(rows, pv) {
+    const wp = { sun: 0, bat: 0, grid: 0, none: 0 };
+    rows.forEach(r => { if (!r.dWh) return; const m = pvMixBetween(pv, r.t - 5 * 60000, r.t);
+      if (!m) { wp.none += r.dWh; return; } wp.sun += r.dWh * m.sun; wp.bat += r.dWh * m.bat; wp.grid += r.dWh * m.grid; });
+    return wp;
+  }
+  // Tageswerte (kWh) aus den FoxESS-Zählerständen
+  function pvDay(pv) {
+    if (pv.length < 2) return null;
+    const d = (k) => { const v = pv.filter(p => p[k] != null); return v.length > 1 ? Math.max(0, v[v.length - 1][k] - v[0][k]) : null; };
+    const x = { pv: d("pv_total_kwh"), load: d("load_total_kwh"), grid: d("grid_total_kwh"), feedin: d("feedin_total_kwh"), bc: d("bat_charge_total_kwh"), bd: d("bat_discharge_total_kwh") };
+    x.load = pvBalanceLoad(x) ?? x.load;
+    return x;
+  }
+  // Verbrauch wie in der FoxESS-App: Solar + Netzbezug − Einspeisung − Akku laden + Akku entladen
+  // (der Zähler „loads“ zählt ca. 1 kWh/Tag zu wenig – geprüft am 18.11. gegen die App)
+  function pvBalanceLoad(x) {
+    return [x.pv, x.grid, x.feedin, x.bc, x.bd].every(v => v != null) ? Math.max(0, x.pv + x.grid - x.feedin - x.bc + x.bd) : null;
+  }
 
   // Verdichter-Laufphasen (für die Taktung)
   function onRuns(rows) {
@@ -1853,11 +1922,12 @@
 
   async function loadDay() {
     const [from, to] = tBounds();
-    const [rowsRaw, cyc, reps, stamm, slogRaw, [base]] = await Promise.all([hpRows(from.toISOString(), to.toISOString()), cycleRows(from.toISOString(), to.toISOString()), energyReports(from.toISOString(), to.toISOString()), rest("hp_stammdaten?select=key,value").catch(() => []),
+    const [rowsRaw, cyc, reps, stamm, slogRaw, [base], pv] = await Promise.all([hpRows(from.toISOString(), to.toISOString()), cycleRows(from.toISOString(), to.toISOString()), energyReports(from.toISOString(), to.toISOString()), rest("hp_stammdaten?select=key,value").catch(() => []),
       restAll(`hp_settings_log?select=ts,setting,old_value,new_value&ts=lt.${to.toISOString()}&order=ts.asc,id.asc`).catch(() => []),
       // Ausgangsstand: letzter Rohdatensatz vor Tagesbeginn (sonst erster des Tages)
       rest(`snapshots?select=captured_at,raw&hp_valve=not.is.null&captured_at=lte.${from.toISOString()}&order=captured_at.desc&limit=1`)
-        .then(r => r.length ? r : rest(`snapshots?select=captured_at,raw&hp_valve=not.is.null&captured_at=gte.${from.toISOString()}&order=captured_at.asc&limit=1`)).catch(() => [])]);
+        .then(r => r.length ? r : rest(`snapshots?select=captured_at,raw&hp_valve=not.is.null&captured_at=gte.${from.toISOString()}&order=captured_at.asc&limit=1`)).catch(() => []),
+      pvRows(from.toISOString(), to.toISOString())]);
     const rows = withDeltas(rowsRaw);
     const A = from.getTime(), B = to.getTime(), sun = sunTimes(A, B);
     // Änderungsprotokoll enthält nur Änderungen → Ausgangsstand aus den Rohdaten, danach die Änderungen
@@ -1885,6 +1955,9 @@
     const inPV = (t) => sun.pvA && sun.pvB && t >= sun.pvA && t <= sun.pvB;
     const whAll = rows.reduce((a, r) => a + r.dWh, 0), whWW = segWh(sWW), whHK = Math.max(0, whAll - whWW);
     const whWWpv = segWh(sWW.filter(x => inPV((x.start + x.end) / 2)));
+    // mit FoxESS-Daten: echter Sonnen-Anteil (PV direkt + Akku) statt Sonnenhöhe
+    const whWWsun = pv.length ? sWW.reduce((a, x) => { const m = pvMixBetween(pv, x.start, x.end); return a + (m ? segWh([x]) * (m.sun + m.bat) : 0); }, 0) : null;
+    const wwSunShare = whWW > 50 ? (whWWsun ?? whWWpv) / whWW : null;
     const minHS = sHS.reduce((a, x) => a + (x.end - x.start) / 60000, 0);
     // Zählt der Stromzähler den Heizstab mit? Leistung mit Heizstab vs. ohne (bei laufendem Verdichter)
     const pAvg = (f) => { const v = rows.filter(f).map(r => r.power_kw).filter(x => x != null); return v.length ? v.reduce((a, b) => a + b, 0) / v.length : null; };
@@ -1919,15 +1992,16 @@
         <td>${z.rate == null ? "–" : night ? '<span class="pill ok">🌙 nachts – Wärmeverlust</span>' : fast ? '<span class="pill info">🚿 Wasser gezapft</span>' : '<span class="pill ok">🌡️ wie nachts – kaum gezapft</span>'}</td></tr>`; }).join("")
       : `<tr><td colspan="6" class="empty">Keine Warmwasser-Ladung an diesem Tag.</td></tr>`;
     $("zLoss").innerHTML = lossRef != null ? `Wärmeverlust ohne Zapfen (nachts gemessen): <b>${fmt(lossRef, 1)} °C pro Stunde</b>${lossRef >= 0.8 ? ' – <span class="warn">auffällig hoch</span>: ein gut gedämmter Speicher verliert meist nur 0,3–0,5 °C pro Stunde. Häufige Ursachen: Zirkulationspumpe läuft dauernd, Rohranschlüsse ungedämmt, Schwerkraftzirkulation (fehlende Rückschlagventile).' : ""}` : "";
-    tCache = { rows, cyc, A, B, sun, sHK, sWW, sAB, sHS, slog, zyk, thr };
-    drawHours({ rows, cyc, reps, A, B, sun, sHS, HS_KW, hsInCounter, pWith, pWithout });
+    tCache = { rows, cyc, A, B, sun, sHK, sWW, sAB, sHS, slog, zyk, thr, pv };
+    drawHours({ rows, cyc, reps, A, B, sun, sHS, HS_KW, hsInCounter, pWith, pWithout, pv });
+    drawPvBalance({ rows, pv });
 
     $("tSun").textContent = sun.rise ? `☀️ Aufgang ${hhmm(sun.rise)} · Untergang ${hhmm(sun.set)} · PV nutzbar ca. ${sun.pvA ? hhmm(sun.pvA) + "–" + hhmm(sun.pvB) : "kaum (Sonne < 10°)"} · max. ${fmt(sun.max, 0)}°` : "";
     $("tTiles").innerHTML = rows.length < 2 ? `<div class="empty">Für diesen Tag gibt es noch keine Daten.</div>` : [
       stateTile("⚡", "Strom gesamt", `${fmt(whAll / 1000, 1)} kWh`, `${rows.length} Messpunkte`, "info"),
       stateTile("🔥", "Heizen", `${fmt(whHK / 1000, 1)} kWh`, `${runsHK.length} Läufe · Ø ${runsHK.length ? fmt(runsHK.reduce((a, x) => a + x.end - x.start, 0) / runsHK.length / 60000, 0) : "–"} Min.`, runsHK.length > 30 ? "warn" : "info"),
       stateTile("🚿", "Warmwasser", `${fmt(whWW / 1000, 1)} kWh`, `${sWW.length} Ladungen`, "info"),
-      stateTile("☀️", "Warmwasser mit Sonne", whWW > 50 ? `${fmt(whWWpv / whWW * 100, 0)} %` : "–", "Anteil in der PV-Zeit", whWW > 50 ? (whWWpv / whWW >= 0.5 ? "ok" : "warn") : "info"),
+      stateTile("☀️", "Warmwasser mit Sonne", wwSunShare != null ? `${fmt(wwSunShare * 100, 0)} %` : "–", whWWsun != null ? "aus PV + Akku (FoxESS)" : "Anteil in der PV-Zeit", wwSunShare != null ? (wwSunShare >= 0.5 ? "ok" : "warn") : "info"),
       stateTile("🔌", "Heizstab", minHS ? `≈ ${fmt(whHS / 1000, 1)} kWh` : "Aus", minHS ? `${fmt(minHS, 0)} Min. × ${fmt(HS_KW, 1)} kW (geschätzt)` : "lief nicht", minHS ? "err" : "ok"),
       ...(() => { const h = heatSplit(cyc, rows); if (h.n < 5) return [];
         const cop = whAll > 100 ? h.all / (whAll / 1000) : null;
@@ -2000,7 +2074,7 @@
   function drawDay() {
     if (!tCache) return;
     const P = TPAL[C.dark ? "dark" : "light"];
-    const { rows, cyc, A, B, sun, sHK, sWW, sAB, sHS, slog, zyk = [], thr } = tCache;
+    const { rows, cyc, A, B, sun, sHK, sWW, sAB, sHS, slog, zyk = [], thr, pv = [] } = tCache;
     const svg = $("tSvg"), W = Math.max(320, $("tWrap").clientWidth || 800), small = W < 640;
     const L = small ? 62 : 84, R = 10, fs = 11;
     const X = (t) => L + (t - A) / (B - A) * (W - L - R);
@@ -2017,13 +2091,20 @@
       else if (a < -0.833) s += r(x1, x2, 0, y.tBot, nightC, `opacity="${C.dark ? 0.22 : 0.05}"`);
       else if (a >= 10) s += r(x1, x2, 0, y.tBot, sunC, 'opacity="0.12"');
     }
-    // Sonnenkurve
+    // Sonnenkurve – mit FoxESS-Daten die echte PV-Leistung, sonst berechnete Sonnenhöhe
+    const pvD = pv.filter(p => p.pv_kw != null), pvPeak = pvD.length ? Math.max(...pvD.map(p => p.pv_kw)) : 0, pvMax = Math.max(1, pvPeak);
     let sp = `M${X(A)},${y.sun + 26}`;
-    for (let t = A; t <= B; t += 10 * 60000) { const a = Math.max(0, sunAlt(t)); sp += `L${X(t).toFixed(1)},${(y.sun + 26 - a / Math.max(20, sun.max) * 24).toFixed(1)}`; }
-    if (tOn("sun")) s += `<path d="${sp}L${X(B)},${y.sun + 26}Z" fill="${sunC}" opacity="0.55"/>`;
+    if (pvD.length) {
+      let pt = null;
+      pvD.forEach(p => { if (pt != null && p.t - pt > 15 * 60000) sp += `L${X(pt).toFixed(1)},${y.sun + 26}L${X(p.t).toFixed(1)},${y.sun + 26}`;
+        sp += `L${X(p.t).toFixed(1)},${(y.sun + 26 - p.pv_kw / pvMax * 24).toFixed(1)}`; pt = p.t; });
+      sp += `L${X(pt).toFixed(1)},${y.sun + 26}`;
+    } else for (let t = A; t <= B; t += 10 * 60000) { const a = Math.max(0, sunAlt(t)); sp += `L${X(t).toFixed(1)},${(y.sun + 26 - a / Math.max(20, sun.max) * 24).toFixed(1)}`; }
+    if (tOn("sun")) s += `<path d="${sp}L${X(B)},${y.sun + 26}Z" fill="${sunC}" opacity="${pvD.length ? 0.8 : 0.55}"/>`;
+    if (tOn("sun") && pvD.length) s += `<text x="${W - R - 2}" y="${y.sun + 10}" font-size="${fs}" fill="${ink}" opacity=".7" text-anchor="end">PV max ${fmt(pvPeak, 1)} kW</text>`;
     [[sun.rise, "↑"], [sun.set, "↓"]].forEach(([t, k]) => { if (t && tOn("sun")) { s += `<line x1="${X(t)}" x2="${X(t)}" y1="0" y2="${y.tBot}" stroke="${sunC}" stroke-dasharray="3 3"/><text x="${X(t) + 3}" y="${y.sun + 10}" font-size="${fs}" fill="${ink}">${k} ${hhmm(t)}</text>`; } });
     // Beschriftung links
-    [["Sonne", y.sun + 18], ["Einstellung", y.set + 13], ["Betrieb", y.op + 15], ["Heizstab", y.hs + 12], ["Pumpe", y.pu + 12], ["Verdichter", y.hz + 20], ["°C", (y.tTop + y.tBot) / 2]].forEach(([n, yy]) => s += `<text x="0" y="${yy}" font-size="${fs + 1}" fill="${ink}">${n}</text>`);
+    [[pvD.length ? "PV" : "Sonne", y.sun + 18], ["Einstellung", y.set + 13], ["Betrieb", y.op + 15], ["Heizstab", y.hs + 12], ["Pumpe", y.pu + 12], ["Verdichter", y.hz + 20], ["°C", (y.tTop + y.tBot) / 2]].forEach(([n, yy]) => s += `<text x="0" y="${yy}" font-size="${fs + 1}" fill="${ink}">${n}</text>`);
     // Betrieb / Heizstab
     if (tOn("bhk")) sHK.forEach(x => s += r(X(x.start), X(x.end) - 1, y.op, 20, P.hk, 'rx="3"'));
     if (tOn("bww")) sWW.forEach(x => s += r(X(x.start), X(x.end) - 1, y.op, 20, P.ww, 'rx="3"'));
@@ -2104,7 +2185,7 @@
     $("tLegend").innerHTML =
       `<div class="w-full flex flex-wrap items-center gap-1.5"><span class="text-xs opacity-60 w-24">Spuren</span>` +
         chip("bhk", "Heizen", box(P.hk)) + chip("bww", "Warmwasser", box(P.ww)) + chip("bab", "Abtauen", box(ink, .6)) + chip("hs", "Heizstab", box(P.hs)) +
-        chip("pu", "Pumpe (rot = ohne Verdichter)", `<svg width="12" height="10" aria-hidden="true"><rect x="1" y="1" width="10" height="8" rx="2" fill="${red}" opacity=".8"/></svg>`) + chip("hz", "Verdichter Hz", ln(P.hz, 1.5)) + chip("set", "Einstellungen", box(ink, .3)) + chip("sun", "Sonne", box(sunC, .6)) + chip("bg", "Nacht / PV-Zeit", box(nightC, C.dark ? .6 : .25)) + `</div>` +
+        chip("pu", "Pumpe (rot = ohne Verdichter)", `<svg width="12" height="10" aria-hidden="true"><rect x="1" y="1" width="10" height="8" rx="2" fill="${red}" opacity=".8"/></svg>`) + chip("hz", "Verdichter Hz", ln(P.hz, 1.5)) + chip("set", "Einstellungen", box(ink, .3)) + chip("sun", pvD.length ? "PV-Leistung" : "Sonne", box(sunC, .6)) + chip("bg", "Nacht / PV-Zeit", box(nightC, C.dark ? .6 : .25)) + `</div>` +
       `<div class="w-full flex flex-wrap items-center gap-1.5"><span class="text-xs opacity-60 w-24">Ist (dünn)</span>` +
         chip("ww", "Speicher", ln(P.ww)) + chip("hk", "Vorlauf Heizen", ln(P.hk)) + chip("hw", "Vorlauf bei Warmwasser", ln(P.hw, 2, "2 2")) + chip("rt", "Rücklauf", ln(P.rt)) + chip("out", "Außen", ln(P.out, 2, "5 3")) + chip("zyk", "Speicher-Zyklen ⊓", ln(ink, 1, "4 4")) + `</div>` +
       `<div class="w-full flex flex-wrap items-center gap-1.5"><span class="text-xs opacity-60 w-24">Soll (dick)</span>` +
@@ -2113,6 +2194,8 @@
 
     // Werte unter dem Finger/Mauszeiger
     const tip = $("tTip"), cross = $("tCross"), ST = { hk: "🔥 heizt", ww: "🚿 Warmwasser", ab: "🧊 taut ab", off: "⏸ Pause" };
+    const pvTip = (t) => { const p = nearest(pv, t); if (!p) return ""; const m = pvMix(p);
+      return `<br>☀️ PV ${fmt(p.pv_kw, 1)} kW · 🏠 Haus ${fmt(p.load_kw, 1)} kW · ⚡ Netz ${fmt(p.grid_kw, 1)} kW · 🔋 ${fmt(p.soc, 0)} %${m ? ` · Hausstrom ${fmt((m.sun + m.bat) * 100, 0)} % Sonne` : ""}`; };
     const move = (ev) => {
       const b = svg.getBoundingClientRect(), px = (ev.touches ? ev.touches[0].clientX : ev.clientX) - b.left, xs = px * W / b.width;
       if (xs < L || xs > W - R || !rows.length) { tip.classList.add("hidden"); cross.setAttribute("opacity", 0); return; }
@@ -2120,7 +2203,7 @@
       let best = rows[0]; rows.forEach(rw => { if (Math.abs(rw.t - t) < Math.abs(best.t - t)) best = rw; });
       if (Math.abs(best.t - t) > 15 * 60000) { tip.classList.add("hidden"); return; }
       const c = nearest(cyc, best.t), a = sunAlt(best.t);
-      tip.innerHTML = `<b>${hhmm(best.t)}</b> · ${ST[best.st] || ""}${best.hp_booster === "on" ? " · 🔌 Heizstab" : ""}<br>Verdichter ${c ? fmt(c.comp_hz, 0) + " Hz" : "–"}${c?.flow_lpm != null ? ` · Durchfluss ${fmt(c.flow_lpm, 1)} l/min · Pumpe ${fmt(c.pump_pct, 0)} %` : ""}${heatKW(c) ? ` · Wärme ≈ ${fmt(heatKW(c), 1)} kW` : ""}<br>Speicher ${fmt(best.temperature)} °C · Vorlauf ${fmt(c?.flow ?? best.hp_flow_temp)} °C${c?.ret != null ? ` · Rücklauf ${fmt(c.ret)} °C` : ""} · außen ${fmt(c?.out_air ?? best.outdoor_temp)} °C<br>Sonne ${a < -0.833 ? "🌙 unter Horizont" : fmt(a, 0) + "°" + (a >= 10 ? " ☀️ PV" : "")}` +
+      tip.innerHTML = `<b>${hhmm(best.t)}</b> · ${ST[best.st] || ""}${best.hp_booster === "on" ? " · 🔌 Heizstab" : ""}<br>Verdichter ${c ? fmt(c.comp_hz, 0) + " Hz" : "–"}${c?.flow_lpm != null ? ` · Durchfluss ${fmt(c.flow_lpm, 1)} l/min · Pumpe ${fmt(c.pump_pct, 0)} %` : ""}${heatKW(c) ? ` · Wärme ≈ ${fmt(heatKW(c), 1)} kW` : ""}<br>Speicher ${fmt(best.temperature)} °C · Vorlauf ${fmt(c?.flow ?? best.hp_flow_temp)} °C${c?.ret != null ? ` · Rücklauf ${fmt(c.ret)} °C` : ""} · außen ${fmt(c?.out_air ?? best.outdoor_temp)} °C<br>Sonne ${a < -0.833 ? "🌙 unter Horizont" : fmt(a, 0) + "°" + (a >= 10 ? " ☀️ PV" : "")}${pvTip(best.t)}` +
         `<br>⚙️ Soll Warmwasser ${fmt(wwSoll(best.t), 0)} °C · Soll Vorlauf ${fmt(hkSoll(best.t))} °C · Modus ${String(settingsAt(slog, best.t)["Warmwasser-Modus"] ?? "–").replace(/"/g, "").toUpperCase()}`;
       showSettings(best.t);
       tip.classList.remove("hidden");
@@ -2133,8 +2216,83 @@
   }
   let tResize; window.addEventListener("resize", () => { clearTimeout(tResize); tResize = setTimeout(drawDay, 150); });
 
+  // ---------- Solar: Strom pro Tag (Reiter „Solar“) ----------
+  async function loadSolar() {
+    const n = +($("soDays").value || 7), today = new Date(); today.setHours(0, 0, 0, 0);
+    const from = new Date(today); from.setDate(from.getDate() - (n - 1));
+    const to = new Date(today); to.setDate(to.getDate() + 1);
+    const pre = new Date(from); pre.setDate(pre.getDate() - 1);   // Vortag: Zählerstand um Mitternacht als Startwert
+    const [pv, rowsRaw] = await Promise.all([pvRows(pre.toISOString(), to.toISOString()), hpRows(from.toISOString(), to.toISOString())]);
+    if (!pv.length) {
+      $("soRows").innerHTML = `<tr><td colspan="7" class="empty">Noch keine PV-Daten – sie werden ab jetzt alle 5 Min. gesammelt.</td></tr>`;
+      $("soFoot").innerHTML = ""; $("soNote").textContent = ""; return;
+    }
+    const rows = withDeltas(rowsRaw), K = { pv: "pv_total_kwh", load: "load_total_kwh", grid: "grid_total_kwh", feedin: "feedin_total_kwh", bc: "bat_charge_total_kwh", bd: "bat_discharge_total_kwh" };
+    const days = [];
+    for (let d = new Date(today); d >= from; d.setDate(d.getDate() - 1)) {
+      const a = d.getTime(), e = new Date(d); e.setDate(e.getDate() + 1); const b = e.getTime();
+      const inDay = pv.filter(p => p.t >= a && p.t < b);
+      if (!inDay.length) continue;
+      const prev = pv.filter(p => p.t < a && p.t >= a - 3600e3).pop();           // letzte Messung vor Mitternacht (max. 1 Std.)
+      const start = prev || inDay[0], end = inDay[inDay.length - 1];
+      const v = {}; for (const [k, col] of Object.entries(K)) v[k] = start[col] != null && end[col] != null ? Math.max(0, end[col] - start[col]) : null;
+      v.load = pvBalanceLoad(v) ?? v.load;   // Verbrauch wie in der FoxESS-App
+      const wp = wpSunSplit(rows.filter(r => r.t >= a && r.t < b), pv);
+      const cov = (wp.sun + wp.bat + wp.grid) / 1000;
+      days.push({ a, ...v, wpAll: cov + wp.none / 1000, wpSun: (wp.sun + wp.bat) / 1000, wpCov: cov,
+        partial: !prev && inDay[0].t - a > 15 * 60000, since: inDay[0].t, running: b > Date.now() });
+    }
+    const pct = (s, c) => c > 0.05 ? s / c : null;
+    const bar = (p) => p == null ? "–" : `<div class="flex items-center gap-2"><div class="rounded bg-base-100 h-2.5 w-24"><div class="h-2.5 rounded" style="width:${Math.round(p * 100)}%;background:#eda100"></div></div><span class="tabular-nums font-semibold">${fmt(p * 100, 0)} %</span></div>`;
+    const kwh = (x) => x == null ? "–" : `${fmt(x, 1)} kWh`;
+    const tr = (label, x) => `<td class="text-right tabular-nums">${kwh(x.pv)}</td><td class="text-right tabular-nums">${kwh(x.load)}</td><td class="text-right tabular-nums">${kwh(x.grid)}</td><td class="text-right tabular-nums">${kwh(x.feedin)}</td><td class="text-right tabular-nums">${kwh(x.wpAll)}</td><td>${bar(pct(x.wpSun, x.wpCov))}</td>`;
+    $("soRows").innerHTML = days.map(x => `<tr><td class="whitespace-nowrap">${ddmm(x.a)}${x.partial ? " *" : ""}${x.running ? ' <span class="opacity-60">(läuft)</span>' : ""}</td>${tr("", x)}</tr>`).join("");
+    const sum = (k) => days.reduce((s2, x) => s2 + (x[k] ?? 0), 0);
+    const tot = { pv: sum("pv"), load: sum("load"), grid: sum("grid"), feedin: sum("feedin"), wpAll: sum("wpAll"), wpSun: sum("wpSun"), wpCov: sum("wpCov") };
+    $("soFoot").innerHTML = days.length > 1 ? `<tr class="font-semibold"><td>Summe ${days.length} Tage</td>${tr("", tot)}</tr>` : "";
+    const part = days.find(x => x.partial);
+    $("soNote").innerHTML = [part ? `* nicht ganz gemessen – Aufzeichnung begann ${ddmm(part.since)} um ${hhmm(part.since)}.` : "",
+      "Werte aus den FoxESS-Zählern (Mitternacht bis Mitternacht, 0,1 kWh genau). Verbraucht = Solar + Gekauft − Verkauft − Akku geladen + Akku entladen (wie in der FoxESS-App). Gekauft = aus dem Netz, Verkauft = ins Netz eingespeist.",
+      "„Davon mit Sonne“: Jeder 5-Minuten-Verbrauch der Wärmepumpe bekommt den Strom-Mix des ganzen Hauses zu dieser Zeit; Strom aus dem Akku zählt als Sonne."].filter(Boolean).join(" ");
+  }
+  $("soDays").addEventListener("change", loadSolar);
+
+  // ---------- PV: Strom im Haus – woher, wohin (FoxESS) ----------
+  function drawPvBalance({ rows, pv }) {
+    const day = pvDay(pv);
+    if (!day || day.load == null || day.pv == null) {
+      $("pvSum").textContent = ""; $("pvBars").innerHTML = ""; $("pvNote").textContent = "";
+      $("pvTiles").innerHTML = `<div class="empty">Noch keine PV-Daten für diesen Tag – sie kommen alle 5 Min. aus FoxESS (14_pv.sql + Edge Function „fox“).</div>`;
+      return;
+    }
+    const wp = wpSunSplit(rows, pv);
+    const k = (wh) => wh / 1000, wpAll = k(wp.sun + wp.bat + wp.grid + wp.none), wpCov = k(wp.sun + wp.bat + wp.grid);
+    const wpSun = wpCov > 0.05 ? k(wp.sun + wp.bat) / wpCov : null;
+    const sunHouse = Math.max(0, day.load - day.grid - (day.bd ?? 0)), pvHouse = Math.max(0, day.pv - (day.bc ?? 0) - (day.feedin ?? 0));
+    const aut = day.load > 0 ? Math.max(0, 1 - day.grid / day.load) : null, last = pv[pv.length - 1];
+    const SUN = "#eda100", BAT = C.out, GRID = C.hz, FEED = C.ww, NONE = "#888780";
+    $("pvSum").textContent = `· ${fmt(day.pv, 1)} kWh erzeugt`;
+    $("pvTiles").innerHTML = [
+      stateTile("☀️", "PV erzeugt", `${fmt(day.pv, 1)} kWh`, `Spitze ${fmt(Math.max(...pv.map(p => p.pv_kw ?? 0)), 1)} kW`, "info"),
+      stateTile("🏠", "Haus verbraucht", `${fmt(day.load, 1)} kWh`, wpAll > 0.05 ? `davon Wärmepumpe ${fmt(wpAll, 1)} kWh (${fmt(wpAll / Math.max(day.load, 0.1) * 100, 0)} %)` : "", "info"),
+      stateTile("⚡", "Aus dem Netz", `${fmt(day.grid, 1)} kWh`, aut != null ? `Autarkie ${fmt(aut * 100, 0)} %` : "", aut != null && aut >= 0.5 ? "ok" : "info"),
+      stateTile("↗️", "Eingespeist", `${fmt(day.feedin, 1)} kWh`, day.pv > 0.05 ? `${fmt(day.feedin / day.pv * 100, 0)} % des Solarstroms` : "", "info"),
+      stateTile("🔋", "Akku", `${fmt(last.soc, 0)} %`, `Stand ${hhmm(last.t)} · geladen ${fmt(day.bc, 1)} · entladen ${fmt(day.bd, 1)} kWh`, "info"),
+      stateTile("♨️", "Wärmepumpe mit Sonne", wpSun != null ? `${fmt(wpSun * 100, 0)} %` : "–", wpSun != null ? `${fmt(k(wp.sun + wp.bat), 1)} von ${fmt(wpCov, 1)} kWh aus PV + Akku` : "noch kein Verbrauch mit PV-Daten", wpSun == null ? "info" : wpSun >= 0.5 ? "ok" : "warn"),
+    ].join("");
+    const bar = (title, total, parts) => `<div><div class="text-sm font-semibold mb-1">${title} <span class="font-normal opacity-70">· ${fmt(total, 1)} kWh</span></div>` +
+      parts.filter(([, v]) => v != null && v > 0.005).map(([n, v, c]) => `<div class="grid items-center gap-2 text-sm" style="grid-template-columns:minmax(100px,130px) 1fr auto"><span class="flex items-center gap-2"><i style="width:10px;height:10px;border-radius:2px;background:${c};display:inline-block"></i>${n}</span>
+        <div class="rounded bg-base-100 h-3"><div class="h-3 rounded-r" style="width:${total > 0 ? Math.min(100, Math.max(0.5, v / total * 100)) : 0}%;background:${c}"></div></div><span class="text-right tabular-nums whitespace-nowrap">${fmt(v, 1)} kWh · ${total > 0 ? fmt(v / total * 100, 0) : "–"} %</span></div>`).join("") + `</div>`;
+    $("pvBars").innerHTML = [
+      bar("🏠 Woher kam der Strom im Haus?", day.load, [["☀️ Sonne direkt", sunHouse, SUN], ["🔋 Akku", day.bd, BAT], ["⚡ Netz", day.grid, GRID]]),
+      bar("☀️ Wohin ging der Solarstrom?", day.pv, [["🏠 ins Haus", pvHouse, SUN], ["🔋 in den Akku", day.bc, BAT], ["↗️ ins Netz", day.feedin, FEED]]),
+      bar("♨️ Womit lief die Wärmepumpe?", wpAll, [["☀️ Sonne direkt", k(wp.sun), SUN], ["🔋 Akku", k(wp.bat), BAT], ["⚡ Netz", k(wp.grid), GRID], ["ohne PV-Daten", k(wp.none), NONE]]),
+    ].join("");
+    $("pvNote").textContent = `Tageswerte aus den FoxESS-Zählern (${pv.length} Messungen, 0,1 kWh genau). Wärmepumpe: Jeder 5-Minuten-Verbrauch bekommt den Strom-Mix des ganzen Hauses zu dieser Zeit (FoxESS misst nur das Haus gesamt). Akku-Strom zählt als Sonne. „Ins Haus“ = PV minus Akku-Ladung minus Einspeisung (inkl. Wechselrichter-Verlusten). Annahme: Die Wärmepumpe hängt hinter dem FoxESS-Zähler.`;
+  }
+
   // ---------- Strom je Stunde, aufgeteilt nach Verwendung ----------
-  function drawHours({ rows, cyc, reps, A, B, sun, sHS, HS_KW, hsInCounter, pWith, pWithout }) {
+  function drawHours({ rows, cyc, reps, A, B, sun, sHS, HS_KW, hsInCounter, pWith, pWithout, pv: pvData = [] }) {
     const K = [["hk", "Heizen", C.hk], ["ww", "Warmwasser", C.ww], ["hs", "Heizstab (geschätzt)", getComputedStyle(document.documentElement).getPropertyValue("--color-error").trim() || "#e34948"], ["sb", "Bereitschaft", "#888780"]];
     // Aufteilung über die Zählerfenster (Zeitraum + gemessene Wh). Der gemeldete Leistungswert ist ein Fenster-
     // Mittelwert und gilt auch in Pausen weiter – daher nicht nach kW gewichten, sondern nach Laufzeit des Verdichters.
@@ -2202,7 +2360,11 @@
         ctx.fillRect(x.getPixelForValue(i) - half, ca.top, half * 2, ca.bottom - ca.top); }); ctx.restore(); } };
     drawChart("cHours", {
       type: "bar",
-      data: { labels: H.map(d => String(d.h).padStart(2, "0")), datasets: K.map(([k, n, c]) => ({ label: n, data: H.map(d => d[k] / 1000), backgroundColor: c, borderRadius: 3, borderSkipped: "bottom", categoryPercentage: 0.85, barPercentage: 0.95 })) },
+      data: { labels: H.map(d => String(d.h).padStart(2, "0")), datasets: [...K.map(([k, n, c]) => ({ label: n, data: H.map(d => d[k] / 1000), backgroundColor: c, borderRadius: 3, borderSkipped: "bottom", categoryPercentage: 0.85, barPercentage: 0.95 })),
+        // PV-Erzeugung je Stunde (FoxESS) als Linie, eigener Stapel → wird nicht auf die Balken addiert
+        ...(pvData.length ? [{ type: "line", label: "☀️ PV erzeugt (Haus)", stack: "pv", borderColor: "#eda100", backgroundColor: "#eda100", borderWidth: 2, pointRadius: 0, pointHoverRadius: 4, tension: 0.3,
+          data: (() => { const pvH = Array(24).fill(0); pvData.forEach((p, i) => { const nx = pvData[i + 1], dt = Math.min(nx ? nx.t - p.t : 5 * 60000, 10 * 60000), h = Math.floor((p.t - A) / 3600e3);
+            if (h >= 0 && h < 24 && p.pv_kw != null) pvH[h] += p.pv_kw * dt / 3600e3; }); return pvH; })() }] : [])] },
       options: (() => { const o = baseOptions("kWh"); o.scales.x.stacked = true; o.scales.y.stacked = true; o.scales.y.beginAtZero = true;
         o.plugins.tooltip.callbacks.title = (it) => `${it[0].label}–${String(+it[0].label + 1).padStart(2, "0")} Uhr · ${fmt(tot(H[it[0].dataIndex]) / 1000, 2)} kWh${night[it[0].dataIndex] ? " · 🌙 Nacht" : pv[it[0].dataIndex] ? " · ☀️ PV-Zeit" : ""}`;
         o.plugins.tooltip.callbacks.label = (c) => c.raw ? `${c.dataset.label}: ${fmt(c.raw, 2)} kWh` : null;
@@ -2357,16 +2519,24 @@
   let lv = null, lvTimer = null, lvIdx = -1;
   async function loadLive() {
     const from = new Date(); from.setHours(0, 0, 0, 0); const to = new Date(from.getTime() + 864e5);
-    const [rowsRaw, cyc, reps, acRows, [base], stamm] = await Promise.all([
+    const [rowsRaw, cyc, reps, acRows, [base], stamm, pv] = await Promise.all([
       hpRows(from.toISOString(), to.toISOString()), cycleRows(from.toISOString(), to.toISOString()), energyReports(from.toISOString(), to.toISOString()),
       rest(`snapshots?select=captured_at,temperature,humidity,switch_state&${AC_FILTER}&captured_at=gte.${from.toISOString()}&order=captured_at.asc`).catch(() => []),
       rest("snapshots?select=raw&hp_valve=not.is.null&order=captured_at.desc&limit=1").catch(() => []),
-      rest("hp_stammdaten?select=key,value").catch(() => [])]);
+      rest("hp_stammdaten?select=key,value").catch(() => []), pvRows(from.toISOString(), to.toISOString())]);
     const rows = rowsRaw.map(r => ({ ...r, t: new Date(r.captured_at).getTime() }));
     if (!rows.length) { $("lvSvg").innerHTML = `<text x="340" y="220" text-anchor="middle" font-size="14" fill="${C.tick}">Heute noch keine Daten</text>`; return; }
     const st = settingsFromRaw(base?.raw), wasLive = !lv || lvIdx < 0 || lvIdx >= lv.rows.length - 1;
-    lv = { rows, cyc, reps, ac: acRows.map(r => ({ ...r, t: new Date(r.captured_at).getTime() })), curve: curveSet(st), wwSoll: numS(st["Warmwasser-Soll"]),
+    lv = { rows, cyc, reps, pv, ac: acRows.map(r => ({ ...r, t: new Date(r.captured_at).getTime() })), curve: curveSet(st), wwSoll: numS(st["Warmwasser-Soll"]),
       hsKW: numIn(stamm.find(x => x.key === "Heizstab-Leistung")?.value) ?? 3 };
+    // Kacheln „heute“ (wie unten in der FoxESS-App) + Sonnen-Anteil der Wärmepumpe
+    const pd = pvDay(pv), wpS = wpSunSplit(withDeltas(rowsRaw), pv), wpCov = (wpS.sun + wpS.bat + wpS.grid) / 1000;
+    const since = pv.length && pv[0].t - from.getTime() > 15 * 60000 ? ` · gemessen seit ${hhmm(pv[0].t)}` : "", wpSunP = wpCov > 0.05 ? (wpS.sun + wpS.bat) / 1000 / wpCov : null;
+    $("lvToday").innerHTML = !pd || pd.pv == null ? "" : [
+      stateTile("☀️", "Erzeugung heute", `${fmt(pd.pv, 1)} kWh`, `Spitze ${fmt(Math.max(...pv.map(x => x.pv_kw ?? 0)), 1)} kW${since}`, "info"),
+      stateTile("🏠", "Verbrauch heute", `${fmt(pd.load, 1)} kWh`, `davon aus dem Netz ${fmt(pd.grid, 1)} kWh${since}`, "info"),
+      stateTile("♨️", "Wärmepumpe heute", `${fmt(wpCov, 1)} kWh`, wpSunP != null ? `${fmt(wpSunP * 100, 0)} % davon mit Sonne${since}` : `noch kein Verbrauch${since}`, wpSunP == null ? "info" : wpSunP >= 0.5 ? "ok" : "warn"),
+    ].join("");
     $("lvSlider").max = rows.length - 1;
     if (wasLive && !lvTimer) lvIdx = rows.length - 1;
     lvIdx = Math.min(lvIdx, rows.length - 1);
@@ -2384,7 +2554,7 @@
       vl: c?.flow ?? r.hp_flow_temp, rl: c?.ret ?? null, valve: r.hp_valve, ww: r.temperature, wwSoll: r.setpoint ?? lv.wwSoll,
       hs: r.hp_booster === "on", ab: r.hp_defrost === "on", out, puffer: lv.curve && out != null ? curveAt(lv.curve, out) : null,
       halle: a && Math.abs(a.t - r.t) < 3600e3 ? a.temperature : null, hum: a && Math.abs(a.t - r.t) < 3600e3 ? a.humidity : null,
-      age: Math.round((Date.now() - r.t) / 60000) };
+      age: Math.round((Date.now() - r.t) / 60000), pv: nearest(lv.pv || [], r.t) };
   }
   function drawLive(i) {
     if (!lv || !lv.rows[i]) return;
@@ -2405,8 +2575,23 @@
     g += `<rect x="20" y="8" width="130" height="40" rx="10" fill="${card}" stroke="${edge}" stroke-width="1.5"/>` + T(42, 33, "⚡", { fs: 16 }) + T(100, 25, "Strom", { c: ink, fs: 12 }) +
       T(100, 41, `${f1(s.kw, 2)} kW${hsKW ? ` + Stab ≈ ${f1(hsKW)}` : ""}`, { c: ink, b: true });
     g += pp("M85 48 V70", PWR, (s.kw ?? 0) > 0.05, 4);
-    if (hsKW) g += pp("M150 28 H300 V312 H318", RED, true, 3);
-    g += `<rect x="168" y="8" width="120" height="40" rx="10" fill="${card}" stroke="${edge}" stroke-width="1.5" stroke-dasharray="4 3"/>` + T(186, 33, "☀️", { fs: 16 }) + T(238, 25, "PV", { c: ink, fs: 12 }) + T(238, 41, "folgt (FoxESS)");
+    if (hsKW) g += pp("M150 92 H300 V312 H318", RED, true, 3);   // unterhalb der PV-Zeile, damit sie frei bleibt
+    // PV (FoxESS) wie in der FoxESS-App: Wort + Zahl; darunter, womit die Wärmepumpe gerade läuft
+    const p = s.pv, pm = pvMix(p), pw = (kw) => kw == null || !isFinite(kw) ? "–" : Math.abs(kw) < 1 ? `${Math.round(kw * 1000)} W` : `${f1(kw, 1)} kW`;
+    const lab = (x, label, val, sub, col) => T(x, 20, label, { a: "start", fs: 10, c: col || mut }) + T(x, 39, val, { a: "start", fs: 15, b: true, c: ink }) + (sub ? T(x, 54, sub, { a: "start", fs: 10 }) : "");
+    if (p) {
+      const bc = p.bat_charge_kw ?? 0, bd = p.bat_discharge_kw ?? 0, gr = p.grid_kw ?? 0, fe = p.feedin_kw ?? 0;
+      g += lab(172, "☀️ SOLAR", pw(p.pv_kw), "", PWR) +
+        lab(282, bc > 0.02 ? "🔋 AKKU LÄDT" : bd > 0.02 ? "🔋 AKKU ENTLÄDT" : "🔋 AKKU", `${f1(p.soc, 0)} %`, bc > 0.02 ? pw(bc) : bd > 0.02 ? pw(bd) : "") +
+        lab(412, gr >= fe ? "⚡ NETZBEZUG" : "⚡ EINSPEISUNG", pw(gr >= fe ? gr : fe), "") +
+        lab(532, "🏠 HAUS", pw(p.load_kw), s.kw != null ? `davon Wärmepumpe ${pw(s.kw)}` : "");
+      if (pm && (s.kw ?? 0) > 0.05) {
+        const sunP = pm.sun + pm.bat;
+        g += T(172, 79, "♨️ Wärmepumpe läuft gerade mit", { a: "start", fs: 11, c: ink }) +
+          `<rect x="345" y="69" width="220" height="12" rx="6" fill="${mut}" opacity=".35"/><rect x="345" y="69" width="${(220 * sunP).toFixed(1)}" height="12" rx="6" fill="${PWR}"/>` +
+          T(573, 79, `${f1(sunP * 100, 0)} % Sonne`, { a: "start", fs: 11, c: ink, b: true });
+      } else g += T(172, 79, "♨️ Wärmepumpe braucht gerade kaum Strom", { a: "start", fs: 11 });
+    } else g += lab(172, "☀️ SOLAR", "–", "noch keine Daten", PWR);
     // Haus
     g += `<path d="M498 160 L583 102 L668 160" fill="none" stroke="${edge}" stroke-width="2"/><rect x="508" y="160" width="150" height="200" fill="none" stroke="${edge}" stroke-width="2"/>` +
       T(583, 186, "Halle", { c: ink, fs: 12 }) + T(583, 208, `${f1(s.halle, 0)} °C`, { c: ink, fs: 14, b: true }) + T(583, 224, `Luftfeuchte ${f1(s.hum, 0)} %`) + T(583, 348, "Fußbodenheizung");
@@ -2461,7 +2646,7 @@
       stateTile("📥", "Laden", `${cnt("laden")}`, "Bereich ohne Daten", cnt("laden") ? "warn" : "ok"),
       stateTile("⏱️", "Automatik", `${cnt("automatik")}`, "SmartThings-Abfrage", cnt("automatik") ? "warn" : "ok"),
     ].join("");
-    const SRC = { seite: "🖥️ Seite", laden: "📥 Laden", automatik: "⏱️ Automatik" };
+    const SRC = { seite: "🖥️ Seite", laden: "📥 Laden", automatik: "⏱️ Automatik", pv: "☀️ PV (FoxESS)" };
     $("erRows").innerHTML = erGroups.length ? erGroups.map(x => `<tr><td class="whitespace-nowrap">${SRC[x.source] || x.source}</td><td class="text-xs break-all">${x.message.replace(/</g, "&lt;")}${x.tabs.size ? `<br><span class="opacity-60">Reiter: ${[...x.tabs].join(", ")}</span>` : ""}</td>
       <td class="text-right tabular-nums">${x.n}×</td><td class="whitespace-nowrap">${dt(x.first)}</td><td class="whitespace-nowrap">${dt(x.last)}</td><td class="text-xs">${[...x.dev].join(", ") || "–"}<br><span class="opacity-60">${[...x.ver].join(", ")}</span></td></tr>`).join("")
       : `<tr><td colspan="6" class="empty">✅ Keine Fehler im gewählten Zeitraum.</td></tr>`;
@@ -2692,7 +2877,9 @@
 
   async function loadData() {
     applyPalette();
-    const L = { loadTiles, loadEnergy, loadHistory, loadAuto, loadDiagnose, loadMonth, loadCurve, loadBench, loadAnlage, loadState, loadKlima, loadDay, loadAlarms, loadCop, loadLive, loadErrors, loadModeCmp, loadOpt };
+    // frische Anmeldung holen (nach Ruhezustand ist das alte Login-Token sonst abgelaufen → „JWT expired“)
+    try { const { data } = await sb.auth.getSession(); if (data?.session?.access_token) accessToken = data.session.access_token; } catch (e) {}
+    const L = { loadTiles, loadEnergy, loadHistory, loadAuto, loadDiagnose, loadMonth, loadCurve, loadBench, loadAnlage, loadState, loadKlima, loadDay, loadAlarms, loadCop, loadLive, loadErrors, loadModeCmp, loadOpt, loadSolar };
     const names = Object.keys(L), res = await Promise.allSettled(names.map(n => L[n]()));
     const bad = res.map((r, i) => r.status === "rejected" ? `${names[i]}: ${r.reason?.message || r.reason}` : null).filter(Boolean);
     bad.forEach(m => logError(m, "laden"));
@@ -2782,7 +2969,7 @@
   document.querySelectorAll("#tabs .tab").forEach(t => t.addEventListener("click", () => showTab(t.dataset.tab)));
   let startTab = location.hash.slice(1);
   try { startTab = startTab || localStorage.getItem("wagael_tab"); } catch (e) {}
-  showTab(["overview", "history", "day", "klima", "opt", "diagnose", "config", "plant"].includes(startTab) ? startTab : "overview");
+  showTab(["overview", "history", "day", "solar", "klima", "opt", "diagnose", "config", "plant"].includes(startTab) ? startTab : "overview");
 
   // ---------- Design (daisyUI-Themes) ----------
   const THEMES = [["night", "Night"], ["dim", "Dim"], ["business", "Business"], ["dracula", "Dracula"], ["sunset", "Sunset"],
