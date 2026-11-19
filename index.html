@@ -14,6 +14,40 @@
   .empty { opacity: .6; padding: .5rem 0; font-size: .875rem; }
   .dx { font-size: .8125rem; opacity: .7; }
   .ctitle { font-size: .8125rem; opacity: .75; display: flex; flex-wrap: wrap; align-items: center; gap: .4rem; }
+  /* Reiter Solar: Monatsleiste */
+  .so-months { display: grid; grid-template-columns: repeat(12, minmax(0, 1fr)); align-items: end; gap: .25rem; height: 205px; border-bottom: 1px solid color-mix(in oklab, currentColor 15%, transparent); padding-bottom: .4rem; }
+  .so-mb { display: flex; flex-direction: column; align-items: center; justify-content: flex-end; gap: .25rem; height: 100%; font-size: .75rem; opacity: .7; cursor: pointer; background: transparent; border: 0; padding: 0; color: inherit; min-width: 0; }
+  .so-mb .so-pair { display: flex; align-items: flex-end; gap: 3px; }
+  .so-mb .so-bar { width: clamp(6px, 1.2vw, 16px); border-radius: 4px 4px 0 0; background: #FAC775; }
+  .so-mb .so-bar-g { background: #B4B2A9; }
+  .so-mb .so-kwh-g { opacity: .7; }
+  .so-mb.on .so-bar.so-bar-g { background: #5F5E5A; }
+  .so-leg { display: inline-block; width: 10px; height: 10px; border-radius: 2px; vertical-align: -1px; margin-right: 4px; }
+  .so-mb .so-kwh { font-size: .6875rem; line-height: 1.2; font-variant-numeric: tabular-nums; white-space: nowrap; text-align: center; }
+  .so-mb.on { opacity: 1; font-weight: 600; }
+  .so-mb.on .so-bar { background: #EF9F27; }
+  .so-mb.leer .so-bar { background: color-mix(in oklab, currentColor 18%, transparent); }
+  .so-g1 { background: color-mix(in oklab, #EF9F27 14%, transparent); }
+  .so-g2 { background: color-mix(in oklab, #378ADD 12%, transparent); }
+  .so-g3 { background: color-mix(in oklab, #D85A30 12%, transparent); }
+  .so-sep { border-left: 2px solid color-mix(in oklab, currentColor 22%, transparent) !important; }
+  .so-yline { display: flex; flex-wrap: wrap; gap: .35rem 1.4rem; font-size: .9rem; padding: .5rem 0; border-bottom: 1px solid color-mix(in oklab, currentColor 12%, transparent); font-variant-numeric: tabular-nums; }
+  .so-yline .lb { opacity: .65; margin-right: .3rem; }
+  .so-yline .plus { color: oklch(0.55 0.15 150); font-weight: 600; }
+  .so-yline .minus { font-weight: 600; }
+  .so-yline .preis { margin-left: auto; font-size: .75rem; opacity: .6; align-self: center; }
+  .so-mb .so-eur { font-size: .6875rem; opacity: .8; font-variant-numeric: tabular-nums; white-space: nowrap; }
+  .so-blk { border-radius: 1rem; padding: .85rem; display: flex; flex-direction: column; gap: .35rem; }
+  .so-blk.top { box-shadow: 0 0 0 2px #EF9F27 inset; }
+  .so-blk .big { font-size: 1.5rem; font-weight: 700; font-variant-numeric: tabular-nums; line-height: 1.1; }
+  .so-stack { display: flex; height: 10px; border-radius: 5px; overflow: hidden; background: color-mix(in oklab, currentColor 10%, transparent); }
+  .so-stack i { display: block; height: 100%; }
+  .so-leg2 { font-size: .75rem; line-height: 1.55; }
+  .so-leg2 b { display: inline-block; width: 9px; height: 9px; border-radius: 2px; margin-right: 5px; vertical-align: 0; }
+  .so-pill { font-size: .75rem; padding: .15rem .5rem; border-radius: .5rem; align-self: flex-start; }
+  .so-grp { border-radius: 1rem; padding: .75rem; display: flex; flex-direction: column; gap: .5rem; }
+  .so-grp > .ctitle { opacity: .85; font-weight: 600; }
+  .so-mb:focus-visible { outline: 2px solid #378ADD; outline-offset: 2px; border-radius: 4px; }
   .ok { color: var(--color-success); } .warn { color: var(--color-warning); } .err { color: var(--color-error); }
   .btn.on { background: var(--color-primary); color: var(--color-primary-content); border-color: var(--color-primary); }
   .chart { position: relative; height: 260px; margin-top: .5rem; }
@@ -329,13 +363,28 @@
 <!-- ===================== SOLAR ===================== -->
 <section data-panel="solar" class="space-y-4 lg:space-y-6 hidden">
   <div class="flex flex-wrap items-center justify-between gap-2">
-    <div><div class="font-semibold">☀️ Strom pro Tag</div><div class="text-sm opacity-70">Was hat die Solaranlage erzeugt, was hat das Haus verbraucht – und wie viel davon lief die Wärmepumpe mit Sonne?</div></div>
-    <select id="soDays" class="select select-bordered select-sm"><option value="7" selected>7 Tage</option><option value="14">14 Tage</option><option value="30">30 Tage</option></select>
+    <div><div class="font-semibold">☀️ Strom pro Monat</div><div class="text-sm opacity-70">Was hat die Solaranlage erzeugt, was hat das Haus verbraucht – und wie viel davon lief die Wärmepumpe mit Sonne?</div></div>
+    <select id="soYear" class="select select-bordered select-sm" aria-label="Jahr"></select>
   </div>
+  <div class="card bg-base-200"><div class="card-body p-4 gap-2">
+    <div id="soYearLine" class="so-yline"></div>
+    <div id="soMonths" class="so-months" role="tablist" aria-label="Monat wählen"></div>
+    <div class="text-xs opacity-70"><span class="so-leg" style="background:#EF9F27"></span>Solar erzeugt <span class="so-leg ml-3" style="background:#5F5E5A"></span>aus dem Netz gekauft · kWh pro Monat · € = Kosten für gekauften Strom · antippen = Monat wählen</div>
+  </div></div>
+  <div id="soTiles" class="grid gap-3 lg:grid-cols-[3fr_3fr_2fr]"></div>
   <div class="card bg-base-200"><div class="card-body p-4 gap-3">
+    <div class="ctitle">🕐 Wann wurde Strom gekauft – und wer hat ihn gebraucht? <span id="soBlkSum" class="font-semibold"></span></div>
+    <div id="soBlocks" class="grid gap-3 sm:grid-cols-2 xl:grid-cols-4"></div>
+    <div id="soBlkNote" class="text-xs opacity-70"></div>
+  </div></div>
+  <div class="card bg-base-200"><div class="card-body p-4 gap-3">
+    <div class="ctitle" id="soMonthTitle"></div>
     <div class="overflow-x-auto"><table class="table table-sm">
-      <thead><tr><th>Tag</th><th class="text-right">☀️ Erzeugt</th><th class="text-right">🏠 Verbraucht</th><th class="text-right">⚡ Gekauft</th><th class="text-right">↗️ Verkauft</th><th class="text-right">♨️ Wärmepumpe</th><th>davon mit Sonne</th></tr></thead>
-      <tbody id="soRows"><tr><td colspan="7" class="empty">Lade …</td></tr></tbody>
+      <thead>
+        <tr><th></th><th colspan="3" class="so-g1 text-center rounded-t-lg">Woher kam der Strom?</th><th colspan="3" class="so-g2 so-sep text-center rounded-t-lg">Wohin ging er?</th><th colspan="2" class="so-g3 so-sep text-center rounded-t-lg">Wärmepumpe</th></tr>
+        <tr><th>Tag</th><th class="so-g1 text-right">☀️ Solar</th><th class="so-g1 text-right">🔋 aus Akku</th><th class="so-g1 text-right">⚡ gekauft</th><th class="so-g2 so-sep text-right">🏠 Haus</th><th class="so-g2 text-right">🔋 in Akku</th><th class="so-g2 text-right">↗️ verkauft</th><th class="so-g3 so-sep text-right">♨️ braucht</th><th class="so-g3">mit Sonne</th></tr>
+      </thead>
+      <tbody id="soRows"><tr><td colspan="9" class="empty">Lade …</td></tr></tbody>
       <tfoot id="soFoot"></tfoot></table></div>
     <div id="soNote" class="text-xs opacity-70"></div>
   </div></div>
@@ -541,7 +590,7 @@
   function setMsg(text, cls = "") { $("msg").className = cls; $("msg").textContent = text; }
 
   // ---------- Fehlerprotokoll: jeden Fehler nach Supabase (wagael_errors) ----------
-  const APP_VERSION = "2026-11-18f";
+  const APP_VERSION = "2026-11-19f";
   const erQueue = [], erSent = {};
   const erDevice = () => { const u = navigator.userAgent; const d = /iPad|Macintosh.*Mobile|Macintosh(?=.*Safari)(?!.*Chrome)/.test(u) && navigator.maxTouchPoints > 1 ? "iPad" : /iPhone/.test(u) ? "iPhone" : /Macintosh/.test(u) ? "Mac" : /Android/.test(u) ? "Android" : "anderes";
     return `${d} · ${/Edg\//.test(u) ? "Edge" : /Chrome\//.test(u) ? "Chrome" : /Firefox\//.test(u) ? "Firefox" : /Safari\//.test(u) ? "Safari" : "Browser"} · ${innerWidth}px`; };
@@ -847,7 +896,9 @@
   }
   // Mittel über die PV-Messungen im Zeitraum [a, b], sonst nächste Messung (max. 6 Min. entfernt)
   function pvMixBetween(pv, a, b) {
-    const pts = pv.filter(p => p.t >= a && p.t <= b).map(pvMix).filter(Boolean);
+    // pv ist nach Zeit sortiert → Startpunkt per Binärsuche (schnell auch bei einem ganzen Monat)
+    let lo = 0, hi = pv.length; while (lo < hi) { const mid = (lo + hi) >> 1; if (pv[mid].t < a) lo = mid + 1; else hi = mid; }
+    const pts = []; for (let i = lo; i < pv.length && pv[i].t <= b; i++) { const m = pvMix(pv[i]); if (m) pts.push(m); }
     if (!pts.length) return pvMix(nearest(pv, (a + b) / 2));
     const avg = (k) => pts.reduce((s2, m) => s2 + m[k], 0) / pts.length;
     return { sun: avg("sun"), bat: avg("bat"), grid: avg("grid") };
@@ -2216,46 +2267,168 @@
   }
   let tResize; window.addEventListener("resize", () => { clearTimeout(tResize); tResize = setTimeout(drawDay, 150); });
 
-  // ---------- Solar: Strom pro Tag (Reiter „Solar“) ----------
+  // ---------- Solar: Strom pro Monat + Tage des Monats (Reiter „Solar“) ----------
+  // Monatssummen und Tageswerte aus der View pv_daily (FoxESS-Zähler, Tag = höchster Zählerstand minus Vortag),
+  // Verbrauch wie in der FoxESS-App. Wärmepumpe je Tag aus WAGAEL × Strom-Mix des Hauses (5-Min-Werte des Monats).
+  const SO_MN = ["Jan", "Feb", "Mär", "Apr", "Mai", "Jun", "Jul", "Aug", "Sep", "Okt", "Nov", "Dez"];
+  let soYear = new Date().getFullYear(), soMonth = new Date().getMonth(), soDaily = [], soReq = 0, soPrice = { buy: 0.11, sell: 0.078 };
+  (function soYears() {   // Jahresauswahl: 2026 (Beginn der PV-Daten) bis heute
+    const now = new Date().getFullYear();
+    $("soYear").innerHTML = Array.from({ length: Math.max(1, now - 2026 + 1) }, (_, i) => now - i).map(y => `<option value="${y}"${y === soYear ? " selected" : ""}>${y}</option>`).join("");
+  })();
   async function loadSolar() {
-    const n = +($("soDays").value || 7), today = new Date(); today.setHours(0, 0, 0, 0);
-    const from = new Date(today); from.setDate(from.getDate() - (n - 1));
-    const to = new Date(today); to.setDate(to.getDate() + 1);
-    const pre = new Date(from); pre.setDate(pre.getDate() - 1);   // Vortag: Zählerstand um Mitternacht als Startwert
-    const [pv, rowsRaw] = await Promise.all([pvRows(pre.toISOString(), to.toISOString()), hpRows(from.toISOString(), to.toISOString())]);
-    if (!pv.length) {
-      $("soRows").innerHTML = `<tr><td colspan="7" class="empty">Noch keine PV-Daten – sie werden ab jetzt alle 5 Min. gesammelt.</td></tr>`;
-      $("soFoot").innerHTML = ""; $("soNote").textContent = ""; return;
-    }
-    const rows = withDeltas(rowsRaw), K = { pv: "pv_total_kwh", load: "load_total_kwh", grid: "grid_total_kwh", feedin: "feedin_total_kwh", bc: "bat_charge_total_kwh", bd: "bat_discharge_total_kwh" };
-    const days = [];
-    for (let d = new Date(today); d >= from; d.setDate(d.getDate() - 1)) {
-      const a = d.getTime(), e = new Date(d); e.setDate(e.getDate() + 1); const b = e.getTime();
-      const inDay = pv.filter(p => p.t >= a && p.t < b);
-      if (!inDay.length) continue;
-      const prev = pv.filter(p => p.t < a && p.t >= a - 3600e3).pop();           // letzte Messung vor Mitternacht (max. 1 Std.)
-      const start = prev || inDay[0], end = inDay[inDay.length - 1];
-      const v = {}; for (const [k, col] of Object.entries(K)) v[k] = start[col] != null && end[col] != null ? Math.max(0, end[col] - start[col]) : null;
-      v.load = pvBalanceLoad(v) ?? v.load;   // Verbrauch wie in der FoxESS-App
-      const wp = wpSunSplit(rows.filter(r => r.t >= a && r.t < b), pv);
-      const cov = (wp.sun + wp.bat + wp.grid) / 1000;
-      days.push({ a, ...v, wpAll: cov + wp.none / 1000, wpSun: (wp.sun + wp.bat) / 1000, wpCov: cov,
-        partial: !prev && inDay[0].t - a > 15 * 60000, since: inDay[0].t, running: b > Date.now() });
-    }
-    const pct = (s, c) => c > 0.05 ? s / c : null;
-    const bar = (p) => p == null ? "–" : `<div class="flex items-center gap-2"><div class="rounded bg-base-100 h-2.5 w-24"><div class="h-2.5 rounded" style="width:${Math.round(p * 100)}%;background:#eda100"></div></div><span class="tabular-nums font-semibold">${fmt(p * 100, 0)} %</span></div>`;
-    const kwh = (x) => x == null ? "–" : `${fmt(x, 1)} kWh`;
-    const tr = (label, x) => `<td class="text-right tabular-nums">${kwh(x.pv)}</td><td class="text-right tabular-nums">${kwh(x.load)}</td><td class="text-right tabular-nums">${kwh(x.grid)}</td><td class="text-right tabular-nums">${kwh(x.feedin)}</td><td class="text-right tabular-nums">${kwh(x.wpAll)}</td><td>${bar(pct(x.wpSun, x.wpCov))}</td>`;
-    $("soRows").innerHTML = days.map(x => `<tr><td class="whitespace-nowrap">${ddmm(x.a)}${x.partial ? " *" : ""}${x.running ? ' <span class="opacity-60">(läuft)</span>' : ""}</td>${tr("", x)}</tr>`).join("");
-    const sum = (k) => days.reduce((s2, x) => s2 + (x[k] ?? 0), 0);
-    const tot = { pv: sum("pv"), load: sum("load"), grid: sum("grid"), feedin: sum("feedin"), wpAll: sum("wpAll"), wpSun: sum("wpSun"), wpCov: sum("wpCov") };
-    $("soFoot").innerHTML = days.length > 1 ? `<tr class="font-semibold"><td>Summe ${days.length} Tage</td>${tr("", tot)}</tr>` : "";
-    const part = days.find(x => x.partial);
-    $("soNote").innerHTML = [part ? `* nicht ganz gemessen – Aufzeichnung begann ${ddmm(part.since)} um ${hhmm(part.since)}.` : "",
-      "Werte aus den FoxESS-Zählern (Mitternacht bis Mitternacht, 0,1 kWh genau). Verbraucht = Solar + Gekauft − Verkauft − Akku geladen + Akku entladen (wie in der FoxESS-App). Gekauft = aus dem Netz, Verkauft = ins Netz eingespeist.",
-      "„Davon mit Sonne“: Jeder 5-Minuten-Verbrauch der Wärmepumpe bekommt den Strom-Mix des ganzen Hauses zu dieser Zeit; Strom aus dem Akku zählt als Sonne."].filter(Boolean).join(" ");
+    const y = soYear;
+    let daily = [];
+    // Strompreise aus den Stammdaten („Strompreis Kauf“ / „Strompreis Verkauf“, in € oder ct), sonst 0,11 € / 0,078 €
+    const stamm = await rest("hp_stammdaten?select=key,value").catch(() => []);
+    const preis = (k, d) => { const v = numIn(stamm.find(x => x.key === k)?.value); return v == null ? d : v > 2 ? v / 100 : v; };
+    soPrice = { buy: preis("Strompreis Kauf", 0.11), sell: preis("Strompreis Verkauf", 0.078) };
+    try { daily = await restAll(`pv_daily?select=tag,pv_kwh,grid_kwh,feedin_kwh,bat_charge_kwh,bat_discharge_kwh,load_kwh&tag=gte.${y}-01-01&tag=lt.${y + 1}-01-01&order=tag.asc`); }
+    catch (e) { if (!/404|42P01|PGRST205/.test(e.message)) throw new Error("PV-Tageswerte: " + e.message); }
+    soDaily = daily.map(d => ({ ...d, m: +d.tag.slice(5, 7) - 1, d: +d.tag.slice(8, 10),
+      load: pvBalanceLoad({ pv: d.pv_kwh, grid: d.grid_kwh, feedin: d.feedin_kwh, bc: d.bat_charge_kwh, bd: d.bat_discharge_kwh }) ?? d.load_kwh }));
+    drawSolarMonths();
+    await loadSolarMonth();
   }
-  $("soDays").addEventListener("change", loadSolar);
+  function drawSolarMonths() {
+    // zwei Balken pro Monat: Solar erzeugt (gelb) und aus dem Netz gekauft (grau)
+    const sum = Array(12).fill(0), buy = Array(12).fill(0), has = Array(12).fill(false);
+    soDaily.forEach(d => { if (d.pv_kwh != null) { sum[d.m] += Number(d.pv_kwh); buy[d.m] += Number(d.grid_kwh || 0); has[d.m] = true; } });
+    const now = new Date(), last = soYear === now.getFullYear() ? now.getMonth() : 11, mx = Math.max(1, ...sum, ...buy);
+    const h = (v) => Math.max(3, Math.round(v / mx * 110));
+    // Jahreszeile: gesamt gekauft / verkauft in kWh und €, unterm Strich
+    const yBuy = soDaily.reduce((a, d) => a + Number(d.grid_kwh || 0), 0), ySell = soDaily.reduce((a, d) => a + Number(d.feedin_kwh || 0), 0);
+    const eur = (v) => `${fmt(v, 0)} €`, saldo = ySell * soPrice.sell - yBuy * soPrice.buy;
+    const ct = (v) => fmt(v * 100, v * 100 % 1 ? 1 : 0);
+    $("soYearLine").innerHTML = soDaily.length ? `<span><span class="lb">${soYear} gekauft</span>${fmt(yBuy, 0)} kWh · <span class="minus">${eur(yBuy * soPrice.buy)}</span></span>
+      <span><span class="lb">verkauft</span>${fmt(ySell, 0)} kWh · <span class="plus">+${eur(ySell * soPrice.sell)}</span></span>
+      <span><span class="lb">unterm Strich</span><span class="${saldo >= 0 ? "plus" : "minus"}">${saldo >= 0 ? "+" : "−"}${eur(Math.abs(saldo))}</span></span>
+      <span class="preis">Kauf ${ct(soPrice.buy)} ct · Verkauf ${ct(soPrice.sell)} ct je kWh</span>` : "";
+    $("soMonths").innerHTML = SO_MN.slice(0, last + 1).map((n, i) => `<button type="button" role="tab" aria-selected="${i === soMonth}" class="so-mb${i === soMonth ? " on" : ""}${has[i] ? "" : " leer"}" data-m="${i}" aria-label="${n}: ${has[i] ? fmt(sum[i], 0) + " kWh erzeugt, " + fmt(buy[i], 0) + " kWh gekauft" : "keine Daten"}">
+      <span class="so-kwh">${has[i] ? `${fmt(sum[i], 0)}<br><span class="so-kwh-g">${fmt(buy[i], 0)}</span>` : "–"}</span>
+      <span class="so-pair"><span class="so-bar" style="height:${has[i] ? h(sum[i]) : 3}px"></span><span class="so-bar so-bar-g" style="height:${has[i] ? h(buy[i]) : 3}px"></span></span><span>${n}</span><span class="so-eur">${has[i] ? fmt(buy[i] * soPrice.buy, 0) + " €" : ""}</span></button>`).join("");
+  }
+  // ---------- Solar: gekaufter Strom nach Tageszeit-Blöcken und Verursacher ----------
+  // Verursacher je 5-Min-Messung: Wärmepumpe (Ventil „tank“ = Warmwasser, sonst Heizung; Heizstab zählt zu Warmwasser),
+  // Grundlast (niedriger Nachtverbrauch ohne Wärmepumpe), Personen/Geräte (Rest). Gekaufter Strom wird anteilig verteilt.
+  const SO_BLK = [
+    { n: "Nacht", z: "0–5 Uhr", sub: "alle schlafen", ic: "🌙", a: 0, b: 5 },
+    { n: "Morgen", z: "5–9 Uhr", sub: "Aufstehen", ic: "🌅", a: 5, b: 9 },
+    { n: "Tag", z: "9–17 Uhr", sub: "Sonne", ic: "☀️", a: 9, b: 17 },
+    { n: "Abend", z: "17–24 Uhr", sub: "alle zu Hause", ic: "🛋️", a: 17, b: 24 }];
+  const SO_CAUSE = [["heat", "Heizung", "#D85A30"], ["ww", "Warmwasser", "#378ADD"], ["base", "Grundlast", "#888780"], ["pers", "Personen/Geräte", "#1D9E75"]];
+  function drawSolarBlocks(pv, hp, monat) {
+    const hpS = hp.filter(r => r.power_kw != null);
+    const wpAt = (t) => nearest(hpS, t);
+    // Grundlast: 10-%-Wert des Verbrauchs ohne Wärmepumpe in der Nacht (1–5 Uhr)
+    const nachtRest = [];
+    pv.forEach(p => { const h = new Date(p.t).getHours(); if (h < 1 || h >= 5 || p.load_kw == null) return; const w = wpAt(p.t); if (w) nachtRest.push(Math.max(0, p.load_kw - (w.power_kw || 0))); });
+    nachtRest.sort((x, y) => x - y);
+    const base = nachtRest.length >= 12 ? nachtRest[Math.floor(nachtRest.length * 0.1)] : null;
+    const B = SO_BLK.map(() => ({ g: 0, heat: 0, ww: 0, base: 0, pers: 0, unk: 0 }));
+    pv.forEach((p, i) => {
+      if (p.grid_kw == null || p.grid_kw <= 0) return;
+      const nx = pv[i + 1], dtH = Math.min(nx ? nx.t - p.t : 5 * 60000, 10 * 60000) / 3600e3, g = p.grid_kw * dtH;
+      const h = new Date(p.t).getHours(), k = SO_BLK.findIndex(x => h >= x.a && h < x.b), o = B[k];
+      o.g += g;
+      const w = base != null ? wpAt(p.t) : null;
+      if (!w || p.load_kw == null || p.load_kw <= 0) { o.unk += g; return; }
+      const W = Math.min(Math.max(0, w.power_kw || 0), p.load_kw), rest = Math.max(0, p.load_kw - W);
+      const bas = Math.min(rest, base); let pers = rest - bas, ww = w.hp_valve === "tank" ? W : 0, heat = W - ww;
+      if (w.hp_booster === "on") { const hs = Math.min(pers, 3); pers -= hs; ww += hs; }   // Heizstab läuft → zählt zu Warmwasser
+      const tot = heat + ww + bas + pers || 1;
+      o.heat += g * heat / tot; o.ww += g * ww / tot; o.base += g * bas / tot; o.pers += g * pers / tot;
+    });
+    const total = B.reduce((a, o) => a + o.g, 0), topK = B.reduce((m, o, i) => o.g > B[m].g ? i : m, 0);
+    $("soBlkSum").textContent = total > 0.05 ? `· ${monat}: ${fmt(total, 0)} kWh gekauft` : "";
+    if (total <= 0.05) { $("soBlocks").innerHTML = `<div class="empty">In diesem Monat wurde kein Strom gekauft.</div>`; $("soBlkNote").textContent = ""; return; }
+    $("soBlocks").innerHTML = SO_BLK.map((x, i) => {
+      const o = B[i], known = o.g - o.unk, share = o.g / total;
+      let pill, tone;
+      if (share < 0.08) { pill = "läuft gut"; tone = "ok"; }
+      else if (known < o.g * 0.5) { pill = "ohne Wärmepumpen-Daten"; tone = "info"; }
+      else if ((o.heat + o.ww) / known >= 0.5) { pill = "Einstellung Heizung / Warmwasser"; tone = "warn"; }
+      else if (o.pers / known >= 0.5) { pill = "Nutzungsverhalten"; tone = "info"; }
+      else if (o.base / known >= 0.4) { pill = "Grundlast"; tone = "info"; }
+      else { pill = "gemischt"; tone = "info"; }
+      const pillCls = tone === "ok" ? "bg-success/20 text-success-content" : tone === "warn" ? "bg-warning/25" : "bg-base-200";
+      const parts = known > 0.05 ? SO_CAUSE.map(([k, n, c]) => [n, c, o[k] / known]).filter(z => z[2] >= 0.05) : [];
+      return `<div class="so-blk bg-base-100${i === topK && share >= 0.25 ? " top" : ""}">
+        <div class="flex items-center gap-2"><span class="text-xl">${x.ic}</span><div><div class="font-semibold leading-tight">${x.n}</div><div class="text-xs opacity-70">${x.z} · ${x.sub}</div></div></div>
+        <div class="big">${fmt(o.g, 0)} kWh</div><div class="text-xs opacity-70">gekauft · ${fmt(share * 100, 0)} %</div>
+        ${parts.length ? `<div class="so-stack">${parts.map(z => `<i style="width:${(z[2] * 100).toFixed(1)}%;background:${z[1]}"></i>`).join("")}</div>
+        <div class="so-leg2">${parts.map(z => `<b style="background:${z[1]}"></b>${z[0]} ${fmt(z[2] * 100, 0)} %`).join("<br>")}</div>` : ""}
+        <span class="so-pill ${pillCls}">${i === topK && share >= 0.25 ? "größter Hebel · " : ""}${pill}</span></div>`;
+    }).join("");
+    const unk = B.reduce((a, o) => a + o.unk, 0);
+    $("soBlkNote").textContent = [`Gekaufter Strom (kWh) je Tageszeit im ${monat}.`,
+      base != null ? `Verursacher aus WAGAEL: Heizung, Warmwasser (inkl. Heizstab), Grundlast ≈ ${fmt(base, 2)} kW (läuft immer), Personen/Geräte = der Rest.` : "",
+      unk > total * 0.05 ? `Für ${fmt(unk, 0)} kWh fehlen Wärmepumpen-Daten – dort ist nur die Menge bekannt, nicht der Verursacher.` : ""].filter(Boolean).join(" ");
+  }
+
+  async function loadSolarMonth() {
+    const y = soYear, m = soMonth, req = ++soReq, A = new Date(y, m, 1), B = new Date(y, m + 1, 1);
+    const monat = A.toLocaleDateString("de-DE", { month: "long", year: "numeric" });
+    $("soMonthTitle").textContent = `Tage im ${monat}`;
+    const days = soDaily.filter(d => d.m === m);
+    if (!days.length) {
+      $("soTiles").innerHTML = ""; $("soFoot").innerHTML = ""; $("soNote").textContent = ""; $("soBlocks").innerHTML = ""; $("soBlkSum").textContent = ""; $("soBlkNote").textContent = "";
+      $("soRows").innerHTML = `<tr><td colspan="9" class="empty">Für ${monat} gibt es keine PV-Daten.</td></tr>`; return;
+    }
+    $("soRows").innerHTML = `<tr><td colspan="9" class="empty">Lade ${monat} …</td></tr>`;
+    $("soBlocks").innerHTML = `<div class="empty">Lade ${monat} …</div>`;
+    // Wärmepumpe: 5-Min-Werte des Monats (PV nur die Spalten für den Strom-Mix)
+    const [pvR, hpR] = await Promise.all([
+      restAll(`pv_snapshots?select=captured_at,fox_time,load_kw,grid_kw,bat_discharge_kw&captured_at=gte.${A.toISOString()}&captured_at=lt.${B.toISOString()}&order=captured_at.asc`),
+      hpRows(A.toISOString(), B.toISOString())]);
+    if (req !== soReq) return;   // inzwischen anderer Monat gewählt
+    const pv = pvR.map(p => ({ ...p, t: new Date(p.fox_time || p.captured_at).getTime() }));
+    const wpDay = {};
+    withDeltas(hpR).forEach(r => {
+      if (!r.dWh) return;
+      const o = wpDay[new Date(r.t).getDate()] || (wpDay[new Date(r.t).getDate()] = { all: 0, sun: 0, cov: 0 });
+      o.all += r.dWh;
+      const mx = pvMixBetween(pv, r.t - 5 * 60000, r.t); if (mx) { o.cov += r.dWh; o.sun += r.dWh * (mx.sun + mx.bat); }
+    });
+    drawSolarBlocks(pv, withDeltas(hpR), monat);
+    const kwh = (x) => x == null ? "–" : `${fmt(x, 1)} kWh`;
+    const pct = (w) => w && w.cov > 50 ? w.sun / w.cov : null;
+    const bar = (p) => p == null ? "–" : `<div class="flex items-center gap-2"><div class="rounded bg-base-100 h-2.5 w-24"><div class="h-2.5 rounded" style="width:${Math.round(p * 100)}%;background:#eda100"></div></div><span class="tabular-nums font-semibold">${fmt(p * 100, 0)} %</span></div>`;
+    const today = new Date(), laeuft = (d) => y === today.getFullYear() && m === today.getMonth() && d === today.getDate();
+    const td = (x, sep) => `<td class="text-right tabular-nums${sep ? " so-sep" : ""}">${x == null ? "–" : fmt(x, 1)}</td>`;
+    // Reihenfolge: Woher (Solar, aus Akku, gekauft) | Wohin (Haus, in Akku, verkauft) | Wärmepumpe – links und rechts ergeben dieselbe Summe
+    const zeile = (lbl, x, w) => `<tr><td class="whitespace-nowrap">${lbl}</td>${td(x.pv_kwh)}${td(x.bat_discharge_kwh)}${td(x.grid_kwh)}${td(x.load, true)}${td(x.bat_charge_kwh)}${td(x.feedin_kwh)}${td(w && w.all > 50 ? w.all / 1000 : null, true)}<td>${bar(pct(w))}</td></tr>`;
+    $("soRows").innerHTML = [...days].sort((a, b) => b.d - a.d).map(x => zeile(`${ddmm(new Date(y, m, x.d).getTime())}${laeuft(x.d) ? ' <span class="opacity-60">(läuft)</span>' : ""}`, x, wpDay[x.d])).join("");
+    // Monatssumme
+    const s = (k) => days.reduce((a, x) => a + (x[k] == null ? 0 : Number(x[k])), 0);
+    const W = Object.values(wpDay).reduce((a, w) => ({ all: a.all + w.all, sun: a.sun + w.sun, cov: a.cov + w.cov }), { all: 0, sun: 0, cov: 0 });
+    const wpAll = W.all > 50 ? W.all / 1000 : null, wpP = pct(W);
+    const grp = (cls, titel, kacheln) => `<div class="so-grp ${cls}"><div class="ctitle">${titel}</div><div class="grid grid-cols-2 sm:grid-cols-${kacheln.length} gap-2">${kacheln.join("")}</div></div>`;
+    $("soTiles").innerHTML = [
+      grp("so-g1", "Woher kam der Strom?", [
+        stateTile("☀️", "Solar", kwh(s("pv_kwh")), monat, "info"),
+        stateTile("🔋", "aus Akku", kwh(s("bat_discharge_kwh")), "entladen", "info"),
+        stateTile("⚡", "gekauft", kwh(s("grid_kwh")), "aus dem Netz", "info")]),
+      grp("so-g2", "Wohin ging er?", [
+        stateTile("🏠", "Haus", kwh(s("load")), "verbraucht", "info"),
+        stateTile("🔋", "in Akku", kwh(s("bat_charge_kwh")), "geladen", "info"),
+        stateTile("↗️", "verkauft", kwh(s("feedin_kwh")), "ins Netz", "info")]),
+      grp("so-g3", "Wärmepumpe", [
+        stateTile("♨️", "braucht", wpAll == null ? "–" : kwh(wpAll), wpAll == null ? "keine WAGAEL-Daten" : `${fmt(wpAll / Math.max(s("load"), 0.1) * 100, 0)} % vom Haus`, "info"),
+        stateTile("🌤️", "mit Sonne", wpP == null ? "–" : `${fmt(wpP * 100, 0)} %`, "PV direkt + Akku", wpP == null ? "info" : wpP >= 0.5 ? "ok" : "warn")]),
+    ].join("");
+    const S = { pv_kwh: s("pv_kwh"), bat_discharge_kwh: s("bat_discharge_kwh"), grid_kwh: s("grid_kwh"), load: s("load"), bat_charge_kwh: s("bat_charge_kwh"), feedin_kwh: s("feedin_kwh") };
+    $("soFoot").innerHTML = zeile(`Summe ${SO_MN[m]}`, S, W).replace("<tr>", '<tr class="font-semibold">');
+    const ohneVortag = days.filter(x => x.pv_kwh == null).map(x => `${x.d}.${m + 1}.`);
+    $("soNote").textContent = [ohneVortag.length ? `Ohne Wert: ${ohneVortag.join(", ")} – dafür fehlt der Zählerstand vom Vortag.` : "",
+      wpAll == null ? "Wärmepumpe: keine WAGAEL-Daten für diesen Monat – die Werte beginnen mit der WAGAEL-Aufzeichnung." : "",
+      "Alle Werte in kWh, Mitternacht bis Mitternacht, aus den FoxESS-Zählern. Links und rechts ergeben pro Tag dieselbe Summe: Solar + aus Akku + gekauft = Haus + in Akku + verkauft (Haus wie in der FoxESS-App).",
+      "„Mit Sonne“: Jeder 5-Minuten-Verbrauch der Wärmepumpe bekommt den Strom-Mix des Hauses zu dieser Zeit; Akku zählt als Sonne."].filter(Boolean).join(" ");
+  }
+  $("soMonths").addEventListener("click", (e) => { const b = e.target.closest("[data-m]"); if (!b) return;
+    soMonth = +b.dataset.m; drawSolarMonths(); loadSolarMonth().catch(err => logError("loadSolarMonth: " + err.message, "laden")); });
+  $("soYear").addEventListener("change", () => { soYear = +$("soYear").value; const n = new Date();
+    soMonth = soYear === n.getFullYear() ? n.getMonth() : 11; loadSolar().catch(err => logError("loadSolar: " + err.message, "laden")); });
 
   // ---------- PV: Strom im Haus – woher, wohin (FoxESS) ----------
   function drawPvBalance({ rows, pv }) {
