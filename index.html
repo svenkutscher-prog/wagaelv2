@@ -48,6 +48,13 @@
   .so-grp { border-radius: 1rem; padding: .75rem; display: flex; flex-direction: column; gap: .5rem; }
   .so-grp > .ctitle { opacity: .85; font-weight: 600; }
   .so-mb:focus-visible { outline: 2px solid #378ADD; outline-offset: 2px; border-radius: 4px; }
+  .ak-tr { position: relative; height: 10px; border-radius: 5px; background: color-mix(in oklab, currentColor 10%, transparent); }
+  .ak-tr.big { height: 14px; border-radius: 7px; }
+  .ak-rg { position: absolute; top: 0; bottom: 0; border-radius: inherit; background: #1D9E75; }
+  .ak-rs { position: absolute; top: -3px; bottom: -3px; width: 2px; background: #E24B4A; }
+  .ak-row { display: grid; grid-template-columns: 2.2rem minmax(0, 1fr) 7.5rem 3.2rem; gap: .6rem; align-items: center; font-size: .8125rem; font-variant-numeric: tabular-nums; }
+  .ak-m { border-radius: .75rem; padding: .7rem .8rem; background: var(--color-base-100); }
+  .ak-m .v { font-size: 1.35rem; font-weight: 600; line-height: 1.2; font-variant-numeric: tabular-nums; }
   .ok { color: var(--color-success); } .warn { color: var(--color-warning); } .err { color: var(--color-error); }
   .btn.on { background: var(--color-primary); color: var(--color-primary-content); border-color: var(--color-primary); }
   .chart { position: relative; height: 260px; margin-top: .5rem; }
@@ -362,6 +369,11 @@
 
 <!-- ===================== SOLAR ===================== -->
 <section data-panel="solar" class="space-y-4 lg:space-y-6 hidden">
+  <div id="soSub" class="join" role="tablist" aria-label="Solar-Bereich">
+    <button class="btn btn-sm join-item" data-sub="energie">⚡ Energie</button>
+    <button class="btn btn-sm join-item" data-sub="akku">🔋 Akku</button>
+  </div>
+  <div data-subpanel="energie" class="space-y-4 lg:space-y-6">
   <div class="flex flex-wrap items-center justify-between gap-2">
     <div><div class="font-semibold">☀️ Strom pro Monat</div><div class="text-sm opacity-70">Was hat die Solaranlage erzeugt, was hat das Haus verbraucht – und wie viel davon lief die Wärmepumpe mit Sonne?</div></div>
     <select id="soYear" class="select select-bordered select-sm" aria-label="Jahr"></select>
@@ -388,6 +400,16 @@
       <tfoot id="soFoot"></tfoot></table></div>
     <div id="soNote" class="text-xs opacity-70"></div>
   </div></div>
+  </div>
+  <div data-subpanel="akku" class="space-y-4 lg:space-y-6 hidden">
+  <div class="card bg-base-200"><div class="card-body p-4 gap-3">
+    <div class="flex flex-wrap items-center justify-between gap-2">
+      <div class="ctitle" style="opacity:1"><span class="font-semibold">🔋 Akku</span><span class="opacity-60" id="akInfo">EQ3300 · 4 Module · 12,8 kWh</span></div>
+      <span id="akPill" class="so-pill"></span>
+    </div>
+    <div id="akBody"><div class="empty">Lade …</div></div>
+  </div></div>
+  </div>
 </section>
 
 <!-- ===================== KLIMA / HALLE ===================== -->
@@ -590,7 +612,7 @@
   function setMsg(text, cls = "") { $("msg").className = cls; $("msg").textContent = text; }
 
   // ---------- Fehlerprotokoll: jeden Fehler nach Supabase (wagael_errors) ----------
-  const APP_VERSION = "2026-11-19g";
+  const APP_VERSION = "2026-11-19i";
   const erQueue = [], erSent = {};
   const erDevice = () => { const u = navigator.userAgent; const d = /iPad|Macintosh.*Mobile|Macintosh(?=.*Safari)(?!.*Chrome)/.test(u) && navigator.maxTouchPoints > 1 ? "iPad" : /iPhone/.test(u) ? "iPhone" : /Macintosh/.test(u) ? "Mac" : /Android/.test(u) ? "Android" : "anderes";
     return `${d} · ${/Edg\//.test(u) ? "Edge" : /Chrome\//.test(u) ? "Chrome" : /Firefox\//.test(u) ? "Firefox" : /Safari\//.test(u) ? "Safari" : "Browser"} · ${innerWidth}px`; };
@@ -2430,6 +2452,104 @@
   $("soYear").addEventListener("change", () => { soYear = +$("soYear").value; const n = new Date();
     soMonth = soYear === n.getFullYear() ? n.getMonth() : 11; loadSolar().catch(err => logError("loadSolar: " + err.message, "laden")); });
 
+  // ---------- Solar: Unter-Reiter Energie | Akku (letzte Wahl wird gemerkt) ----------
+  function soSub(name) {
+    if (!["energie", "akku"].includes(name)) name = "energie";
+    document.querySelectorAll("#soSub [data-sub]").forEach(b => b.classList.toggle("on", b.dataset.sub === name));
+    document.querySelectorAll("[data-subpanel]").forEach(p => p.classList.toggle("hidden", p.dataset.subpanel !== name));
+    try { localStorage.setItem("wagael_solar_sub", name); } catch (e) {}
+  }
+  $("soSub").addEventListener("click", (e) => { const b = e.target.closest("[data-sub]"); if (b) soSub(b.dataset.sub); });
+  soSub((() => { try { return localStorage.getItem("wagael_solar_sub"); } catch (e) { return null; } })());
+
+  // ---------- Akku: Zustand (Reiter „Solar“, Spalten aus 15_akku.sql) ----------
+  // Ladestand, Energie drin, „reicht bis“, Temperatur, Gesundheit (SOH vom Akku), Zyklen (vom Akku gezählt), letzte 7 Tage.
+  // Kapazität und Reserve aus hp_stammdaten („Akku Kapazität“, „Akku Reserve“), sonst 12,8 kWh / 20 %.
+  async function loadAkku() {
+    const stamm = await rest("hp_stammdaten?select=key,value").catch(() => []);
+    const sv = (k, d) => numIn(stamm.find(x => x.key === k)?.value) ?? d;
+    const kap = sv("Akku Kapazität", 12.8), res = sv("Akku Reserve", 20);
+    const now = new Date(), from = new Date(now); from.setHours(0, 0, 0, 0); from.setDate(from.getDate() - 7);
+    let rows;
+    try {
+      rows = await restAll(`pv_snapshots?select=fox_time,captured_at,soc,bat_charge_kw,bat_discharge_kw,bat_discharge_total_kwh,bat_temp_c,soh,bat_cycles,inv_temp_c&captured_at=gte.${from.toISOString()}&order=captured_at.asc`);
+    } catch (e) {
+      if (/42703|bat_temp_c/.test(e.message)) { $("akPill").textContent = ""; $("akBody").innerHTML = `<div class="empty">Akku-Spalten fehlen noch – 15_akku.sql ausführen.</div>`; return; }
+      if (/404|42P01|PGRST205/.test(e.message)) { $("akBody").innerHTML = `<div class="empty">Noch keine PV-Daten.</div>`; return; }
+      throw new Error("Akku: " + e.message);
+    }
+    rows = rows.map(r => ({ ...r, t: new Date(r.fox_time || r.captured_at) })).filter(r => r.soc != null);
+    $("akInfo").textContent = `EQ3300 · 4 Module · ${fmt(kap, 1)} kWh · Reserve ${fmt(res, 0)} %`;
+    if (!rows.length) { $("akPill").textContent = ""; $("akBody").innerHTML = `<div class="empty">Noch keine Akku-Werte.</div>`; return; }
+    const last = rows[rows.length - 1], lastOf = (k) => { for (let i = rows.length - 1; i >= 0; i--) if (rows[i][k] != null) return rows[i][k]; return null; };
+    const temp = lastOf("bat_temp_c"), inv = lastOf("inv_temp_c"), soh = lastOf("soh"), cyc = lastOf("bat_cycles");
+    const hm = (d) => d.toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit" });
+    const alt = (now - last.t) > 30 * 60000;
+
+    // Tage (lokal): tiefster/höchster Ladestand, höchste Temperatur, entladen (Zählerdifferenz), nachts an der Reserve (0–9 Uhr)
+    const key = (d) => `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`, days = [];
+    for (let i = 7; i >= 0; i--) { const d = new Date(now); d.setHours(0, 0, 0, 0); d.setDate(d.getDate() - i); days.push({ d, k: key(d), r: [] }); }
+    const byK = Object.fromEntries(days.map(x => [x.k, x]));
+    rows.forEach(r => byK[key(r.t)]?.r.push(r));
+    days.forEach((x, i) => {
+      const s = x.r.map(r => r.soc), tt = x.r.map(r => r.bat_temp_c).filter(v => v != null), tot = x.r.map(r => r.bat_discharge_total_kwh).filter(v => v != null);
+      const prev = i ? days[i - 1].r.map(r => r.bat_discharge_total_kwh).filter(v => v != null) : [];
+      x.min = s.length ? Math.min(...s) : null; x.max = s.length ? Math.max(...s) : null;
+      x.temp = tt.length ? Math.max(...tt) : null;
+      x.dis = tot.length ? Math.max(...tot) - (prev.length ? Math.max(...prev) : Math.min(...tot)) : null;
+      const nacht = x.r.filter(r => r.t.getHours() < 9).map(r => r.soc);
+      x.res = nacht.length >= 12 ? Math.min(...nacht) <= res + 2 : null;
+    });
+    const week = days.slice(1), heute = days[days.length - 1];
+    const naechte = week.filter(x => x.res === true).length, naechteMit = week.filter(x => x.res != null).length;
+
+    // „reicht bis“: Mittel der letzten 3 Messungen (Entladen − Laden)
+    const l3 = rows.slice(-3), net = l3.reduce((a, r) => a + (r.bat_discharge_kw ?? 0) - (r.bat_charge_kw ?? 0), 0) / l3.length;
+    const nutzbar = Math.max(0, (last.soc - res) / 100 * kap);
+    let reicht;
+    if (last.soc <= res + 1) reicht = "an der Reserve – das Haus nimmt Netzstrom";
+    else if (net > 0.05) { const h = nutzbar / net; reicht = h > 24 ? "reicht bei jetzigem Verbrauch über 24 Std." : `reicht bei jetzigem Verbrauch bis ca. ${hm(new Date(now.getTime() + h * 3600000))}`; }
+    else if (net < -0.05) reicht = `lädt gerade mit ${fmt(-net, 1)} kW`;
+    else reicht = "ruht gerade";
+
+    // Ampel
+    const rot = [], orange = [];
+    if (soh != null && soh < 80) rot.push(`Gesundheit nur ${fmt(soh, 0)} %`);
+    if (soh != null && soh >= 80 && soh < 90) orange.push(`Gesundheit ${fmt(soh, 0)} %`);
+    if (temp != null && (temp < 5 || temp > 40)) orange.push(`Akku-Temperatur ${fmt(temp, 1)} °C`);
+    if (naechte >= 5) orange.push(`${naechte} von ${naechteMit} Nächten an der Reserve`);
+    if (alt) orange.push(`letzte Messung ${hm(last.t)}`);
+    const pill = $("akPill");
+    if (rot.length) { pill.className = "so-pill bg-error text-error-content"; pill.textContent = "⛔ " + rot.join(" · "); logError("Akku: " + rot.join(" · "), "pv"); }
+    else if (orange.length) { pill.className = "so-pill bg-warning text-warning-content"; pill.textContent = "⚠️ " + orange.join(" · "); }
+    else { pill.className = "so-pill bg-success text-success-content"; pill.textContent = "✓ Alles in Ordnung"; }
+
+    const pc = (v) => Math.max(0, Math.min(100, v));
+    const kachel = (icon, titel, wert, unter) => `<div class="ak-m"><div class="text-xs opacity-70">${icon} ${titel}</div><div class="v">${wert}</div><div class="text-xs opacity-60">${unter}</div></div>`;
+    const tempTxt = temp == null ? "–" : `${fmt(temp, 1)} °C`, tempU = temp == null ? "kein Wert" : (temp < 5 || temp > 40 ? "außerhalb 5–40 °C" : temp < 10 || temp > 35 ? "noch ok · gut sind 10–35 °C" : "gut · Bereich 10–35 °C") + (inv != null ? ` · Wechselrichter ${fmt(inv, 0)} °C` : "");
+    const sohU = soh == null ? "kein Wert" : soh >= 95 ? "Akku wie neu" : soh >= 90 ? "leichter Verschleiß, normal" : soh >= 80 ? "deutlicher Verschleiß" : "stark gealtert – Händler fragen";
+    const zHeute = heute.dis != null ? heute.dis / kap : null;
+    const tag = (d) => d.toLocaleDateString("de-DE", { weekday: "short" }).replace(".", "");
+    const reihe = (x) => x.min == null ? `<div class="ak-row"><span>${tag(x.d)}</span><div class="ak-tr"><div class="ak-rs" style="left:${pc(res)}%"></div></div><span class="opacity-50">keine Daten</span><span></span></div>`
+      : `<div class="ak-row"><span>${tag(x.d)}</span><div class="ak-tr" title="tiefster ${fmt(x.min, 0)} % · höchster ${fmt(x.max, 0)} %"><div class="ak-rg" style="left:${pc(x.min)}%;width:${Math.max(1, pc(x.max) - pc(x.min))}%"></div><div class="ak-rs" style="left:${pc(res)}%"></div></div>
+        <span class="opacity-70">${fmt(x.min, 0)}–${fmt(x.max, 0)} %${x.dis != null ? ` · ${fmt(x.dis / kap, 1)} Z.` : ""}</span><span class="opacity-70 text-right">${x.temp != null ? fmt(x.temp, 0) + " °C" : ""}</span></div>`;
+
+    $("akBody").innerHTML = `
+      <div class="flex flex-wrap items-baseline gap-x-3 gap-y-1 mb-1"><span style="font-size:1.9rem;font-weight:700;line-height:1">${fmt(last.soc, 0)} %</span>
+        <span class="text-sm opacity-75">${fmt(last.soc / 100 * kap, 1)} kWh drin · ${reicht}${alt ? ` · Stand ${hm(last.t)}` : ""}</span></div>
+      <div class="ak-tr big"><div class="ak-rg" style="left:0;width:${pc(last.soc)}%"></div><div class="ak-rs" style="left:${pc(res)}%"></div></div>
+      <div class="text-xs opacity-60 mt-1 mb-3">Rote Linie = Reserve ${fmt(res, 0)} % (darunter wird Netzstrom gekauft)</div>
+      <div class="grid grid-cols-2 lg:grid-cols-4 gap-2 mb-4">
+        ${kachel("🌡️", "Temperatur", tempTxt, tempU)}
+        ${kachel("❤️", "Gesundheit", soh == null ? "–" : fmt(soh, 0) + " %", sohU)}
+        ${kachel("🔄", "Zyklen", cyc == null ? "–" : fmt(cyc, 0) + " gesamt", zHeute != null ? `+${fmt(zHeute, 1)} heute` : "vom Akku gezählt")}
+        ${kachel("🌙", "Nachts leer", naechteMit ? `${naechte} von ${naechteMit}` : "–", "Nächte an der Reserve")}
+      </div>
+      <div class="text-sm font-semibold mb-1">Letzte 7 Tage · tiefster bis höchster Ladestand</div>
+      <div class="space-y-1.5">${week.map(reihe).join("")}</div>
+      <div class="text-xs opacity-60 mt-2">Z. = Zyklen (aus dem Akku entladen ÷ ${fmt(kap, 1)} kWh) · °C = höchste Akku-Temperatur des Tages · „nachts leer“ = zwischen 0 und 9 Uhr an der Reserve · Gesundheit und Gesamt-Zyklen meldet der Akku selbst</div>`;
+  }
+
   // ---------- PV: Strom im Haus – woher, wohin (FoxESS) ----------
   function drawPvBalance({ rows, pv }) {
     const day = pvDay(pv);
@@ -3052,7 +3172,7 @@
     applyPalette();
     // frische Anmeldung holen (nach Ruhezustand ist das alte Login-Token sonst abgelaufen → „JWT expired“)
     try { const { data } = await sb.auth.getSession(); if (data?.session?.access_token) accessToken = data.session.access_token; } catch (e) {}
-    const L = { loadTiles, loadEnergy, loadHistory, loadAuto, loadDiagnose, loadMonth, loadCurve, loadBench, loadAnlage, loadState, loadKlima, loadDay, loadAlarms, loadCop, loadLive, loadErrors, loadModeCmp, loadOpt, loadSolar };
+    const L = { loadTiles, loadEnergy, loadHistory, loadAuto, loadDiagnose, loadMonth, loadCurve, loadBench, loadAnlage, loadState, loadKlima, loadDay, loadAlarms, loadCop, loadLive, loadErrors, loadModeCmp, loadOpt, loadSolar, loadAkku };
     const names = Object.keys(L), res = await Promise.allSettled(names.map(n => L[n]()));
     const bad = res.map((r, i) => r.status === "rejected" ? `${names[i]}: ${r.reason?.message || r.reason}` : null).filter(Boolean);
     bad.forEach(m => logError(m, "laden"));
