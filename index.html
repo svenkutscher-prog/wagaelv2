@@ -590,7 +590,7 @@
   function setMsg(text, cls = "") { $("msg").className = cls; $("msg").textContent = text; }
 
   // ---------- Fehlerprotokoll: jeden Fehler nach Supabase (wagael_errors) ----------
-  const APP_VERSION = "2026-11-19f";
+  const APP_VERSION = "2026-11-19g";
   const erQueue = [], erSent = {};
   const erDevice = () => { const u = navigator.userAgent; const d = /iPad|Macintosh.*Mobile|Macintosh(?=.*Safari)(?!.*Chrome)/.test(u) && navigator.maxTouchPoints > 1 ? "iPad" : /iPhone/.test(u) ? "iPhone" : /Macintosh/.test(u) ? "Mac" : /Android/.test(u) ? "Android" : "anderes";
     return `${d} · ${/Edg\//.test(u) ? "Edge" : /Chrome\//.test(u) ? "Chrome" : /Firefox\//.test(u) ? "Firefox" : /Safari\//.test(u) ? "Safari" : "Browser"} · ${innerWidth}px`; };
@@ -2271,7 +2271,7 @@
   // Monatssummen und Tageswerte aus der View pv_daily (FoxESS-Zähler, Tag = höchster Zählerstand minus Vortag),
   // Verbrauch wie in der FoxESS-App. Wärmepumpe je Tag aus WAGAEL × Strom-Mix des Hauses (5-Min-Werte des Monats).
   const SO_MN = ["Jan", "Feb", "Mär", "Apr", "Mai", "Jun", "Jul", "Aug", "Sep", "Okt", "Nov", "Dez"];
-  let soYear = new Date().getFullYear(), soMonth = new Date().getMonth(), soDaily = [], soReq = 0, soPrice = { buy: 0.11, sell: 0.078 };
+  let soYear = new Date().getFullYear(), soMonth = new Date().getMonth(), soDaily = [], soReq = 0, soPrice = { buy: 0.3709, sell: 0.078 };
   (function soYears() {   // Jahresauswahl: 2026 (Beginn der PV-Daten) bis heute
     const now = new Date().getFullYear();
     $("soYear").innerHTML = Array.from({ length: Math.max(1, now - 2026 + 1) }, (_, i) => now - i).map(y => `<option value="${y}"${y === soYear ? " selected" : ""}>${y}</option>`).join("");
@@ -2282,7 +2282,7 @@
     // Strompreise aus den Stammdaten („Strompreis Kauf“ / „Strompreis Verkauf“, in € oder ct), sonst 0,11 € / 0,078 €
     const stamm = await rest("hp_stammdaten?select=key,value").catch(() => []);
     const preis = (k, d) => { const v = numIn(stamm.find(x => x.key === k)?.value); return v == null ? d : v > 2 ? v / 100 : v; };
-    soPrice = { buy: preis("Strompreis Kauf", 0.11), sell: preis("Strompreis Verkauf", 0.078) };
+    soPrice = { buy: preis("Strompreis Kauf", 0.3709), sell: preis("Strompreis Verkauf", 0.078) };
     try { daily = await restAll(`pv_daily?select=tag,pv_kwh,grid_kwh,feedin_kwh,bat_charge_kwh,bat_discharge_kwh,load_kwh&tag=gte.${y}-01-01&tag=lt.${y + 1}-01-01&order=tag.asc`); }
     catch (e) { if (!/404|42P01|PGRST205/.test(e.message)) throw new Error("PV-Tageswerte: " + e.message); }
     soDaily = daily.map(d => ({ ...d, m: +d.tag.slice(5, 7) - 1, d: +d.tag.slice(8, 10),
