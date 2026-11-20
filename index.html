@@ -82,6 +82,12 @@
   .bgrid input, .bgrid select { margin-top: .25rem; width: 100%; }
   .cfg-off { display: none !important; }
   .hs-bar { display: flex; height: 14px; border-radius: 7px; overflow: hidden; background: color-mix(in oklab, currentColor 10%, transparent); }
+  .hs-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(10rem, 1fr)); gap: .6rem; }
+  .hs-k { text-align: left; border-radius: 1rem; padding: .75rem .9rem; min-height: 7.5rem; display: flex; flex-direction: column; gap: .3rem; cursor: pointer; border: 2px solid transparent; }
+  .hs-k:hover { border-color: color-mix(in oklab, currentColor 20%, transparent); }
+  .hs-k.on { border-color: #534AB7; }
+  .hs-k .bar { height: 5px; border-radius: 3px; margin-top: auto; overflow: hidden; background: color-mix(in oklab, currentColor 10%, transparent); }
+  .hs-k .bar i { display: block; height: 100%; background: #7F77DD; }
   .hs-tag { font-size: .6875rem; padding: .1rem .45rem; border-radius: .4rem; white-space: nowrap; }
   .ml-tr { height: 12px; border-radius: 6px; overflow: hidden; background: color-mix(in oklab, currentColor 10%, transparent); }
   .ml-tr i { display: block; height: 100%; border-radius: 6px; }
@@ -637,12 +643,10 @@
     <div id="hsSum"><div class="empty">Lade …</div></div>
   </div></div>
   <div class="flex flex-wrap gap-2 items-center">
-    <input id="hsNeuRaum" class="input input-bordered input-sm grow" style="min-width:12rem" placeholder="Neuer Raum, z. B. Büro" aria-label="Name des neuen Raums">
-    <button id="hsAddRaum" class="btn btn-sm">+ Raum erstellen</button>
     <button id="hsKiBtn" class="btn btn-sm btn-primary">🤖 Liste von ChatGPT prüfen lassen</button>
   </div>
   <div id="hsKi" class="hidden card bg-base-200"><div class="card-body p-4 gap-2 text-sm" id="hsKiBody"></div></div>
-  <div id="hsRooms" class="space-y-3"><div class="empty">Lade …</div></div>
+  <div id="hsRooms"><div class="empty">Lade …</div></div>
 </section>
 
 <section data-panel="plant" class="space-y-4 lg:space-y-6 hidden">
@@ -745,7 +749,7 @@
   function setMsg(text, cls = "") { $("msg").className = cls; $("msg").textContent = text; }
 
   // ---------- Fehlerprotokoll: jeden Fehler nach Supabase (wagael_errors) ----------
-  const APP_VERSION = "2026-11-20h";
+  const APP_VERSION = "2026-11-20i";
   const erQueue = [], erSent = {};
   const erDevice = () => { const u = navigator.userAgent; const d = /iPad|Macintosh.*Mobile|Macintosh(?=.*Safari)(?!.*Chrome)/.test(u) && navigator.maxTouchPoints > 1 ? "iPad" : /iPhone/.test(u) ? "iPhone" : /Macintosh/.test(u) ? "Mac" : /Android/.test(u) ? "Android" : "anderes";
     return `${d} · ${/Edg\//.test(u) ? "Edge" : /Chrome\//.test(u) ? "Chrome" : /Firefox\//.test(u) ? "Firefox" : /Safari\//.test(u) ? "Safari" : "Browser"} · ${innerWidth}px`; };
@@ -2672,6 +2676,15 @@
     ["zeit", "⏱️ Läuft zeitweise", "z. B. Fernseher, Lampe, PC, Konsole"],
     ["immer", "♾️ Läuft immer", "z. B. Router, Kühlschrank, Gefriertruhe, Standby"],
     ["gang", "🔁 Pro Durchgang", "z. B. Spülmaschine, Backofen, Wasserkocher"]];
+  const hsStd = () => haus.raeume.find(r => r.sort === 0) || haus.raeume[0];   // Standard-Raum „Nicht zugeordnet“
+  const hsRaumName = (r) => r && r === hsStd() && r.sort === 0 ? "Nicht zugeordnet" : r?.name || "";
+  function hsIcon(r) {
+    if (r === hsStd() && r.sort === 0) return "📦";
+    const n = (r.name || "").toLowerCase(), M = [["küche|kueche", "🍳"], ["wohn|wozi", "🛋️"], ["schlaf", "🛏️"], ["kind", "🧸"], ["bad|wc|dusch", "🛁"], ["büro|buero|arbeit", "💻"],
+      ["keller", "🧺"], ["wasch|hauswirt", "🧺"], ["flur|diele|eingang", "🚪"], ["garage|carport", "🚗"], ["garten|terrasse|balkon", "🌿"], ["dach|speicher|boden", "🏚️"], ["ess", "🍽️"], ["gäste|gaeste", "🛏️"], ["technik|heiz", "🔧"]];
+    const m = M.find(([k]) => new RegExp(k).test(n)); return m ? m[1] : "🚪";
+  }
+  let hausOffen = (() => { try { return +localStorage.getItem("wagael_haus_raum") || null; } catch (e) { return null; } })(), hausRaumEdit = false, hausNeuRaum = false, hausDelRaum = null;
   function hsFormKwh(f) {
     const n = (v) => parseFloat(String(v ?? "").replace(",", ".")) || 0;
     if (f.art === "zeit") return n(f.watt) * n(f.stunden) / 1000;
@@ -2692,7 +2705,9 @@
     const k = hsFormKwh(f), preis = (agState || soPrice).buy;
     return `<div class="p-3 border-t border-base-300 space-y-3 bg-base-100">
       <div class="font-semibold text-sm">${f.id ? "Gerät bearbeiten" : "Neues Gerät"}</div>
-      <label class="form-control"><span class="text-sm font-medium">Name</span><input data-hs-f="name" class="input input-bordered input-sm" placeholder="z. B. Fernseher Wohnzimmer" value="${hsEsc(f.name || "")}"></label>
+      <div class="grid gap-3" style="grid-template-columns:repeat(auto-fit,minmax(12rem,1fr))">
+        <label class="form-control"><span class="text-sm font-medium">Name</span><input data-hs-f="name" class="input input-bordered input-sm" placeholder="z. B. Fernseher Wohnzimmer" value="${hsEsc(f.name || "")}"></label>
+        <label class="form-control"><span class="text-sm font-medium">Raum</span><select data-hs-f="raum_id" class="select select-bordered select-sm">${haus.raeume.map(x => `<option value="${x.id}"${x.id === +f.raum_id ? " selected" : ""}>${hsEsc(hsIcon(x) + " " + hsRaumName(x))}</option>`).join("")}</select></label></div>
       ${mess ? "" : `<div><div class="text-sm font-medium mb-1">Wie läuft das Gerät?</div><div class="grid gap-2" style="grid-template-columns:repeat(auto-fit,minmax(11rem,1fr))">${HS_ARTEN.map(([a, t, b]) =>
         `<button type="button" class="btn h-auto py-2 justify-start text-left normal-case ${f.art === a ? "btn-primary" : "btn-outline"}" data-hs-art="${a}"><span><span class="block">${t}</span><span class="block text-xs font-normal opacity-75">${b}</span></span></button>`).join("")}</div></div>`}
       <div class="grid gap-3" style="grid-template-columns:repeat(auto-fit,minmax(12rem,1fr))">${felder}</div>
@@ -2753,7 +2768,8 @@
     const st = {}, wptag = {};
     de.forEach(d => { const l = d.device_label || "?", k = +d.kwh_seit_vorher || 0, h = +d.stunden_seit_vorher || 0;
       (st[l] ||= { k: 0, h: 0 }); st[l].k += k; st[l].h += h;
-      if (/heat ?pump|wärmepumpe/i.test(l) && h > 0) wptag[d.day] = (wptag[d.day] || 0) + k / h * 24; });
+      if (/heat ?pump|wärmepumpe/i.test(l) && h > 0) { (wptag[d.day] ||= { k: 0, h: 0 }); wptag[d.day].k += k; wptag[d.day].h += h; } });
+    Object.keys(wptag).forEach(t => { wptag[t] = wptag[t].h > 0 ? wptag[t].k / wptag[t].h * 24 : null; if (wptag[t] == null) delete wptag[t]; });
     const mess = {};
     Object.entries(st).forEach(([l, v]) => { if (v.h > 0) mess["st:" + l] = v.k / v.h * 24; });
     // Miele: Verbrauch je Programmlauf (höchster Wert, solange „läuft“ oder „fertig“), Summe ÷ Tage
@@ -2774,7 +2790,8 @@
     const wpBei = (t) => { let lo = 0, hi = hp.length - 1; if (hi < 0) return null; while (lo < hi) { const mi = (lo + hi) >> 1; if (hp[mi].t < t) lo = mi + 1; else hi = mi; }
       const c = [hp[lo], hp[lo - 1]].filter(Boolean).sort((a, b) => Math.abs(a.t - t) - Math.abs(b.t - t))[0]; return c && Math.abs(c.t - t) < 15 * 60000 ? c.p : null; };
     const nacht = [];
-    pvn.forEach(x => { const t = new Date(x.fox_time), h = t.getHours(); if (h < 1 || h >= 5 || x.load_kw == null) return; const w = wpBei(t.getTime()); if (w != null) nacht.push(Math.max(0, x.load_kw - w)); });
+    // nur Momente, in denen die Wärmepumpe aus ist (unter 50 W) – sonst bleibt rechnerisch fast nichts übrig
+    pvn.forEach(x => { const t = new Date(x.fox_time), h = t.getHours(); if (h < 1 || h >= 5 || x.load_kw == null) return; const w = wpBei(t.getTime()); if (w != null && w < 0.05) nacht.push(+x.load_kw); });
     nacht.sort((a, b) => a - b);
     haus.ref = { rest, wp: wpAvg, tage: beide.length || Object.keys(haustag).length, grund: nacht.length >= 12 ? nacht[Math.floor(nacht.length * 0.1)] : null };
   }
@@ -2797,29 +2814,58 @@
       pill.className = "so-pill"; pill.textContent = "";
       $("hsSum").innerHTML = ref ? `<div class="text-sm opacity-70">Noch zu wenig Messwerte für den Vergleich. Geräteliste: ${fmt(sMess + sSch, 1)} kWh/Tag.</div>` : `<div class="empty">Messwerte werden geladen …</div>`;
     }
-    $("hsRooms").innerHTML = haus.raeume.map(r => {
-      const gs = haus.geraete.filter(g => g.raum_id === r.id), sum = gs.reduce((a, g) => a + (hsKwh(g) || 0), 0);
+    // Kacheln je Raum (Standard-Raum „Nicht zugeordnet“ zuerst), Klick öffnet den Raum darunter
+    const sumR = (r) => haus.geraete.filter(g => g.raum_id === r.id).reduce((a, g) => a + (hsKwh(g) || 0), 0);
+    const R = ref?.rest > 0 ? ref.rest : Math.max(0.01, ...haus.raeume.map(sumR));
+    if (hausOffen && !haus.raeume.some(r => r.id === hausOffen)) hausOffen = null;
+    const kachel = (r) => { const n = haus.geraete.filter(g => g.raum_id === r.id).length, k = sumR(r), alle = n && haus.geraete.filter(g => g.raum_id === r.id).every(g => g.art === "mess");
+      return `<button type="button" class="hs-k bg-base-200${hausOffen === r.id ? " on" : ""}" data-hs-open="${r.id}" aria-expanded="${hausOffen === r.id}">
+        <span style="font-size:1.4rem;line-height:1">${hsIcon(r)}</span><span class="font-semibold text-sm">${hsEsc(hsRaumName(r))}</span>
+        <span class="text-xs opacity-70">${n} Gerät${n === 1 ? "" : "e"}${n ? ` · ${alle ? "gemessen" : fmt(k * 365 * preis, 0) + " €/Jahr"}` : ""}</span>
+        <span class="text-lg font-semibold tabular-nums">${fmt(k, 2)} <span class="text-xs font-normal opacity-70">kWh/Tag</span></span>
+        <span class="bar"><i style="width:${Math.min(100, k / R * 100)}%"></i></span></button>`; };
+    const neu = hausNeuRaum
+      ? `<div class="hs-k bg-base-200" style="cursor:default"><span class="text-sm font-semibold">Neuer Raum</span><input id="hsNeuName" class="input input-bordered input-sm" placeholder="z. B. Büro" aria-label="Name des neuen Raums">
+          <div class="flex gap-1 mt-auto"><button class="btn btn-xs btn-primary" data-hs-raumsave="1">Anlegen</button><button class="btn btn-xs btn-ghost" data-hs-raumcancel="1">Abbrechen</button></div></div>`
+      : `<button type="button" class="hs-k" style="border:2px dashed color-mix(in oklab,currentColor 25%,transparent);align-items:center;justify-content:center;opacity:.75" data-hs-neuraum="1"><span style="font-size:1.4rem">＋</span><span class="text-sm">Raum erstellen</span></button>`;
+    let det = "";
+    const r = haus.raeume.find(x => x.id === hausOffen);
+    if (r) {
+      const gs = haus.geraete.filter(g => g.raum_id === r.id), sum = sumR(r), std = r === hsStd() && r.sort === 0;
       const zeile = (g) => { const k = hsKwh(g), del = hausDel === g.id;
         return `<tr><td>${hsEsc(g.name)} <span class="hs-tag ${g.art === "mess" ? "bg-success text-success-content" : "bg-base-300"}">${g.art === "mess" ? "gemessen" : "geschätzt"}</span></td>
           <td class="opacity-70">${hsNutzung(g)}</td><td class="text-right tabular-nums">${k == null ? "–" : fmt(k * 365, 0)}</td><td class="text-right tabular-nums">${k == null ? "–" : fmt(k * 365 * preis, 0)}</td>
-          <td><select class="select select-xs" data-hs-move="${g.id}" aria-label="Raum für ${hsEsc(g.name)}">${haus.raeume.map(x => `<option value="${x.id}"${x.id === r.id ? " selected" : ""}>${hsEsc(x.name)}</option>`).join("")}</select></td>
-          <td class="text-right whitespace-nowrap"><button class="btn btn-ghost btn-xs" data-hs-edit="${g.id}" aria-label="${hsEsc(g.name)} bearbeiten" title="bearbeiten">✎</button><button class="btn btn-ghost btn-xs${del ? " text-error" : ""}" data-hs-del="${g.id}" aria-label="${hsEsc(g.name)} löschen" title="löschen">${del ? "wirklich löschen?" : "✕"}</button></td></tr>`; };
-      const form = hausForm && hausForm.raum_id === r.id ? hsFormHtml()
-        : `<div class="p-2 border-t border-base-300"><button class="btn btn-ghost btn-sm" data-hs-add="${r.id}">+ Gerät hinzufügen</button></div>`;
-      return `<div class="card bg-base-200 overflow-hidden"><div class="flex flex-wrap items-center gap-2 px-4 py-3"><b class="grow">${hsEsc(r.name)}</b>
-          <span class="text-sm opacity-70">${fmt(sum, 2)} kWh/Tag · ${fmt(sum * 365, 0)} kWh/Jahr · ${fmt(sum * 365 * preis, 0)} €</span>
-          <button class="btn btn-ghost btn-xs" data-hs-delraum="${r.id}" aria-label="Raum ${hsEsc(r.name)} löschen">🗑</button></div>
-        <div class="overflow-x-auto"><table class="table table-sm"><thead><tr><th>Gerät</th><th>Leistung · Nutzung</th><th class="text-right">kWh/Jahr</th><th class="text-right">€/Jahr</th><th>Raum</th><th></th></tr></thead>
-        <tbody>${gs.length ? gs.map(zeile).join("") : `<tr><td colspan="6" class="opacity-60">Noch keine Geräte</td></tr>`}</tbody></table></div>${form}</div>`;
-    }).join("") || `<div class="empty">Noch keine Räume – oben einen anlegen.</div>`;
+          <td class="text-right whitespace-nowrap"><button class="btn btn-ghost btn-xs" data-hs-edit="${g.id}" aria-label="${hsEsc(g.name)} bearbeiten oder verschieben" title="bearbeiten / verschieben">✎</button><button class="btn btn-ghost btn-xs${del ? " text-error" : ""}" data-hs-del="${g.id}" aria-label="${hsEsc(g.name)} löschen" title="löschen">${del ? "wirklich löschen?" : "✕"}</button></td></tr>`; };
+      const form = hausForm && +hausForm.raum_id === r.id && !hausForm.fremd ? hsFormHtml() : `<div class="p-2 border-t border-base-300"><button class="btn btn-ghost btn-sm" data-hs-add="${r.id}">+ Gerät hinzufügen</button></div>`;
+      const kopf = hausRaumEdit && !std
+        ? `<input id="hsRaumName" class="input input-bordered input-sm grow" value="${hsEsc(r.name)}" aria-label="Raumname"><button class="btn btn-xs btn-primary" data-hs-rename="${r.id}">Speichern</button><button class="btn btn-xs btn-ghost" data-hs-renamecancel="1">Abbrechen</button>`
+        : `<b class="grow">${hsEsc(hsRaumName(r))}</b><span class="text-sm opacity-70">${fmt(sum, 2)} kWh/Tag · ${fmt(sum * 365, 0)} kWh/Jahr · ${fmt(sum * 365 * preis, 0)} €</span>
+           ${std ? "" : `<button class="btn btn-ghost btn-xs" data-hs-renameopen="1">✎ Umbenennen</button><button class="btn btn-ghost btn-xs${hausDelRaum === r.id ? " text-error" : ""}" data-hs-delraum="${r.id}" title="Raum löschen">${hausDelRaum === r.id ? (gs.length ? `löschen? ${gs.length} Gerät${gs.length === 1 ? "" : "e"} → Nicht zugeordnet` : "wirklich löschen?") : "🗑"}</button>`}
+           <button class="btn btn-ghost btn-xs" data-hs-close="1" aria-label="Raum schließen">✕</button>`;
+      det = `<div class="card bg-base-200 overflow-hidden mt-3"><div class="flex flex-wrap items-center gap-2 px-4 py-3 bg-base-300/40"><span style="font-size:1.25rem">${hsIcon(r)}</span>${kopf}</div>
+        <div class="overflow-x-auto"><table class="table table-sm"><thead><tr><th>Gerät</th><th>Leistung · Nutzung</th><th class="text-right">kWh/Jahr</th><th class="text-right">€/Jahr</th><th></th></tr></thead>
+        <tbody>${gs.length ? gs.map(zeile).join("") : `<tr><td colspan="5" class="opacity-60">${std ? "Alle Geräte sind einem Raum zugeordnet. 👍" : "Noch keine Geräte"}</td></tr>`}</tbody></table></div>${form}</div>`;
+    }
+    $("hsRooms").innerHTML = `<div class="hs-grid">${haus.raeume.map(kachel).join("")}${neu}</div>${det || `<div class="text-xs opacity-60 mt-2">Auf einen Raum tippen, um seine Geräte zu sehen.</div>`}`;
   }
   async function hausAktion(fn) {
     try { await fn(); } catch (e) { setMsg("Speichern fehlgeschlagen: " + e.message, "warn"); logError("Haus speichern: " + e.message, "seite"); }
     const [r, g] = await Promise.all([rest("haus_raeume?select=*&order=sort.asc,id.asc"), rest("haus_geraete?select=*&order=id.asc")]);
     haus.raeume = r; haus.geraete = g; hausZeichnen();
   }
+  const hsOeffne = (id) => { hausOffen = id; hausForm = null; hausRaumEdit = false; hausDelRaum = null; try { localStorage.setItem("wagael_haus_raum", id || ""); } catch (e) {} hausZeichnen(); };
   $("hsRooms").addEventListener("click", (e) => {
     const b = e.target.closest("button"); if (!b) return;
+    if (b.dataset.hsOpen) { const id = +b.dataset.hsOpen; hsOeffne(hausOffen === id ? null : id); return; }
+    if (b.dataset.hsClose) { hsOeffne(null); return; }
+    if (b.dataset.hsNeuraum) { hausNeuRaum = true; hausZeichnen(); $("hsNeuName")?.focus(); return; }
+    if (b.dataset.hsRaumcancel) { hausNeuRaum = false; hausZeichnen(); return; }
+    if (b.dataset.hsRaumsave) { const n = $("hsNeuName").value.trim(); if (!n) { $("hsNeuName").placeholder = "Bitte einen Namen eingeben"; $("hsNeuName").focus(); return; }
+      hausNeuRaum = false; hausAktion(async () => { const [x] = await restWrite("POST", "haus_raeume", { name: n, sort: 100 + haus.raeume.length }, "return=representation"); if (x?.id) { hausOffen = x.id; try { localStorage.setItem("wagael_haus_raum", x.id); } catch (e) {} } }); return; }
+    if (b.dataset.hsRenameopen) { hausRaumEdit = true; hausZeichnen(); $("hsRaumName")?.focus(); return; }
+    if (b.dataset.hsRenamecancel) { hausRaumEdit = false; hausZeichnen(); return; }
+    if (b.dataset.hsRename) { const n = $("hsRaumName").value.trim(); if (!n) { $("hsRaumName").focus(); return; } hausRaumEdit = false;
+      hausAktion(() => restWrite("PATCH", `haus_raeume?id=eq.${+b.dataset.hsRename}`, { name: n }, "return=minimal")); return; }
     if (b.dataset.hsAdd) { hausForm = { raum_id: +b.dataset.hsAdd, art: "zeit", name: "" }; hausZeichnen(); document.querySelector('[data-hs-f="name"]')?.focus(); return; }
     if (b.dataset.hsEdit) { const g = haus.geraete.find(x => x.id === +b.dataset.hsEdit); if (!g) return;
       hausForm = { id: g.id, raum_id: g.raum_id, name: g.name, art: g.art === "jahr" ? "immer" : g.art, label: g.art === "jahr", watt: g.watt, stunden: g.stunden, kwh_gang: g.kwh_gang, pro_woche: g.pro_woche, kwh_jahr: g.kwh_jahr };
@@ -2827,9 +2873,9 @@
     if (b.dataset.hsArt) { hausForm.art = b.dataset.hsArt; hausZeichnen(); return; }
     if (b.dataset.hsCancel) { hausForm = null; hausZeichnen(); return; }
     if (b.dataset.hsDel) { const id = +b.dataset.hsDel; if (hausDel !== id) { hausDel = id; hausZeichnen(); return; } hausDel = null; hausAktion(() => restWrite("DELETE", `haus_geraete?id=eq.${id}`)); return; }
-    if (b.dataset.hsDelraum) { const id = +b.dataset.hsDelraum;
-      if (haus.geraete.some(g => g.raum_id === id)) { b.textContent = "erst Geräte verschieben"; setTimeout(hausZeichnen, 2000); return; }
-      hausAktion(() => restWrite("DELETE", `haus_raeume?id=eq.${id}`)); return; }
+    if (b.dataset.hsDelraum) { const id = +b.dataset.hsDelraum; if (hausDelRaum !== id) { hausDelRaum = id; hausZeichnen(); return; }
+      hausDelRaum = null; const std = hsStd(); hausOffen = std?.id || null;   // Geräte wandern nach „Nicht zugeordnet“
+      hausAktion(async () => { if (std && std.id !== id) await restWrite("PATCH", `haus_geraete?raum_id=eq.${id}`, { raum_id: std.id }, "return=minimal"); await restWrite("DELETE", `haus_raeume?id=eq.${id}`); }); return; }
     if (b.dataset.hsSave) {
       const f = hausForm, err = $("hsFerr"), n = (v) => parseFloat(String(v ?? "").replace(",", "."));
       const name = String(f.name || "").trim(), fehl = (t, k) => { err.textContent = t; document.querySelector(`[data-hs-f="${k}"]`)?.focus(); };
@@ -2842,9 +2888,9 @@
         else if (f.art === "immer") { if (!(n(f.watt) > 0)) return fehl("Bitte die Leistung in Watt eingeben.", "watt"); row.watt = n(f.watt); }
         else if (f.art === "gang") { if (!(n(f.kwh_gang) > 0)) return fehl("Bitte kWh pro Durchgang eingeben.", "kwh_gang"); if (!(n(f.pro_woche) > 0)) return fehl("Bitte eingeben, wie oft pro Woche.", "pro_woche"); Object.assign(row, { kwh_gang: n(f.kwh_gang), pro_woche: n(f.pro_woche) }); }
       }
-      hausForm = null;
+      row.raum_id = +f.raum_id; hausForm = null;
       if (f.id) hausAktion(() => restWrite("PATCH", `haus_geraete?id=eq.${f.id}`, row, "return=minimal"));
-      else hausAktion(() => restWrite("POST", "haus_geraete", { ...row, raum_id: f.raum_id }, "return=minimal"));
+      else hausAktion(() => restWrite("POST", "haus_geraete", row, "return=minimal"));
     }
   });
   $("hsRooms").addEventListener("input", (e) => {
@@ -2856,12 +2902,12 @@
       v.innerHTML = kw > 0 ? `= <b>${fmt(kw, 2)} kWh am Tag</b> · ${fmt(kw * 365, 0)} kWh im Jahr · ca. ${fmt(kw * 365 * preis, 0)} € im Jahr` : "Werte eintragen – das Ergebnis erscheint hier."; }
   });
   $("hsRooms").addEventListener("change", (e) => { const c = e.target.closest('[data-hs-f="label"]'); if (c && hausForm) { hausForm.label = c.checked; hausZeichnen(); return; }
+    const rs = e.target.closest('[data-hs-f="raum_id"]'); if (rs && hausForm) { hausForm.raum_id = +rs.value; hausForm.fremd = +rs.value !== hausOffen; return; }
     const s = e.target.closest("[data-hs-move]"); if (!s) return;
     hausAktion(() => restWrite("PATCH", `haus_geraete?id=eq.${+s.dataset.hsMove}`, { raum_id: +s.value }, "return=minimal")); });
-  $("hsAddRaum").addEventListener("click", () => { const i = $("hsNeuRaum"), n = i.value.trim();
-    if (!n) { i.placeholder = "Bitte einen Namen eingeben"; i.focus(); return; }
-    i.value = ""; hausAktion(() => restWrite("POST", "haus_raeume", { name: n, sort: 100 + haus.raeume.length }, "return=minimal")); });
-  $("hsNeuRaum").addEventListener("keydown", (e) => { if (e.key === "Enter") $("hsAddRaum").click(); });
+  $("hsRooms").addEventListener("keydown", (e) => {
+    if (e.key === "Enter" && e.target.id === "hsNeuName") document.querySelector("[data-hs-raumsave]")?.click();
+    if (e.key === "Enter" && e.target.id === "hsRaumName") document.querySelector("[data-hs-rename]")?.click(); });
   $("hsKiBtn").addEventListener("click", async () => {
     const box = $("hsKi"), body = $("hsKiBody"), ref = haus.ref || {};
     box.classList.remove("hidden"); body.innerHTML = `<span class="loading loading-dots loading-sm"></span> ChatGPT prüft die Liste …`;
