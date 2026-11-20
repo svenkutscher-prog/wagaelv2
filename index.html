@@ -749,7 +749,7 @@
   function setMsg(text, cls = "") { $("msg").className = cls; $("msg").textContent = text; }
 
   // ---------- Fehlerprotokoll: jeden Fehler nach Supabase (wagael_errors) ----------
-  const APP_VERSION = "2026-11-20i";
+  const APP_VERSION = "2026-11-20j";
   const erQueue = [], erSent = {};
   const erDevice = () => { const u = navigator.userAgent; const d = /iPad|Macintosh.*Mobile|Macintosh(?=.*Safari)(?!.*Chrome)/.test(u) && navigator.maxTouchPoints > 1 ? "iPad" : /iPhone/.test(u) ? "iPhone" : /Macintosh/.test(u) ? "Mac" : /Android/.test(u) ? "Android" : "anderes";
     return `${d} · ${/Edg\//.test(u) ? "Edge" : /Chrome\//.test(u) ? "Chrome" : /Firefox\//.test(u) ? "Firefox" : /Safari\//.test(u) ? "Safari" : "Browser"} · ${innerWidth}px`; };
@@ -2599,10 +2599,11 @@
   async function loadTakt() {
     const now = new Date(), h0 = new Date(now); h0.setHours(0, 0, 0, 0);
     const von = new Date(h0); von.setDate(von.getDate() - 13);
-    const [hp, cyc, stamm] = await Promise.all([
+    const [hp, cyc, stamm, [tkSnap] = []] = await Promise.all([
       hpRows(von.toISOString(), now.toISOString()),
       restAll(`hp_cycle?select=ts,comp_hz,flow,ret&ts=gte.${von.toISOString()}&order=ts.asc`).then(r => r.map(x => ({ ...x, t: new Date(x.ts).getTime() }))).catch(() => []),
-      rest("hp_stammdaten?select=key,value").catch(() => [])]);
+      rest("hp_stammdaten?select=key,value").catch(() => []),
+      rest("snapshots?select=raw&hp_valve=not.is.null&order=captured_at.desc&limit=1").catch(() => [])]);
     const rows = withDeltas(hp);
     rows.forEach(r => { const c = nearest(cyc, r.t); r.hz = c ? (c.comp_hz ?? 0) : null; const run = r.hz != null ? r.hz > 0 : r.on;
       r.st = r.hp_defrost === "on" ? "ab" : !run ? "off" : r.hp_valve === "tank" ? "ww" : "hk"; });
@@ -2641,6 +2642,31 @@
     const satz2 = spr7 == null ? "" : sprNiedrig
       ? `⚠️ <b>Aber:</b> Das Heizwasser kühlt auf dem Weg durchs Haus nur um <b>${fmt(spr7, 1)} °C</b> ab – üblich sind 5 °C oder mehr. Oft läuft dann die Umwälzpumpe stärker als nötig. <b>→ Beim nächsten Wartungstermin den Fachbetrieb darauf ansprechen</b> – nicht eilig.`
       : `✅ Das Heizwasser kühlt im Haus um ${fmt(spr7, 1)} °C ab – passt.`;
+    // Mögliche Ursachen (automatisch geprüft): Starts/Jahr, Laufanteil, Raumregelung, Heizkurve, Hysterese
+    const fsvL = tkSnap?.raw?.components?.main?.["samsungce.ehsFsvSettings"]?.fsvSettings?.value || [];
+    const fv = (id) => { const f = fsvL.find(x => String(x.id) === id); return f && f.value != null ? +f.value : null; };
+    const voll = tage.slice(6, 13).filter(x => x.runs.length);
+    const startsTag = voll.length ? avg(voll.map(x => x.runs.length)) : null, startsJahr = startsTag != null ? startsTag * 200 : null;
+    const anteil = voll.length ? avg(voll.map(x => x.runs.reduce((p, q) => p + q, 0) / 1440)) : null;
+    const urs = [];
+    if (startsJahr != null) urs.push([startsJahr > 6000 ? "rot" : startsJahr > 3000 ? "gelb" : "gruen", `Ca. ${fmt(Math.round(startsJahr / 100) * 100, 0)} Starts pro Jahr`,
+      `Ø ${fmt(startsTag, 0)} Heiz-Starts am Tag (letzte 7 volle Tage) × 200 Heiztage. Unter 3.000 ist gut, über 6.000 nutzt den Verdichter stärker ab. Gegenprobe: Zähler „Verdichterstarts“ am Display.`]);
+    if (anteil != null && startsTag >= 10) urs.push([anteil < 0.5 ? "gelb" : "gruen", anteil < 0.5 ? "Das Haus braucht weniger Wärme, als die Wärmepumpe mindestens liefert" : "Laufanteil beim Heizen passt",
+      `Sie heizt nur ca. ${fmt(anteil * 24, 1)} Std. am Tag (${fmt(anteil * 100, 0)} %). ${anteil < 0.5 ? "Kleiner als ihre kleinste Stufe kann sie nicht – also geht sie an und aus. An milden Tagen normal, keine Fehleinstellung; bei Frost sollten die Starts weniger werden." : "Sie läuft den Großteil des Tages durch."}`]);
+    const t91 = fv("2091"), t92 = fv("2092"), t93 = fv("2093");
+    if (t91 === 0 && t92 === 0 && t93 != null) urs.push(["info", "Kein externes Raumthermostat – Regelung über das Bedienteil",
+      `FSV 2091/2092 = 0, FSV 2093 = ${t93}. Falls am Bedienteil die Raumtemperatur-Regelung aktiv ist, zählt sein Standort: hängt es warm (Sonne, Flur, Ofen), meldet es zu früh „warm genug“ und die Wärmepumpe startet öfter neu.`]);
+    const k21 = fv("2021"), k22 = fv("2022");
+    if (k22 != null) urs.push([k22 >= 20 ? "gruen" : "gelb", k22 >= 20 ? "Heizkurve passt zur Fußbodenheizung" : "Heizkurve an milden Tagen sehr niedrig",
+      `${fmt(k22, 0)} °C Vorlauf an milden Tagen (FSV 2022)${k21 != null ? `, ${fmt(k21, 0)} °C bei Frost (FSV 2021)` : ""}. ${k22 >= 20 ? "Kein Grund fürs Takten." : "Unter 20 °C kann die Wärmepumpe kaum noch sinnvoll regeln."}`]);
+    const hy = fv("1061");
+    urs.push(["info", hy != null ? `Schaltabstand (Hysterese): ${fmt(hy, 0)} °C` : "Schaltabstand fest ca. 2 °C",
+      hy != null ? "FSV 1061 – größerer Wert = seltener starten, aber Raumtemperatur schwankt mehr. Nur mit Fachbetrieb ändern." : "FSV 1061 meldet deine Anlage nicht – bei dieser Firmware nicht verstellbar."]);
+    const UI = { rot: ["⚠️", "text-error"], gelb: ["🟡", "text-warning"], gruen: ["✅", "text-success"], info: ["ℹ️", ""] };
+    const ursHtml = `<div class="mt-4 rounded-box border border-base-300 p-3">
+      <div class="text-sm font-semibold">🔍 Warum startet sie so oft? <span class="font-normal opacity-60">· automatisch geprüft</span></div>
+      ${urs.map(([s, t, d]) => `<div class="flex gap-2 py-2 border-t border-base-300 mt-2 text-sm"><span>${UI[s][0]}</span><div><div class="font-semibold ${UI[s][1]}">${t}</div><div class="text-xs opacity-70 leading-relaxed">${d}</div></div></div>`).join("")}
+      <div class="text-xs rounded-box bg-base-200 px-3 py-2 mt-1"><b>Was du tun kannst:</b> Standort vom Bedienteil prüfen · Fußbodenkreise möglichst alle offen lassen · mit dem Fachbetrieb über Raumregelung und Mindestleistung sprechen.</div></div>`;
     $("tkBody").innerHTML = `
       <div class="space-y-2 text-sm leading-relaxed">${`<div>${satz1}</div>`}${satz2 ? `<div>${satz2}</div>` : ""}</div>
       <div class="mt-4 text-sm font-semibold">Laufzeit am Stück · ${ref === heute ? "heute" : ref ? ref.d.toLocaleDateString("de-DE", { weekday: "long" }) : ""}: ${ref ? fmt(ref.min, 0) + " Minuten" : "–"} <span class="font-normal opacity-60">(${ref ? ref.runs.length : 0}× gestartet)</span></div>
@@ -2664,6 +2690,7 @@
           ${bh && st ? `<div class="v">${fmt(bh * 60 / st, 0)} Min.</div><div class="text-xs opacity-60">Laut Gerät im Schnitt seit Inbetriebnahme (${fmt(bh, 0)} Std. ÷ ${fmt(st, 0)} Starts, inkl. Warmwasser). ${bh * 60 / st < (avg(tage.flatMap(x => x.runs)) || 0) * 0.6 ? "Deutlich kürzer als unsere Messung – sehr kurze Starts unter 5 Min. sieht WAGAEL nicht." : "Passt zu unserer Messung."}</div>`
             : `<div class="text-sm mt-1">Am Display der Wärmepumpe <b>Betriebsstunden</b> und <b>Starts</b> des Verdichters ablesen und in den Stammdaten eintragen („Verdichter Betriebsstunden“, „Verdichter Starts“).</div><div class="text-xs opacity-60 mt-1">So prüfen wir, ob unsere Messung sehr kurze Starts übersieht.</div>`}</div>
       </div>
+      ${ursHtml}
       <div class="text-xs opacity-50 mt-3">Für das Gespräch mit dem Fachbetrieb: „Laufzeit am Stück“ = Verdichterlaufzeit pro Start (Takten: &lt; 10 Min.). „Abkühlung des Heizwassers“ = Spreizung Vorlauf − Rücklauf im Heizbetrieb (Ø ${spr7 != null ? fmt(spr7, 1) : "–"} K, gemessen in ganzen Grad, daher grob). Ursache einer kleinen Spreizung oft: Umwälzpumpe zu hoch eingestellt oder kein hydraulischer Abgleich.</div>`;
   }
 
