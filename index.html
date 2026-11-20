@@ -81,6 +81,8 @@
   .bgrid label { font-size: .75rem; opacity: .85; }
   .bgrid input, .bgrid select { margin-top: .25rem; width: 100%; }
   .cfg-off { display: none !important; }
+  .hs-bar { display: flex; height: 14px; border-radius: 7px; overflow: hidden; background: color-mix(in oklab, currentColor 10%, transparent); }
+  .hs-tag { font-size: .6875rem; padding: .1rem .45rem; border-radius: .4rem; white-space: nowrap; }
   .ml-tr { height: 12px; border-radius: 6px; overflow: hidden; background: color-mix(in oklab, currentColor 10%, transparent); }
   .ml-tr i { display: block; height: 100%; border-radius: 6px; }
   .an-sw { position: relative; width: 34px; height: 20px; border-radius: 10px; background: color-mix(in oklab, currentColor 25%, transparent); flex: none; border: 0; padding: 0; cursor: pointer; }
@@ -137,6 +139,7 @@
       <a role="tab" class="tab whitespace-nowrap" data-tab="diagnose">Diagnose</a>
       <a role="tab" class="tab whitespace-nowrap" data-tab="opt">Optimierung</a>
       <a role="tab" class="tab whitespace-nowrap" data-tab="config">Konfigurator</a>
+      <a role="tab" class="tab whitespace-nowrap" data-tab="haus">🏠 Haus</a>
       <a role="tab" class="tab whitespace-nowrap" data-tab="plant">Anlage</a>
     </nav>
     <div class="flex items-center gap-2">
@@ -540,6 +543,13 @@
 
 <!-- ===================== DIAGNOSE ===================== -->
 <section data-panel="diagnose" class="hidden">
+  <div class="card bg-base-200 mb-4"><div class="card-body p-4 sm:p-5 gap-3">
+    <div class="flex flex-wrap items-center justify-between gap-2">
+      <div><h2 class="card-title text-base">🔁 Taktet die Wärmepumpe?</h2><div class="text-sm opacity-70">Wie lange läuft der Verdichter pro Start beim Heizen – und stimmt die Spreizung?</div></div>
+      <span id="tkPill" class="so-pill"></span>
+    </div>
+    <div id="tkBody"><div class="empty">Lade …</div></div>
+  </div></div>
   <div class="grid gap-4 xl:grid-cols-2 items-start">
     <div class="card bg-base-200"><div class="card-body p-4 sm:p-5">
       <h2 class="card-title text-base">Diagnose – letzte 7 Tage</h2>
@@ -617,6 +627,24 @@
 </section>
 
 <!-- ===================== ANLAGE ===================== -->
+<!-- ===================== HAUS: Räume und Geräte ===================== -->
+<section data-panel="haus" class="space-y-4 lg:space-y-6 hidden">
+  <div class="card bg-base-200"><div class="card-body p-4 gap-3">
+    <div class="flex flex-wrap items-center justify-between gap-2">
+      <div class="ctitle" style="opacity:1"><span class="font-semibold">🏠 Wohin geht der Hausstrom?</span><span class="opacity-60">Geräteliste im Vergleich zum gemessenen Verbrauch (Ø der letzten 30 Tage, ohne Wärmepumpe)</span></div>
+      <span id="hsPill" class="so-pill"></span>
+    </div>
+    <div id="hsSum"><div class="empty">Lade …</div></div>
+  </div></div>
+  <div class="flex flex-wrap gap-2 items-center">
+    <input id="hsNeuRaum" class="input input-bordered input-sm grow" style="min-width:12rem" placeholder="Neuer Raum, z. B. Büro" aria-label="Name des neuen Raums">
+    <button id="hsAddRaum" class="btn btn-sm">+ Raum erstellen</button>
+    <button id="hsKiBtn" class="btn btn-sm btn-primary">🤖 Liste von ChatGPT prüfen lassen</button>
+  </div>
+  <div id="hsKi" class="hidden card bg-base-200"><div class="card-body p-4 gap-2 text-sm" id="hsKiBody"></div></div>
+  <div id="hsRooms" class="space-y-3"><div class="empty">Lade …</div></div>
+</section>
+
 <section data-panel="plant" class="space-y-4 lg:space-y-6 hidden">
   <div class="grid gap-4 lg:grid-cols-2 items-start">
     <div class="card bg-base-200"><div class="card-body p-4 sm:p-5">
@@ -717,7 +745,7 @@
   function setMsg(text, cls = "") { $("msg").className = cls; $("msg").textContent = text; }
 
   // ---------- Fehlerprotokoll: jeden Fehler nach Supabase (wagael_errors) ----------
-  const APP_VERSION = "2026-11-20d";
+  const APP_VERSION = "2026-11-20h";
   const erQueue = [], erSent = {};
   const erDevice = () => { const u = navigator.userAgent; const d = /iPad|Macintosh.*Mobile|Macintosh(?=.*Safari)(?!.*Chrome)/.test(u) && navigator.maxTouchPoints > 1 ? "iPad" : /iPhone/.test(u) ? "iPhone" : /Macintosh/.test(u) ? "Mac" : /Android/.test(u) ? "Android" : "anderes";
     return `${d} · ${/Edg\//.test(u) ? "Edge" : /Chrome\//.test(u) ? "Chrome" : /Firefox\//.test(u) ? "Firefox" : /Safari\//.test(u) ? "Safari" : "Browser"} · ${innerWidth}px`; };
@@ -2177,7 +2205,7 @@
     $("tSun").textContent = sun.rise ? `☀️ Aufgang ${hhmm(sun.rise)} · Untergang ${hhmm(sun.set)} · PV nutzbar ca. ${sun.pvA ? hhmm(sun.pvA) + "–" + hhmm(sun.pvB) : "kaum (Sonne < 10°)"} · max. ${fmt(sun.max, 0)}°` : "";
     $("tTiles").innerHTML = rows.length < 2 ? `<div class="empty">Für diesen Tag gibt es noch keine Daten.</div>` : [
       stateTile("⚡", "Strom gesamt", `${fmt(whAll / 1000, 1)} kWh`, `${rows.length} Messpunkte`, "info"),
-      stateTile("🔥", "Heizen", `${fmt(whHK / 1000, 1)} kWh`, `${runsHK.length} Läufe · Ø ${runsHK.length ? fmt(runsHK.reduce((a, x) => a + x.end - x.start, 0) / runsHK.length / 60000, 0) : "–"} Min.`, runsHK.length > 30 ? "warn" : "info"),
+      stateTile("🔥", "Heizen", `${fmt(whHK / 1000, 1)} kWh`, `${runsHK.length} Läufe · Ø ${runsHK.length ? fmt(runsHK.reduce((a, x) => a + x.end - x.start, 0) / runsHK.length / 60000, 0) : "–"} Min.${runsHK.length ? ((m) => m < 10 ? " 🔴" : m < 20 ? " 🟡" : " 🟢")(runsHK.reduce((a, x) => a + x.end - x.start, 0) / runsHK.length / 60000) : ""}`, runsHK.length > 30 ? "warn" : "info"),
       stateTile("🚿", "Warmwasser", `${fmt(whWW / 1000, 1)} kWh`, `${sWW.length} Ladungen`, "info"),
       stateTile("☀️", "Warmwasser mit Sonne", wwSunShare != null ? `${fmt(wwSunShare * 100, 0)} %` : "–", whWWsun != null ? "aus PV + Akku (FoxESS)" : "Anteil in der PV-Zeit", wwSunShare != null ? (wwSunShare >= 0.5 ? "ok" : "warn") : "info"),
       stateTile("🔌", "Heizstab", minHS ? `≈ ${fmt(whHS / 1000, 1)} kWh` : "Aus", minHS ? `${fmt(minHS, 0)} Min. × ${fmt(HS_KW, 1)} kW (geschätzt)` : "lief nicht", minHS ? "err" : "ok"),
@@ -2560,6 +2588,297 @@
     soMonth = soYear === n.getFullYear() ? n.getMonth() : 11; loadSolar().catch(err => logError("loadSolar: " + err.message, "laden"));
     loadSim().catch(err => logError("loadSim: " + err.message, "laden"));
     loadModule().catch(err => logError("loadModule: " + err.message, "laden")); });
+
+  // ---------- Diagnose: Takt-Check (Laufzeit pro Verdichterstart beim Heizen, Spreizung, Abgleich mit Display-Zählern) ----------
+  // Läufe wie im Tagesablauf: Zustand „hk“ (Verdichter > 0 Hz, Ventil nicht Speicher, kein Abtauen), zusammenhängend, ab 4 Min.
+  // Ampel je Tag: < 10 Min. rot, 10–20 gelb, ≥ 20 grün. Hinweis „taktet“, wenn 3 der letzten 7 Tage rot sind.
+  async function loadTakt() {
+    const now = new Date(), h0 = new Date(now); h0.setHours(0, 0, 0, 0);
+    const von = new Date(h0); von.setDate(von.getDate() - 13);
+    const [hp, cyc, stamm] = await Promise.all([
+      hpRows(von.toISOString(), now.toISOString()),
+      restAll(`hp_cycle?select=ts,comp_hz,flow,ret&ts=gte.${von.toISOString()}&order=ts.asc`).then(r => r.map(x => ({ ...x, t: new Date(x.ts).getTime() }))).catch(() => []),
+      rest("hp_stammdaten?select=key,value").catch(() => [])]);
+    const rows = withDeltas(hp);
+    rows.forEach(r => { const c = nearest(cyc, r.t); r.hz = c ? (c.comp_hz ?? 0) : null; const run = r.hz != null ? r.hz > 0 : r.on;
+      r.st = r.hp_defrost === "on" ? "ab" : !run ? "off" : r.hp_valve === "tank" ? "ww" : "hk"; });
+    const runs = []; let cur = null;
+    rows.forEach((r, i) => { const nx = rows[i + 1], end = nx && nx.t - r.t <= 7.5 * 60000 ? nx.t : r.t + 5 * 60000;
+      if (r.st === "hk") { if (cur && r.t - cur.end <= 60000) cur.end = end; else { if (cur) runs.push(cur); cur = { start: r.t, end }; } } });
+    if (cur) runs.push(cur);
+    const key = (t) => { const d = new Date(t); return `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`; };
+    const tage = []; for (let i = 0; i < 14; i++) { const d = new Date(von); d.setDate(d.getDate() + i); tage.push({ d, k: key(d), runs: [], sp: [] }); }
+    const byK = Object.fromEntries(tage.map(x => [x.k, x]));
+    runs.filter(x => x.end - x.start >= 4 * 60000).forEach(x => byK[key(x.start)]?.runs.push((x.end - x.start) / 60000));
+    // Spreizung nur während Heizläufen (Gerätedaten mit laufendem Verdichter, Messpunkt im Zustand „hk“)
+    const hkAt = (t) => { const r = rows.find(q => Math.abs(q.t - t) < 4 * 60000); return r && r.st === "hk"; };
+    cyc.filter(c => (c.comp_hz ?? 0) > 0 && c.flow != null && c.ret != null && hkAt(c.t)).forEach(c => byK[key(c.t)]?.sp.push(c.flow - c.ret));
+    const avg = (a) => a.length ? a.reduce((x, y) => x + y, 0) / a.length : null;
+    tage.forEach(x => { x.min = avg(x.runs); x.spr = avg(x.sp); });
+    const farbe = (m) => m == null ? null : m < 10 ? "#E24B4A" : m < 20 ? "#EF9F27" : "#1D9E75";
+    const heute = tage[13], last7 = tage.slice(7), rot7 = last7.filter(x => x.min != null && x.min < 10).length;
+    const spr7 = avg(last7.flatMap(x => x.sp)), spMit = last7.filter(x => x.sp.length).length;
+    // Display-Zähler aus den Stammdaten (optional)
+    const sv = (k) => numIn(stamm.find(x => x.key === k)?.value);
+    const bh = sv("Verdichter Betriebsstunden"), st = sv("Verdichter Starts");
+    const pill = $("tkPill");
+    if (!runs.length) { pill.className = "so-pill"; pill.textContent = ""; $("tkBody").innerHTML = `<div class="empty">Noch keine Heizläufe in den letzten 14 Tagen.</div>`; return; }
+    const taktet = rot7 >= 3, sprNiedrig = spr7 != null && spr7 < 5;
+    if (taktet) { pill.className = "so-pill bg-error text-error-content"; pill.textContent = "⚠️ Wärmepumpe taktet"; }
+    else if (sprNiedrig) { pill.className = "so-pill bg-warning text-warning-content"; pill.textContent = "1 Hinweis"; }
+    else { pill.className = "so-pill bg-success text-success-content"; pill.textContent = "✓ alles gut"; }
+    const ref = heute.min != null ? heute : [...tage].reverse().find(x => x.min != null);
+    const ab = tage.findIndex(x => x.min != null), zeig = ab >= 0 ? tage.slice(ab) : [];
+    const mx = Math.max(30, ...zeig.map(x => x.min || 0)), pos = (m) => Math.max(0, Math.min(100, m / 50 * 100));
+    const satz1 = taktet
+      ? `⚠️ <b>Die Wärmepumpe taktet</b> – an ${rot7} der letzten 7 Tage lief sie im Schnitt kürzer als 10 Minuten am Stück. Das kostet Strom und verschleißt das Gerät. <b>→ Fachbetrieb die Einstellungen prüfen lassen.</b>`
+      : ref && ref.min < 20 ? `🟡 <b>Die Wärmepumpe läuft meist in Ordnung</b> – rund ${fmt(ref.min, 0)} Minuten am Stück. Länger wäre noch besser.`
+      : `✅ <b>Die Wärmepumpe läuft ruhig</b> – jedes Mal rund ${ref ? fmt(ref.min, 0) : "–"} Minuten am Stück. So soll es sein.`;
+    const satz2 = spr7 == null ? "" : sprNiedrig
+      ? `⚠️ <b>Aber:</b> Das Heizwasser kühlt auf dem Weg durchs Haus nur um <b>${fmt(spr7, 1)} °C</b> ab – üblich sind 5 °C oder mehr. Oft läuft dann die Umwälzpumpe stärker als nötig. <b>→ Beim nächsten Wartungstermin den Fachbetrieb darauf ansprechen</b> – nicht eilig.`
+      : `✅ Das Heizwasser kühlt im Haus um ${fmt(spr7, 1)} °C ab – passt.`;
+    $("tkBody").innerHTML = `
+      <div class="space-y-2 text-sm leading-relaxed">${`<div>${satz1}</div>`}${satz2 ? `<div>${satz2}</div>` : ""}</div>
+      <div class="mt-4 text-sm font-semibold">Laufzeit am Stück · ${ref === heute ? "heute" : ref ? ref.d.toLocaleDateString("de-DE", { weekday: "long" }) : ""}: ${ref ? fmt(ref.min, 0) + " Minuten" : "–"} <span class="font-normal opacity-60">(${ref ? ref.runs.length : 0}× gestartet)</span></div>
+      <div class="relative mt-2" style="position:relative;height:14px">
+        <div class="flex rounded overflow-hidden h-full" style="display:flex;height:100%"><div style="width:20%;background:#E24B4A;opacity:.8"></div><div style="width:20%;background:#EF9F27;opacity:.8"></div><div style="width:60%;background:#1D9E75;opacity:.8"></div></div>
+        ${ref ? `<div class="absolute" style="position:absolute;left:${pos(ref.min)}%;top:-9px;transform:translateX(-50%);width:0;height:0;border-left:7px solid transparent;border-right:7px solid transparent;border-top:9px solid currentColor"></div>` : ""}
+      </div>
+      <div class="relative text-xs opacity-70" style="position:relative;height:30px">
+        ${[[0, "0"], [20, "10"], [40, "20"], [100, "50 Min."]].map(([p, t]) => `<span class="absolute" style="position:absolute;left:${p}%;top:2px;transform:translateX(${p === 0 ? "0" : p === 100 ? "-100%" : "-50%"})">${t}</span>`).join("")}
+        <span class="absolute font-semibold" style="position:absolute;left:10%;top:15px;transform:translateX(-50%);color:#E24B4A">taktet</span>
+        <span class="absolute font-semibold" style="position:absolute;left:30%;top:15px;transform:translateX(-50%);color:#BA7517">ok</span>
+        <span class="absolute font-semibold" style="position:absolute;left:70%;top:15px;transform:translateX(-50%);color:#1D9E75">gut</span>
+      </div>
+      <div class="text-sm font-semibold mt-4">Laufzeit am Stück je Tag${ab > 0 ? ` <span class="font-normal opacity-60">· gemessen seit ${zeig[0].d.toLocaleDateString("de-DE", { day: "numeric", month: "numeric" })}</span>` : ""}</div>
+      <div class="ag-bars" style="grid-template-columns:repeat(${Math.max(zeig.length, 7)},minmax(0,1fr));height:110px">${zeig.map(x => `<div class="ag-b"${x.min == null ? ' style="opacity:.35"' : ""}><span>${x.min == null ? "" : fmt(x.min, 0) + " Min."}</span><i style="height:${x.min == null ? 3 : Math.max(4, x.min / mx * 75)}px;background:${farbe(x.min) || "currentColor"}"></i><span>${x.d.toLocaleDateString("de-DE", { weekday: "short" }).replace(".", "")} ${x.d.getDate()}.</span></div>`).join("")}</div>
+      <div class="grid gap-3 md:grid-cols-2 mt-4">
+        <div class="ak-m"><div class="text-xs opacity-70">Abkühlung des Heizwassers im Haus (Ø 7 Tage)</div>
+          <div class="v ${sprNiedrig ? "text-warning" : ""}">${spr7 != null ? fmt(spr7, 1) + " °C" : "–"}</div>
+          <div class="text-xs opacity-60">So viel kälter kommt das Heizwasser zurück, als es losgeschickt wurde. 5 °C oder mehr ist üblich.</div></div>
+        <div class="ak-m"><div class="text-xs opacity-70">Gegenprobe mit dem Display der Wärmepumpe</div>
+          ${bh && st ? `<div class="v">${fmt(bh * 60 / st, 0)} Min.</div><div class="text-xs opacity-60">Laut Gerät im Schnitt seit Inbetriebnahme (${fmt(bh, 0)} Std. ÷ ${fmt(st, 0)} Starts, inkl. Warmwasser). ${bh * 60 / st < (avg(tage.flatMap(x => x.runs)) || 0) * 0.6 ? "Deutlich kürzer als unsere Messung – sehr kurze Starts unter 5 Min. sieht WAGAEL nicht." : "Passt zu unserer Messung."}</div>`
+            : `<div class="text-sm mt-1">Am Display der Wärmepumpe <b>Betriebsstunden</b> und <b>Starts</b> des Verdichters ablesen und in den Stammdaten eintragen („Verdichter Betriebsstunden“, „Verdichter Starts“).</div><div class="text-xs opacity-60 mt-1">So prüfen wir, ob unsere Messung sehr kurze Starts übersieht.</div>`}</div>
+      </div>
+      <div class="text-xs opacity-50 mt-3">Für das Gespräch mit dem Fachbetrieb: „Laufzeit am Stück“ = Verdichterlaufzeit pro Start (Takten: &lt; 10 Min.). „Abkühlung des Heizwassers“ = Spreizung Vorlauf − Rücklauf im Heizbetrieb (Ø ${spr7 != null ? fmt(spr7, 1) : "–"} K, gemessen in ganzen Grad, daher grob). Ursache einer kleinen Spreizung oft: Umwälzpumpe zu hoch eingestellt oder kein hydraulischer Abgleich.</div>`;
+  }
+
+  // ---------- 🏠 Haus: Räume und Geräte (Tabellen aus 22_haus_geraete.sql, KI über Edge Function „ki“) ----------
+  // kWh/Tag je Gerät: zeit = W × h, immer = W × 24 h, gang = kWh × pro Woche ÷ 7, jahr = kWh ÷ 365, mess = gemessen (Miele, SmartThings).
+  // Vergleich: Hausverbrauch aus FoxESS (Bilanz) minus Wärmepumpe = „Rest-Haus“; Grundlast = 10-%-Wert nachts 1–5 Uhr ohne Wärmepumpe.
+  let haus = { raeume: [], geraete: [], mess: {}, ref: null }, hausForm = null, hausDel = null;
+  // Formular „Gerät anlegen/bearbeiten“: drei verständliche Arten; „läuft immer“ wahlweise mit Watt oder kWh/Jahr vom Energielabel
+  const HS_ARTEN = [
+    ["zeit", "⏱️ Läuft zeitweise", "z. B. Fernseher, Lampe, PC, Konsole"],
+    ["immer", "♾️ Läuft immer", "z. B. Router, Kühlschrank, Gefriertruhe, Standby"],
+    ["gang", "🔁 Pro Durchgang", "z. B. Spülmaschine, Backofen, Wasserkocher"]];
+  function hsFormKwh(f) {
+    const n = (v) => parseFloat(String(v ?? "").replace(",", ".")) || 0;
+    if (f.art === "zeit") return n(f.watt) * n(f.stunden) / 1000;
+    if (f.art === "immer") return f.label ? n(f.kwh_jahr) / 365 : n(f.watt) * 24 / 1000;
+    if (f.art === "gang") return n(f.kwh_gang) * n(f.pro_woche) / 7;
+    return 0;
+  }
+  function hsFormHtml() {
+    const f = hausForm, mess = f.art === "mess", feld = (k, lbl, ph, hilfe) => `<label class="form-control"><span class="text-sm font-medium">${lbl}</span>
+        <input data-hs-f="${k}" type="text" inputmode="decimal" autocomplete="off" class="input input-bordered input-sm" placeholder="${ph}" value="${f[k] ?? ""}">
+        ${hilfe ? `<span class="text-xs opacity-60 mt-1">${hilfe}</span>` : ""}</label>`;
+    const felder = mess ? `<div class="text-sm opacity-70">Dieses Gerät wird gemessen – nur der Name lässt sich ändern.</div>`
+      : f.art === "zeit" ? feld("watt", "Leistung in Watt", "z. B. 90", "Steht auf dem Typenschild oder im Datenblatt. Fernseher 50–150 W, LED-Lampe 5–15 W, PC 50–300 W.") + feld("stunden", "Stunden pro Tag", "z. B. 3", "Wie lange läuft es an einem normalen Tag? Halbe Stunden als 0,5.")
+      : f.art === "gang" ? feld("kwh_gang", "kWh pro Durchgang", "z. B. 0,9", "Spülmaschine Eco ca. 0,7–1,0 · Backofen 1 Std. ca. 1,0 · Wasserkocher 1 l ca. 0,1.") + feld("pro_woche", "Durchgänge pro Woche", "z. B. 5", "")
+      : `<label class="flex items-center gap-2 text-sm" style="grid-column:1/-1"><input type="checkbox" class="checkbox checkbox-sm" data-hs-f="label"${f.label ? " checked" : ""}> Ich kenne den Jahresverbrauch vom Energielabel (kWh/Jahr)</label>`
+        + (f.label ? feld("kwh_jahr", "Verbrauch pro Jahr in kWh", "z. B. 220", "Steht groß auf dem EU-Energielabel, z. B. „220 kWh/annum“.")
+          : feld("watt", "Leistung in Watt (dauerhaft)", "z. B. 12", "Router 8–15 W, Repeater 3–6 W, Kühlschrank im Mittel 20–40 W – beim Kühlschrank ist der Wert vom Label genauer."));
+    const k = hsFormKwh(f), preis = (agState || soPrice).buy;
+    return `<div class="p-3 border-t border-base-300 space-y-3 bg-base-100">
+      <div class="font-semibold text-sm">${f.id ? "Gerät bearbeiten" : "Neues Gerät"}</div>
+      <label class="form-control"><span class="text-sm font-medium">Name</span><input data-hs-f="name" class="input input-bordered input-sm" placeholder="z. B. Fernseher Wohnzimmer" value="${hsEsc(f.name || "")}"></label>
+      ${mess ? "" : `<div><div class="text-sm font-medium mb-1">Wie läuft das Gerät?</div><div class="grid gap-2" style="grid-template-columns:repeat(auto-fit,minmax(11rem,1fr))">${HS_ARTEN.map(([a, t, b]) =>
+        `<button type="button" class="btn h-auto py-2 justify-start text-left normal-case ${f.art === a ? "btn-primary" : "btn-outline"}" data-hs-art="${a}"><span><span class="block">${t}</span><span class="block text-xs font-normal opacity-75">${b}</span></span></button>`).join("")}</div></div>`}
+      <div class="grid gap-3" style="grid-template-columns:repeat(auto-fit,minmax(12rem,1fr))">${felder}</div>
+      ${mess ? "" : `<div id="hsVorschau" class="text-sm rounded-box bg-base-200 px-3 py-2">${k > 0 ? `= <b>${fmt(k, 2)} kWh am Tag</b> · ${fmt(k * 365, 0)} kWh im Jahr · ca. ${fmt(k * 365 * preis, 0)} € im Jahr` : "Werte eintragen – das Ergebnis erscheint hier."}</div>`}
+      <div id="hsFerr" class="text-error text-sm"></div>
+      <div class="flex gap-2"><button class="btn btn-sm btn-primary" data-hs-save="1">Speichern</button><button class="btn btn-sm btn-ghost" data-hs-cancel="1">Abbrechen</button></div></div>`;
+  }
+  const HS_ART = { zeit: "läuft zeitweise", immer: "läuft immer", gang: "pro Durchgang", jahr: "kWh/Jahr (Label)" };
+  const hsEsc = (t) => String(t ?? "").replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+  function hsKwh(g) {
+    switch (g.art) {
+      case "zeit": return (+g.watt || 0) * (+g.stunden || 0) / 1000;
+      case "immer": return (+g.watt || 0) * 24 / 1000;
+      case "gang": return (+g.kwh_gang || 0) * (+g.pro_woche || 0) / 7;
+      case "jahr": return (+g.kwh_jahr || 0) / 365;
+      case "mess": return haus.mess[g.quelle] ?? null;
+    }
+    return 0;
+  }
+  function hsNutzung(g) {
+    switch (g.art) {
+      case "zeit": return `${fmt(g.watt, 0)} W · ${fmt(g.stunden, 1)} h/Tag`;
+      case "immer": return `${fmt(g.watt, 0)} W · immer an`;
+      case "gang": return `${fmt(g.kwh_gang, 2)} kWh · ${fmt(g.pro_woche, 0)}×/Woche`;
+      case "jahr": return `${fmt(g.kwh_jahr, 0)} kWh/Jahr (Label)`;
+      case "mess": return haus.mess[g.quelle] == null ? "gemessen – noch keine Werte" : "gemessen, Ø letzte 30 Tage";
+    }
+    return "";
+  }
+  async function loadHaus() {
+    let r, g;
+    try { [r, g] = await Promise.all([rest("haus_raeume?select=*&order=sort.asc,id.asc"), rest("haus_geraete?select=*&order=id.asc")]); }
+    catch (e) {
+      if (/404|42P01|PGRST205/.test(e.message)) { $("hsSum").innerHTML = ""; $("hsRooms").innerHTML = `<div class="empty">Noch nicht eingerichtet – 22_haus_geraete.sql im SQL Editor ausführen.</div>`; return; }
+      throw new Error("Haus: " + e.message);
+    }
+    haus.raeume = r; haus.geraete = g;
+    hausZeichnen();
+    await hausMessen().catch(e => logError("Haus-Messwerte: " + e.message, "laden"));
+    hausZeichnen();
+  }
+  async function hausMessen() {
+    const now = new Date(), h0 = new Date(now); h0.setHours(0, 0, 0, 0);
+    const d30 = new Date(h0); d30.setDate(d30.getDate() - 30);
+    const tag = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+    const d7 = new Date(h0); d7.setDate(d7.getDate() - 7);
+    const [pvd, de, ml, pvn, hpn] = await Promise.all([
+      restAll(`pv_daily?select=tag,pv_kwh,grid_kwh,feedin_kwh,bat_charge_kwh,bat_discharge_kwh&tag=gte.${tag(d30)}&tag=lt.${tag(h0)}`).catch(() => []),
+      restAll(`daily_energy?select=day,device_label,kwh_seit_vorher,stunden_seit_vorher&day=gte.${tag(d30)}`).catch(() => []),
+      restAll(`miele_snapshots?select=captured_at,device_type,status_raw,energy_kwh&captured_at=gte.${d30.toISOString()}&order=captured_at.asc`).catch(() => []),
+      restAll(`pv_snapshots?select=fox_time,load_kw&fox_time=gte.${d7.toISOString()}&order=fox_time.asc`).catch(() => []),
+      hpRows(d7.toISOString(), now.toISOString()).catch(() => [])]);
+    // Hausverbrauch je Tag (Bilanz wie in der FoxESS-App)
+    const haustag = {};
+    pvd.forEach(d => { if ([d.pv_kwh, d.grid_kwh, d.feedin_kwh, d.bat_charge_kwh, d.bat_discharge_kwh].some(v => v == null)) return;
+      haustag[d.tag] = +d.pv_kwh + +d.grid_kwh - +d.feedin_kwh - +d.bat_charge_kwh + +d.bat_discharge_kwh; });
+    // SmartThings-Geräte: kWh pro 24 h je Gerät, Wärmepumpe je Tag
+    const st = {}, wptag = {};
+    de.forEach(d => { const l = d.device_label || "?", k = +d.kwh_seit_vorher || 0, h = +d.stunden_seit_vorher || 0;
+      (st[l] ||= { k: 0, h: 0 }); st[l].k += k; st[l].h += h;
+      if (/heat ?pump|wärmepumpe/i.test(l) && h > 0) wptag[d.day] = (wptag[d.day] || 0) + k / h * 24; });
+    const mess = {};
+    Object.entries(st).forEach(([l, v]) => { if (v.h > 0) mess["st:" + l] = v.k / v.h * 24; });
+    // Miele: Verbrauch je Programmlauf (höchster Wert, solange „läuft“ oder „fertig“), Summe ÷ Tage
+    const lauf = { wm: [], tr: [] }; let cur = { wm: null, tr: null };
+    ml.forEach(m => { const k = /dryer|trockner/i.test(m.device_type || "") ? "tr" : "wm", an = m.status_raw === 5 || m.status_raw === 7;
+      if (an) cur[k] = Math.max(cur[k] ?? 0, +m.energy_kwh || 0); else if (cur[k] != null) { lauf[k].push(cur[k]); cur[k] = null; } });
+    ["wm", "tr"].forEach(k => { if (cur[k] != null) lauf[k].push(cur[k]); });
+    const mlTage = ml.length ? Math.max(1, Math.min(30, (now - new Date(ml[0].captured_at)) / 864e5)) : null;
+    if (mlTage) { mess.miele_wm = lauf.wm.reduce((a, b) => a + b, 0) / mlTage; mess.miele_tr = lauf.tr.reduce((a, b) => a + b, 0) / mlTage; }
+    haus.mess = mess;
+    // Rest-Haus: nur Tage mit Haus- und Wärmepumpenwert; sonst Haus gesamt minus Ø Wärmepumpe
+    const beide = Object.keys(haustag).filter(t => wptag[t] != null);
+    const avg = (a) => a.length ? a.reduce((x, y) => x + y, 0) / a.length : null;
+    const hausAvg = avg(Object.values(haustag)), wpAvg = avg(Object.values(wptag));
+    const rest = beide.length >= 2 ? avg(beide.map(t => haustag[t] - wptag[t])) : hausAvg != null ? hausAvg - (wpAvg || 0) : null;
+    // Grundlast nachts (1–5 Uhr) ohne Wärmepumpe, letzte 7 Tage
+    const hp = hpn.filter(x => x.power_kw != null).map(x => ({ t: new Date(x.captured_at).getTime(), p: +x.power_kw }));
+    const wpBei = (t) => { let lo = 0, hi = hp.length - 1; if (hi < 0) return null; while (lo < hi) { const mi = (lo + hi) >> 1; if (hp[mi].t < t) lo = mi + 1; else hi = mi; }
+      const c = [hp[lo], hp[lo - 1]].filter(Boolean).sort((a, b) => Math.abs(a.t - t) - Math.abs(b.t - t))[0]; return c && Math.abs(c.t - t) < 15 * 60000 ? c.p : null; };
+    const nacht = [];
+    pvn.forEach(x => { const t = new Date(x.fox_time), h = t.getHours(); if (h < 1 || h >= 5 || x.load_kw == null) return; const w = wpBei(t.getTime()); if (w != null) nacht.push(Math.max(0, x.load_kw - w)); });
+    nacht.sort((a, b) => a - b);
+    haus.ref = { rest, wp: wpAvg, tage: beide.length || Object.keys(haustag).length, grund: nacht.length >= 12 ? nacht[Math.floor(nacht.length * 0.1)] : null };
+  }
+  function hausZeichnen() {
+    const preis = (agState || soPrice).buy, ref = haus.ref;
+    let sMess = 0, sSch = 0, dauer = 0;
+    haus.geraete.forEach(g => { const k = hsKwh(g); if (k == null) return; if (g.art === "mess") sMess += k; else sSch += k; if (g.art === "immer" || g.art === "jahr") dauer += k / 24; });
+    const pill = $("hsPill");
+    if (ref?.rest > 0) {
+      const R = ref.rest, unb = Math.max(0, R - sMess - sSch), pc = Math.round((sMess + sSch) / R * 100), w = (v) => Math.min(100, v / Math.max(R, sMess + sSch) * 100);
+      pill.className = "so-pill " + (pc >= 85 && pc <= 115 ? "bg-success text-success-content" : pc > 115 ? "bg-warning text-warning-content" : pc >= 60 ? "bg-warning text-warning-content" : "bg-error text-error-content");
+      pill.textContent = pc > 115 ? `Liste ist ${pc - 100} % zu hoch` : `Liste erklärt ${pc} %`;
+      const gw = dauer * 1000, gm = ref.grund != null ? ref.grund * 1000 : null;
+      $("hsSum").innerHTML = `
+        <div class="hs-bar my-1"><div style="width:${w(sMess)}%;background:#1D9E75"></div><div style="width:${w(sSch)}%;background:#7F77DD"></div><div style="flex:1;background:repeating-linear-gradient(135deg,color-mix(in oklab,currentColor 25%,transparent) 0 4px,transparent 4px 8px)"></div></div>
+        <div class="flex flex-wrap gap-x-4 gap-y-1 text-xs opacity-80"><span><b style="color:#1D9E75">●</b> gemessen ${fmt(sMess, 1)} kWh</span><span><b style="color:#7F77DD">●</b> geschätzt ${fmt(sSch, 1)} kWh</span><span>▨ unbekannt ${fmt(unb, 1)} kWh</span><span>Rest-Haus gemessen <b>${fmt(R, 1)} kWh/Tag</b> (${fmt(R * 365, 0)} kWh/Jahr · ca. ${fmt(R * 365 * preis, 0)} €)</span></div>
+        <div class="text-sm mt-2">Grundlast-Check: Geräte, die immer laufen, ergeben <b>${fmt(gw, 0)} W</b>${gm != null ? ` – gemessen nachts <b>${fmt(gm, 0)} W</b>. ${gm - gw > 80 ? `<span class="text-warning">Es fehlen ca. ${fmt(gm - gw, 0)} W Dauerverbraucher (Kühltruhe? Pumpe? Standby?).</span>` : gw - gm > 80 ? `<span class="text-warning">Die Liste hat ${fmt(gw - gm, 0)} W mehr Dauerverbraucher als gemessen – Werte zu hoch?</span>` : "✓ passt."}` : "."}</div>
+        <div class="text-xs opacity-60 mt-1">Wärmepumpe separat: ${ref.wp != null ? `Ø ${fmt(ref.wp, 1)} kWh/Tag` : "noch keine Werte"} · Grundlage: ${ref.tage} Tage</div>`;
+    } else {
+      pill.className = "so-pill"; pill.textContent = "";
+      $("hsSum").innerHTML = ref ? `<div class="text-sm opacity-70">Noch zu wenig Messwerte für den Vergleich. Geräteliste: ${fmt(sMess + sSch, 1)} kWh/Tag.</div>` : `<div class="empty">Messwerte werden geladen …</div>`;
+    }
+    $("hsRooms").innerHTML = haus.raeume.map(r => {
+      const gs = haus.geraete.filter(g => g.raum_id === r.id), sum = gs.reduce((a, g) => a + (hsKwh(g) || 0), 0);
+      const zeile = (g) => { const k = hsKwh(g), del = hausDel === g.id;
+        return `<tr><td>${hsEsc(g.name)} <span class="hs-tag ${g.art === "mess" ? "bg-success text-success-content" : "bg-base-300"}">${g.art === "mess" ? "gemessen" : "geschätzt"}</span></td>
+          <td class="opacity-70">${hsNutzung(g)}</td><td class="text-right tabular-nums">${k == null ? "–" : fmt(k * 365, 0)}</td><td class="text-right tabular-nums">${k == null ? "–" : fmt(k * 365 * preis, 0)}</td>
+          <td><select class="select select-xs" data-hs-move="${g.id}" aria-label="Raum für ${hsEsc(g.name)}">${haus.raeume.map(x => `<option value="${x.id}"${x.id === r.id ? " selected" : ""}>${hsEsc(x.name)}</option>`).join("")}</select></td>
+          <td class="text-right whitespace-nowrap"><button class="btn btn-ghost btn-xs" data-hs-edit="${g.id}" aria-label="${hsEsc(g.name)} bearbeiten" title="bearbeiten">✎</button><button class="btn btn-ghost btn-xs${del ? " text-error" : ""}" data-hs-del="${g.id}" aria-label="${hsEsc(g.name)} löschen" title="löschen">${del ? "wirklich löschen?" : "✕"}</button></td></tr>`; };
+      const form = hausForm && hausForm.raum_id === r.id ? hsFormHtml()
+        : `<div class="p-2 border-t border-base-300"><button class="btn btn-ghost btn-sm" data-hs-add="${r.id}">+ Gerät hinzufügen</button></div>`;
+      return `<div class="card bg-base-200 overflow-hidden"><div class="flex flex-wrap items-center gap-2 px-4 py-3"><b class="grow">${hsEsc(r.name)}</b>
+          <span class="text-sm opacity-70">${fmt(sum, 2)} kWh/Tag · ${fmt(sum * 365, 0)} kWh/Jahr · ${fmt(sum * 365 * preis, 0)} €</span>
+          <button class="btn btn-ghost btn-xs" data-hs-delraum="${r.id}" aria-label="Raum ${hsEsc(r.name)} löschen">🗑</button></div>
+        <div class="overflow-x-auto"><table class="table table-sm"><thead><tr><th>Gerät</th><th>Leistung · Nutzung</th><th class="text-right">kWh/Jahr</th><th class="text-right">€/Jahr</th><th>Raum</th><th></th></tr></thead>
+        <tbody>${gs.length ? gs.map(zeile).join("") : `<tr><td colspan="6" class="opacity-60">Noch keine Geräte</td></tr>`}</tbody></table></div>${form}</div>`;
+    }).join("") || `<div class="empty">Noch keine Räume – oben einen anlegen.</div>`;
+  }
+  async function hausAktion(fn) {
+    try { await fn(); } catch (e) { setMsg("Speichern fehlgeschlagen: " + e.message, "warn"); logError("Haus speichern: " + e.message, "seite"); }
+    const [r, g] = await Promise.all([rest("haus_raeume?select=*&order=sort.asc,id.asc"), rest("haus_geraete?select=*&order=id.asc")]);
+    haus.raeume = r; haus.geraete = g; hausZeichnen();
+  }
+  $("hsRooms").addEventListener("click", (e) => {
+    const b = e.target.closest("button"); if (!b) return;
+    if (b.dataset.hsAdd) { hausForm = { raum_id: +b.dataset.hsAdd, art: "zeit", name: "" }; hausZeichnen(); document.querySelector('[data-hs-f="name"]')?.focus(); return; }
+    if (b.dataset.hsEdit) { const g = haus.geraete.find(x => x.id === +b.dataset.hsEdit); if (!g) return;
+      hausForm = { id: g.id, raum_id: g.raum_id, name: g.name, art: g.art === "jahr" ? "immer" : g.art, label: g.art === "jahr", watt: g.watt, stunden: g.stunden, kwh_gang: g.kwh_gang, pro_woche: g.pro_woche, kwh_jahr: g.kwh_jahr };
+      hausZeichnen(); document.querySelector('[data-hs-f="name"]')?.focus(); return; }
+    if (b.dataset.hsArt) { hausForm.art = b.dataset.hsArt; hausZeichnen(); return; }
+    if (b.dataset.hsCancel) { hausForm = null; hausZeichnen(); return; }
+    if (b.dataset.hsDel) { const id = +b.dataset.hsDel; if (hausDel !== id) { hausDel = id; hausZeichnen(); return; } hausDel = null; hausAktion(() => restWrite("DELETE", `haus_geraete?id=eq.${id}`)); return; }
+    if (b.dataset.hsDelraum) { const id = +b.dataset.hsDelraum;
+      if (haus.geraete.some(g => g.raum_id === id)) { b.textContent = "erst Geräte verschieben"; setTimeout(hausZeichnen, 2000); return; }
+      hausAktion(() => restWrite("DELETE", `haus_raeume?id=eq.${id}`)); return; }
+    if (b.dataset.hsSave) {
+      const f = hausForm, err = $("hsFerr"), n = (v) => parseFloat(String(v ?? "").replace(",", "."));
+      const name = String(f.name || "").trim(), fehl = (t, k) => { err.textContent = t; document.querySelector(`[data-hs-f="${k}"]`)?.focus(); };
+      if (!name) return fehl("Bitte einen Namen eingeben.", "name");
+      let row = { name };
+      if (f.art !== "mess") {
+        row = { name, art: f.art, watt: null, stunden: null, kwh_gang: null, pro_woche: null, kwh_jahr: null };
+        if (f.art === "zeit") { if (!(n(f.watt) > 0)) return fehl("Bitte die Leistung in Watt eingeben.", "watt"); if (!(n(f.stunden) > 0 && n(f.stunden) <= 24)) return fehl("Bitte Stunden pro Tag eingeben (0,5 bis 24).", "stunden"); Object.assign(row, { watt: n(f.watt), stunden: n(f.stunden) }); }
+        else if (f.art === "immer" && f.label) { if (!(n(f.kwh_jahr) > 0)) return fehl("Bitte den Jahresverbrauch in kWh eingeben.", "kwh_jahr"); Object.assign(row, { art: "jahr", kwh_jahr: n(f.kwh_jahr) }); }
+        else if (f.art === "immer") { if (!(n(f.watt) > 0)) return fehl("Bitte die Leistung in Watt eingeben.", "watt"); row.watt = n(f.watt); }
+        else if (f.art === "gang") { if (!(n(f.kwh_gang) > 0)) return fehl("Bitte kWh pro Durchgang eingeben.", "kwh_gang"); if (!(n(f.pro_woche) > 0)) return fehl("Bitte eingeben, wie oft pro Woche.", "pro_woche"); Object.assign(row, { kwh_gang: n(f.kwh_gang), pro_woche: n(f.pro_woche) }); }
+      }
+      hausForm = null;
+      if (f.id) hausAktion(() => restWrite("PATCH", `haus_geraete?id=eq.${f.id}`, row, "return=minimal"));
+      else hausAktion(() => restWrite("POST", "haus_geraete", { ...row, raum_id: f.raum_id }, "return=minimal"));
+    }
+  });
+  $("hsRooms").addEventListener("input", (e) => {
+    const el = e.target.closest("[data-hs-f]"); if (!el || !hausForm) return;
+    const k = el.dataset.hsF;
+    if (k === "label") { hausForm.label = el.checked; hausZeichnen(); return; }
+    hausForm[k] = el.value; if ($("hsFerr")) $("hsFerr").textContent = "";
+    const v = $("hsVorschau"); if (v) { const kw = hsFormKwh(hausForm), preis = (agState || soPrice).buy;
+      v.innerHTML = kw > 0 ? `= <b>${fmt(kw, 2)} kWh am Tag</b> · ${fmt(kw * 365, 0)} kWh im Jahr · ca. ${fmt(kw * 365 * preis, 0)} € im Jahr` : "Werte eintragen – das Ergebnis erscheint hier."; }
+  });
+  $("hsRooms").addEventListener("change", (e) => { const c = e.target.closest('[data-hs-f="label"]'); if (c && hausForm) { hausForm.label = c.checked; hausZeichnen(); return; }
+    const s = e.target.closest("[data-hs-move]"); if (!s) return;
+    hausAktion(() => restWrite("PATCH", `haus_geraete?id=eq.${+s.dataset.hsMove}`, { raum_id: +s.value }, "return=minimal")); });
+  $("hsAddRaum").addEventListener("click", () => { const i = $("hsNeuRaum"), n = i.value.trim();
+    if (!n) { i.placeholder = "Bitte einen Namen eingeben"; i.focus(); return; }
+    i.value = ""; hausAktion(() => restWrite("POST", "haus_raeume", { name: n, sort: 100 + haus.raeume.length }, "return=minimal")); });
+  $("hsNeuRaum").addEventListener("keydown", (e) => { if (e.key === "Enter") $("hsAddRaum").click(); });
+  $("hsKiBtn").addEventListener("click", async () => {
+    const box = $("hsKi"), body = $("hsKiBody"), ref = haus.ref || {};
+    box.classList.remove("hidden"); body.innerHTML = `<span class="loading loading-dots loading-sm"></span> ChatGPT prüft die Liste …`;
+    const liste = haus.raeume.map(r => `Raum ${r.name}:\n` + (haus.geraete.filter(g => g.raum_id === r.id).map(g => { const k = hsKwh(g);
+      return `- ${g.name}: ${hsNutzung(g)}${k != null ? ` → ${fmt(k * 365, 0)} kWh/Jahr` : ""}`; }).join("\n") || "- (leer)")).join("\n\n");
+    const text = `Gemessen (Ø letzte 30 Tage): Hausverbrauch ohne Wärmepumpe ${ref.rest != null ? fmt(ref.rest, 1) + " kWh/Tag" : "unbekannt"}, nächtliche Grundlast ${ref.grund != null ? fmt(ref.grund * 1000, 0) + " W" : "unbekannt"}, Strompreis ${fmt((agState || soPrice).buy * 100, 1)} ct/kWh. Haushalt mit Wärmepumpe, PV-Anlage und Akku.\n\nGeräteliste:\n${liste}`;
+    try {
+      await frischesToken(false);
+      const r = await fetch(`${SUPABASE_URL}/functions/v1/ki`, { method: "POST", headers: { apikey: SUPABASE_KEY, Authorization: `Bearer ${accessToken}`, "Content-Type": "application/json" }, body: JSON.stringify({ text }) });
+      const o = await r.json().catch(() => ({}));
+      if (!r.ok || !o.ok) throw new Error(o.error || `HTTP ${r.status}`);
+      body.innerHTML = hsEsc(o.antwort).replace(/^### (.*)$/gm, '<div class="font-semibold mt-2">$1</div>').replace(/\*\*(.+?)\*\*/g, "<b>$1</b>").replace(/^[-•] (.*)$/gm, "<div class=\"pl-3\">• $1</div>").replace(/\n{2,}/g, "<br>").replace(/\n/g, "")
+        + `<div class="text-xs opacity-60 mt-2">Antwort von ${hsEsc(o.model || "ChatGPT")} – Vorschläge prüfen, nicht blind übernehmen.</div>`;
+    } catch (e) {
+      body.innerHTML = /404|not found/i.test(e.message) ? "Die Edge Function „ki“ ist noch nicht eingerichtet." : `ChatGPT nicht erreichbar: ${hsEsc(e.message)}`;
+    }
+  });
 
   // ---------- Solar → Module: Reihe 1 gegen Reihe 2, Schattenkarte, Monatsübersicht (Spalten aus 20_pv_reihen.sql, Funktion aus 21_…) ----------
   const PV_LAT = 50.878, PV_LON = 6.177;
@@ -3616,7 +3935,7 @@
     applyPalette();
     // frische Anmeldung holen (nach Ruhezustand ist das alte Login-Token sonst abgelaufen → „JWT expired“)
     await frischesToken(false);
-    const L = { loadTiles, loadEnergy, loadHistory, loadAuto, loadDiagnose, loadMonth, loadCurve, loadBench, loadAnlage, loadState, loadKlima, loadDay, loadAlarms, loadCop, loadLive, loadErrors, loadModeCmp, loadOpt, loadSolar, loadAkku, loadMiele, loadModule };
+    const L = { loadTiles, loadEnergy, loadHistory, loadAuto, loadDiagnose, loadMonth, loadCurve, loadBench, loadAnlage, loadState, loadKlima, loadDay, loadAlarms, loadCop, loadLive, loadErrors, loadModeCmp, loadOpt, loadSolar, loadAkku, loadMiele, loadModule, loadHaus, loadTakt };
     await loadAnzeige();
     const skip = new Set(Object.entries(AN_SKIP).filter(([t]) => anOff.has(t)).flatMap(([, f]) => f));
     const names = Object.keys(L).filter(n => !skip.has(n)), res = await Promise.allSettled(names.map(n => L[n]()));
@@ -3708,11 +4027,12 @@
     day: [["tLegend", "Zeitleiste"], ["pvSum", "Strom im Haus – woher, wohin"], ["hSum", "Wohin ging der Strom – und wann?"], ["tEvents", "Ereignisse"], ["zSum", "Speicher-Zyklen"]],
     solar: [["soYearLine", "⚡ Jahr & Monate"], ["soBlkSum", "⚡ Wann wurde Strom gekauft?"], ["soMonthTitle", "⚡ Tage im Monat"], ["akInfo", "🔋 Akku: Zustand"], ["agBody", "🔋 Was hat der Akku gebracht?"], ["simN", "🔋 Lohnt sich ein größerer Akku?"], ["dmSvg", "☀️ Dach: volle Sonne?"], ["rvSvg", "🔍 Reihe 1 gegen Reihe 2"], ["skSvg", "🔍 Schattenkarte"], ["rmRows", "🔍 Pro Monat"]],
     klima: [["cHalleT", "Temperatur Halle"], ["cHalleH", "Luftfeuchte Halle"]],
-    diagnose: [["diag", "Diagnose – letzte 7 Tage"], ["cCurve", "Heizkurven-Check"], ["copRows", "Effizienz je Tag"], ["mcDays", "Warmwasser: ECO gegen STD"], ["fcSearch", "Fehlercode nachschlagen"]],
+    diagnose: [["tkBody", "Taktet die Wärmepumpe?"], ["diag", "Diagnose – letzte 7 Tage"], ["cCurve", "Heizkurven-Check"], ["copRows", "Effizienz je Tag"], ["mcDays", "Warmwasser: ECO gegen STD"], ["fcSearch", "Fehlercode nachschlagen"]],
     config: [["goals", "Was muss ich wo einstellen?"], ["curveText", "Heizkurve – einfach erklärt"]],
+    haus: [["hsSum", "Wohin geht der Hausstrom?"]],
     plant: [["stamm", "Stammdaten"], ["ist", "IST-Einstellungen"], ["slog", "Änderungsprotokoll"], ["fsvTable", "Alle Einstellwerte (FSV)"], ["erDays", "Fehlerprotokoll"], ["alTest", "Alarme"]],
   };
-  const AN_SKIP = { solar: ["loadSolar", "loadAkku", "loadModule"], klima: ["loadKlima"], opt: ["loadOpt"] };
+  const AN_SKIP = { haus: ["loadHaus"], solar: ["loadSolar", "loadAkku", "loadModule"], klima: ["loadKlima"], opt: ["loadOpt"] };
   let anOff = new Set(), anLoaded = false, anOpen = new Set(), anDb = true;
   try { anOff = new Set(JSON.parse(localStorage.getItem("wagael_anzeige") || "[]")); } catch (e) {}
   const anTabName = (t) => document.querySelector(`#tabs .tab[data-tab="${t}"]`)?.textContent.trim() || t;
@@ -3773,7 +4093,7 @@
   document.querySelectorAll("#tabs .tab").forEach(t => t.addEventListener("click", () => showTab(t.dataset.tab)));
   let startTab = location.hash.slice(1);
   try { startTab = startTab || localStorage.getItem("wagael_tab"); } catch (e) {}
-  showTab(["overview", "history", "day", "solar", "klima", "opt", "diagnose", "config", "plant"].includes(startTab) && !anOff.has(startTab) ? startTab : "overview");
+  showTab(["overview", "history", "day", "solar", "klima", "opt", "diagnose", "config", "haus", "plant"].includes(startTab) && !anOff.has(startTab) ? startTab : "overview");
   anApply();
 
   // ---------- Design (daisyUI-Themes) ----------
