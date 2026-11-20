@@ -48,11 +48,18 @@
   .so-grp { border-radius: 1rem; padding: .75rem; display: flex; flex-direction: column; gap: .5rem; }
   .so-grp > .ctitle { opacity: .85; font-weight: 600; }
   .so-mb:focus-visible { outline: 2px solid #378ADD; outline-offset: 2px; border-radius: 4px; }
-  .ak-tr { position: relative; height: 10px; border-radius: 5px; background: color-mix(in oklab, currentColor 10%, transparent); }
-  .ak-tr.big { height: 14px; border-radius: 7px; }
+  .ak-tr { position: relative; height: 10px; border-radius: 5px; overflow: hidden; background: color-mix(in oklab, currentColor 10%, transparent); }
+  .ak-tr.big { height: 18px; border-radius: 9px; }
+  .ak-rz { position: absolute; left: 0; top: 0; bottom: 0; background: repeating-linear-gradient(135deg, #B4B2A9 0 3px, transparent 3px 6px); opacity: .85; }
+  .ak-sk { position: relative; height: 2.1rem; font-size: .75rem; opacity: .65; margin-top: .25rem; line-height: 1.25; }
+  .ag-bars { display: grid; grid-template-columns: repeat(12, minmax(0, 1fr)); gap: .4rem; align-items: end; height: 120px; margin-top: .4rem; }
+  .ag-b { display: flex; flex-direction: column; align-items: center; justify-content: flex-end; gap: .2rem; height: 100%; font-size: .6875rem; opacity: .8; font-variant-numeric: tabular-nums; white-space: nowrap; }
+  .ag-b i { display: block; width: 60%; max-width: 22px; background: #1D9E75; border-radius: 4px 4px 0 0; }
+  .ag-b.neg i { background: #E24B4A; }
+  .ak-sk span { position: absolute; top: 0; white-space: nowrap; }
   .ak-rg { position: absolute; top: 0; bottom: 0; border-radius: inherit; background: #1D9E75; }
   .ak-rs { position: absolute; top: -3px; bottom: -3px; width: 2px; background: #E24B4A; }
-  .ak-row { display: grid; grid-template-columns: 2.2rem minmax(0, 1fr) 7.5rem 3.2rem; gap: .6rem; align-items: center; font-size: .8125rem; font-variant-numeric: tabular-nums; }
+  .ak-row { display: grid; grid-template-columns: 2.2rem minmax(0, 1fr) auto; white-space: nowrap; gap: .6rem; align-items: center; font-size: .8125rem; font-variant-numeric: tabular-nums; }
   .ak-m { border-radius: .75rem; padding: .7rem .8rem; background: var(--color-base-100); }
   .ak-m .v { font-size: 1.35rem; font-weight: 600; line-height: 1.2; font-variant-numeric: tabular-nums; }
   .ok { color: var(--color-success); } .warn { color: var(--color-warning); } .err { color: var(--color-error); }
@@ -73,6 +80,16 @@
   .bgrid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: .75rem; }
   .bgrid label { font-size: .75rem; opacity: .85; }
   .bgrid input, .bgrid select { margin-top: .25rem; width: 100%; }
+  .cfg-off { display: none !important; }
+  .ml-tr { height: 12px; border-radius: 6px; overflow: hidden; background: color-mix(in oklab, currentColor 10%, transparent); }
+  .ml-tr i { display: block; height: 100%; border-radius: 6px; }
+  .an-sw { position: relative; width: 34px; height: 20px; border-radius: 10px; background: color-mix(in oklab, currentColor 25%, transparent); flex: none; border: 0; padding: 0; cursor: pointer; }
+  .an-sw::after { content: ""; position: absolute; top: 2px; left: 2px; width: 16px; height: 16px; border-radius: 50%; background: var(--color-base-100); transition: left .15s; }
+  .an-sw.on { background: #1D9E75; } .an-sw.on::after { left: 16px; }
+  .an-r { display: flex; align-items: center; gap: .6rem; padding: .55rem .25rem; border-bottom: 1px solid var(--color-base-300); }
+  .an-r .n { flex: 1; font-size: .875rem; } .an-sub .an-r .n { font-size: .8125rem; opacity: .75; } .an-sub { padding-left: 1.75rem; }
+  .an-r.off .n { opacity: .45; text-decoration: line-through; }
+  .an-chev { background: none; border: 0; cursor: pointer; width: 1.25rem; opacity: .7; }
   .cfgcard { border: 1px solid var(--color-base-300); border-radius: var(--radius-box); padding: 1rem; background: var(--color-base-100); }
   .cfgcard h3 { margin: 0 0 .25rem; font-size: 1rem; font-weight: 700; }
   .cfgcard td, .cfgcard th { white-space: normal; vertical-align: top; }
@@ -95,6 +112,16 @@
 </style>
 </head>
 <body class="min-h-screen bg-base-100 text-base-content">
+<dialog id="anDlg" class="modal">
+  <div class="modal-box max-w-lg">
+    <div class="flex items-center justify-between mb-1"><h3 class="font-bold text-lg">⚙️ Anzeige anpassen</h3><form method="dialog"><button class="btn btn-ghost btn-sm btn-square" aria-label="Schließen">✕</button></form></div>
+    <p class="text-sm opacity-70 mb-2">Ausgeblendetes wird nicht gelöscht – jederzeit wieder einschaltbar. Gilt auf allen Geräten. Ausgeblendete Reiter Solar, Klima und Optimierung werden auch nicht mehr geladen.</p>
+    <div id="anList"></div>
+    <div class="flex items-center justify-between mt-3"><button id="anReset" class="btn btn-sm">Alles einblenden</button><span id="anCnt" class="text-sm opacity-70"></span></div>
+    <div id="anMsg" class="text-xs mt-2"></div>
+  </div>
+  <form method="dialog" class="modal-backdrop"><button>schließen</button></form>
+</dialog>
 <header class="sticky top-0 z-30 bg-base-100/90 backdrop-blur border-b border-base-300">
   <div class="mx-auto max-w-screen-2xl px-3 sm:px-5 py-2 flex flex-wrap items-center gap-x-4 gap-y-2">
     <div class="flex items-center gap-3 mr-auto lg:mr-0">
@@ -113,6 +140,7 @@
       <a role="tab" class="tab whitespace-nowrap" data-tab="plant">Anlage</a>
     </nav>
     <div class="flex items-center gap-2">
+      <button id="anBtn" class="btn btn-ghost btn-sm btn-square" title="Anzeige anpassen" aria-label="Anzeige anpassen">⚙️</button>
       <span id="faultBadge" class="hidden badge badge-error badge-sm sm:badge-md font-semibold cursor-pointer" title="Fehlercode der Anlage – Details im Reiter Diagnose"></span>
       <span id="lastPoll" class="hidden text-xs sm:text-sm opacity-70 whitespace-nowrap tabular-nums"></span>
       <span id="autoBadge" class="badge badge-ghost badge-sm sm:badge-md">Automatik …</span>
@@ -192,6 +220,16 @@
           <p class="opacity-70">Eine automatische Heizgrenze („ab X °C draußen nicht mehr heizen“) meldet die Anlage nicht an SmartThings. Ob sie gerade wirklich heizt, siehst du oben bei „Gerade“.</p>
         </div>
       </details>
+    </div>
+  </div>
+
+  <div class="card bg-base-200">
+    <div class="card-body p-4 sm:p-5 gap-3">
+      <div class="flex flex-wrap items-baseline justify-between gap-2">
+        <h2 class="card-title text-base">🧺 Waschmaschine &amp; Trockner</h2>
+        <span id="mlAge" class="text-xs opacity-60"></span>
+      </div>
+      <div id="mlBody"><div class="empty">Lade …</div></div>
     </div>
   </div>
 
@@ -372,6 +410,7 @@
   <div id="soSub" class="join" role="tablist" aria-label="Solar-Bereich">
     <button class="btn btn-sm join-item" data-sub="energie">⚡ Energie</button>
     <button class="btn btn-sm join-item" data-sub="akku">🔋 Akku</button>
+    <button class="btn btn-sm join-item" data-sub="module">🔍 Module</button>
   </div>
   <div data-subpanel="energie" class="space-y-4 lg:space-y-6">
   <div class="flex flex-wrap items-center justify-between gap-2">
@@ -409,6 +448,57 @@
     </div>
     <div id="akBody"><div class="empty">Lade …</div></div>
   </div></div>
+  <div class="card bg-base-200"><div class="card-body p-4 gap-3">
+    <div class="ctitle" style="opacity:1"><span class="font-semibold">🐷 Was hat der Akku gebracht?</span></div>
+    <div id="agBody"><div class="empty">Lade …</div></div>
+  </div></div>
+  <div class="card bg-base-200"><div class="card-body p-4 gap-3">
+    <div class="ctitle" style="opacity:1"><span class="font-semibold">🔌 Lohnt sich ein größerer Akku?</span></div>
+    <div class="flex flex-wrap items-center gap-3">
+      <div class="join" id="simN"><button class="btn btn-sm join-item on" data-n="1">+1 Modul</button><button class="btn btn-sm join-item" data-n="2">+2 Module</button></div>
+      <label class="text-sm flex items-center gap-2">Preis pro Modul inkl. Einbau <input id="simPreis" type="number" min="0" step="10" class="input input-bordered input-sm w-24"> €</label>
+    </div>
+    <div id="simBody"><div class="empty">Lade …</div></div>
+  </div></div>
+  </div>
+  <div data-subpanel="module" class="space-y-4 lg:space-y-6 hidden">
+  <div class="card bg-base-200"><div class="card-body p-4 gap-3">
+    <div class="ctitle" style="opacity:1"><span class="font-semibold">☀️ Bekommt dein Dach volle Sonne?</span><span class="opacity-60">22 Module in 2 Reihen · Monat und Uhrzeit wählen – Schatten aus deinen Messungen</span></div>
+    <div class="flex flex-wrap items-center gap-3">
+      <div id="dmMon" class="flex flex-wrap gap-1"></div>
+      <label class="text-sm flex items-center gap-2 grow" style="min-width:220px">Uhrzeit <input id="dmZeit" type="range" min="7" max="19" step="0.25" value="14.5" class="range range-xs grow"> <b id="dmZt" class="tabular-nums w-12">14:30</b></label>
+    </div>
+    <svg id="dmSvg" class="w-full block max-w-3xl mx-auto" viewBox="0 0 680 320" role="img" aria-label="Dach mit Sonne und Schatten"></svg>
+    <div id="dmBox" class="rounded-box p-3 text-sm"></div>
+    <div id="dmSum" class="text-sm"></div>
+  </div></div>
+  <details class="collapse collapse-arrow bg-base-200">
+  <summary class="collapse-title text-sm font-medium">Details für Technik-Interessierte: Tageskurven, Schattenkarte, Monatstabelle</summary>
+  <div class="collapse-content space-y-4">
+  <div class="card bg-base-100"><div class="card-body p-4 gap-3">
+    <div class="flex flex-wrap items-center justify-between gap-2">
+      <div class="ctitle" style="opacity:1"><span class="font-semibold">🔍 Reihe 1 gegen Reihe 2</span><span class="opacity-60">beide Modulreihen (je 11 Module) zeigen in dieselbe Richtung – sie sollten gleich viel liefern</span></div>
+      <div class="flex items-center gap-2"><button id="rvPrev" class="btn btn-xs" aria-label="Tag zurück">‹</button><span id="rvDay" class="text-sm tabular-nums"></span><button id="rvNext" class="btn btn-xs" aria-label="Tag vor">›</button></div>
+    </div>
+    <div><span id="rvPill" class="so-pill"></span></div>
+    <svg id="rvSvg" class="w-full block" viewBox="0 0 680 190" role="img" aria-label="Leistung Reihe 1 und Reihe 2 über den Tag"></svg>
+    <div class="flex flex-wrap gap-4 text-xs opacity-70"><span><span style="display:inline-block;width:14px;height:3px;background:#1D9E75;vertical-align:middle"></span> Reihe 1</span><span><span style="display:inline-block;width:14px;height:3px;background:#7F77DD;vertical-align:middle"></span> Reihe 2</span><span><span style="display:inline-block;width:14px;height:8px;background:rgba(226,75,74,.3);vertical-align:middle"></span> Reihe 2 liefert weniger (Schatten?)</span></div>
+  </div></div>
+  <div class="card bg-base-100"><div class="card-body p-4 gap-3">
+    <div class="flex flex-wrap items-center justify-between gap-2">
+      <div class="ctitle" style="opacity:1"><span class="font-semibold">🗺️ Schattenkarte · Reihe 2</span><span class="opacity-60">jeder Punkt = Sonnenstand (15 Min. einer Woche) · Farbe = Reihe 2 im Vergleich zu Reihe 1</span></div>
+      <span id="skPill" class="so-pill"></span>
+    </div>
+    <svg id="skSvg" class="w-full block" viewBox="0 0 680 310" role="img" aria-label="Schattenkarte mit Sonnenbahnen"></svg>
+    <div class="flex flex-wrap gap-4 text-xs opacity-70"><span><span style="display:inline-block;width:9px;height:9px;border-radius:50%;background:#1D9E75;vertical-align:middle"></span> gleich (ab 95 %)</span><span><span style="display:inline-block;width:9px;height:9px;border-radius:50%;background:#EF9F27;vertical-align:middle"></span> etwas weniger (85–95 %)</span><span><span style="display:inline-block;width:9px;height:9px;border-radius:50%;background:#E24B4A;vertical-align:middle"></span> deutlich weniger (unter 85 %)</span><span><span style="display:inline-block;width:14px;height:2px;background:#EF9F27;vertical-align:middle"></span> Sonnenbahn</span></div>
+    <div id="skText" class="text-sm"></div>
+  </div></div>
+  <div class="card bg-base-100"><div class="card-body p-4 gap-3">
+    <div class="ctitle" style="opacity:1"><span class="font-semibold">📅 Pro Monat</span><span class="opacity-60">Reihe 2 im Vergleich zu Reihe 1 · Spannung zeigt Moduldefekte (1 Modul weniger ≈ 30 V weniger)</span></div>
+    <div class="overflow-x-auto"><table class="table table-sm"><thead><tr><th>Monat</th><th class="text-right">vormittags</th><th class="text-right">nachmittags</th><th class="text-right">Verlust</th><th class="text-right">Spannung 1 / 2</th><th>Befund</th></tr></thead><tbody id="rmRows"><tr><td colspan="6" class="opacity-60">Lade …</td></tr></tbody></table></div>
+    <div id="rmNote" class="text-xs opacity-60"></div>
+  </div></div>
+  </div></details>
   </div>
 </section>
 
@@ -601,10 +691,25 @@
   try { $("pin").value = localStorage.getItem("wagael_pin") || ""; } catch (e) {}
 
   let accessToken = null;   // Login-Token (Supabase Auth)
+  // Login-Token frisch halten: nach Ruhezustand (iPad) ist es oft abgelaufen → einmal erneuern, statt Fehler zu melden.
+  // Mehrere gleichzeitige Abfragen teilen sich eine Erneuerung.
+  let tokRefresh = null;
+  function frischesToken(force) {
+    if (!tokRefresh) tokRefresh = (async () => {
+      try {
+        let { data } = await sb.auth.getSession(), s = data?.session;
+        if (s && (force || (s.expires_at || 0) * 1000 - Date.now() < 120000)) { const r = await sb.auth.refreshSession(); if (r.data?.session) s = r.data.session; else if (force) s = null; }
+        if (s?.access_token) accessToken = s.access_token;
+        return !!s?.access_token;
+      } catch (e) { return false; }
+      finally { setTimeout(() => { tokRefresh = null; }, 0); }
+    })();
+    return tokRefresh;
+  }
   async function rest(path) {
-    const headers = { apikey: SUPABASE_KEY };
-    if (accessToken) headers.Authorization = `Bearer ${accessToken}`;
-    const r = await fetch(`${SUPABASE_URL}/rest/v1/${path}`, { headers });
+    const go = () => fetch(`${SUPABASE_URL}/rest/v1/${path}`, { headers: { apikey: SUPABASE_KEY, ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}) } });
+    let r = await go();
+    if (r.status === 401 && await frischesToken(true)) r = await go();   // Token abgelaufen → erneuern und einmal wiederholen
     if (!r.ok) throw new Error(`${r.status} ${await r.text()}`);
     return r.json();
   }
@@ -612,7 +717,7 @@
   function setMsg(text, cls = "") { $("msg").className = cls; $("msg").textContent = text; }
 
   // ---------- Fehlerprotokoll: jeden Fehler nach Supabase (wagael_errors) ----------
-  const APP_VERSION = "2026-11-19i";
+  const APP_VERSION = "2026-11-20d";
   const erQueue = [], erSent = {};
   const erDevice = () => { const u = navigator.userAgent; const d = /iPad|Macintosh.*Mobile|Macintosh(?=.*Safari)(?!.*Chrome)/.test(u) && navigator.maxTouchPoints > 1 ? "iPad" : /iPhone/.test(u) ? "iPhone" : /Macintosh/.test(u) ? "Mac" : /Android/.test(u) ? "Android" : "anderes";
     return `${d} · ${/Edg\//.test(u) ? "Edge" : /Chrome\//.test(u) ? "Chrome" : /Firefox\//.test(u) ? "Firefox" : /Safari\//.test(u) ? "Safari" : "Browser"} · ${innerWidth}px`; };
@@ -2310,6 +2415,8 @@
     soDaily = daily.map(d => ({ ...d, m: +d.tag.slice(5, 7) - 1, d: +d.tag.slice(8, 10),
       load: pvBalanceLoad({ pv: d.pv_kwh, grid: d.grid_kwh, feedin: d.feedin_kwh, bc: d.bat_charge_kwh, bd: d.bat_discharge_kwh }) ?? d.load_kwh }));
     drawSolarMonths();
+    drawAkkuGeld();
+    drawSim();
     await loadSolarMonth();
   }
   function drawSolarMonths() {
@@ -2450,11 +2557,189 @@
   $("soMonths").addEventListener("click", (e) => { const b = e.target.closest("[data-m]"); if (!b) return;
     soMonth = +b.dataset.m; drawSolarMonths(); loadSolarMonth().catch(err => logError("loadSolarMonth: " + err.message, "laden")); });
   $("soYear").addEventListener("change", () => { soYear = +$("soYear").value; const n = new Date();
-    soMonth = soYear === n.getFullYear() ? n.getMonth() : 11; loadSolar().catch(err => logError("loadSolar: " + err.message, "laden")); });
+    soMonth = soYear === n.getFullYear() ? n.getMonth() : 11; loadSolar().catch(err => logError("loadSolar: " + err.message, "laden"));
+    loadSim().catch(err => logError("loadSim: " + err.message, "laden"));
+    loadModule().catch(err => logError("loadModule: " + err.message, "laden")); });
+
+  // ---------- Solar → Module: Reihe 1 gegen Reihe 2, Schattenkarte, Monatsübersicht (Spalten aus 20_pv_reihen.sql, Funktion aus 21_…) ----------
+  const PV_LAT = 50.878, PV_LON = 6.177;
+  function sonne(d) {   // Sonnenstand (vereinfacht, ±1°): az 0 = Nord, 180 = Süd; el über dem Horizont
+    const R = Math.PI / 180, n = d.getTime() / 864e5 + 2440587.5 - 2451545.0;
+    const g = ((357.528 + 0.9856003 * n) % 360) * R, L = (280.46 + 0.9856474 * n) % 360;
+    const lam = (L + 1.915 * Math.sin(g) + 0.02 * Math.sin(2 * g)) * R, eps = (23.439 - 4e-7 * n) * R;
+    const dec = Math.asin(Math.sin(eps) * Math.sin(lam)), ra = Math.atan2(Math.cos(eps) * Math.sin(lam), Math.cos(lam));
+    const H = (((280.46061837 + 360.98564736629 * n) % 360) + PV_LON) * R - ra, lat = PV_LAT * R;
+    const el = Math.asin(Math.sin(lat) * Math.sin(dec) + Math.cos(lat) * Math.cos(dec) * Math.cos(H));
+    const az = Math.atan2(Math.sin(H), Math.cos(H) * Math.sin(lat) - Math.tan(dec) * Math.cos(lat)) / R + 180;
+    return { az: (az + 360) % 360, el: el / R };
+  }
+  const himmel = (a) => ["Norden", "Nordosten", "Osten", "Südosten", "Süden", "Südwesten", "Westen", "Nordwesten"][Math.round(a / 45) % 8];
+  let rvDate = null;
+  async function loadModule() {
+    if (!rvDate) { rvDate = new Date(); rvDate.setHours(0, 0, 0, 0); }
+    await Promise.all([loadReihenTag(), loadSchatten()]);
+  }
+  async function loadReihenTag() {
+    const a = new Date(rvDate), b = new Date(a); b.setDate(b.getDate() + 1);
+    $("rvDay").textContent = a.toLocaleDateString("de-DE", { weekday: "short", day: "2-digit", month: "2-digit", year: "numeric" });
+    let rows;
+    try { rows = await restAll(`pv_snapshots?select=fox_time,pv1_kw,pv2_kw&fox_time=gte.${a.toISOString()}&fox_time=lt.${b.toISOString()}&order=fox_time.asc`); }
+    catch (e) { if (/42703|pv1_kw/.test(e.message)) { $("rvPill").textContent = "Spalten fehlen – 20_pv_reihen.sql ausführen"; return; } throw new Error("Reihen: " + e.message); }
+    const p = rows.filter(r => r.pv1_kw != null && r.pv2_kw != null).map(r => ({ t: new Date(r.fox_time), h: 0, a: +r.pv1_kw, b: +r.pv2_kw }));
+    p.forEach(r => { r.h = r.t.getHours() + r.t.getMinutes() / 60; });
+    const W = 680, H0 = 155, X = (h) => 50 + (h - 6) / 15 * (W - 70);
+    const mx = Math.max(0.5, ...p.map(r => Math.max(r.a, r.b))) * 1.1, Y = (v) => H0 - v / mx * 135;
+    let g = "";
+    for (let h = 6; h <= 21; h += 3) g += `<line x1="${X(h)}" x2="${X(h)}" y1="15" y2="${H0}" stroke="currentColor" stroke-opacity=".1"/><text x="${X(h)}" y="${H0 + 18}" text-anchor="middle" font-size="12" fill="currentColor" fill-opacity=".6">${h}:00</text>`;
+    g += `<line x1="50" x2="${W - 20}" y1="${H0}" y2="${H0}" stroke="currentColor" stroke-opacity=".25"/><text x="44" y="${Y(mx / 1.1) + 4}" text-anchor="end" font-size="12" fill="currentColor" fill-opacity=".6">${fmt(mx / 1.1, 1)} kW</text>`;
+    if (p.length < 3) { $("rvSvg").innerHTML = g + `<text x="${W / 2}" y="85" text-anchor="middle" font-size="14" fill="currentColor" fill-opacity=".6">Für diesen Tag keine Reihen-Werte</text>`; $("rvPill").className = "so-pill"; $("rvPill").textContent = ""; return; }
+    // Fläche, wo Reihe 2 deutlich weniger liefert
+    let seg = [];
+    const flush = () => { if (seg.length > 1) g += `<polygon points="${seg.map(r => `${X(r.h).toFixed(1)},${Y(r.a).toFixed(1)}`).concat(seg.slice().reverse().map(r => `${X(r.h).toFixed(1)},${Y(r.b).toFixed(1)}`)).join(" ")}" fill="rgba(226,75,74,.3)"/>`; seg = []; };
+    p.forEach(r => { if (r.a >= 0.1 && r.b < r.a * 0.93) seg.push(r); else flush(); }); flush();
+    const path = (k) => p.map((r, i) => `${i ? "L" : "M"}${X(r.h).toFixed(1)} ${Y(r[k]).toFixed(1)}`).join(" ");
+    g += `<path d="${path("a")}" fill="none" stroke="#1D9E75" stroke-width="2"/><path d="${path("b")}" fill="none" stroke="#7F77DD" stroke-width="2" stroke-dasharray="5 3"/>`;
+    $("rvSvg").innerHTML = g;
+    const sum = (f) => p.filter(f).reduce((s, r) => [s[0] + r.a, s[1] + r.b], [0, 0]);
+    const vm = sum(r => r.h < 12 && r.a >= 0.1), nm = sum(r => r.h >= 12 && r.a >= 0.1);
+    const rv = vm[0] > 0.5 ? vm[1] / vm[0] : null, rn = nm[0] > 0.5 ? nm[1] / nm[0] : null;
+    const ab = p.find(r => r.h >= 11 && r.a >= 0.2 && r.b < r.a * 0.9);
+    const verlust = p.reduce((s, r) => s + (r.a >= 0.1 && r.b < r.a * 0.95 ? (r.a - r.b) * 5 / 60 : 0), 0);
+    const pill = $("rvPill");
+    if (rn != null && (rn < 0.9 || (rv != null && rn < rv - 0.07))) { pill.className = "so-pill bg-warning text-warning-content"; pill.textContent = `nachmittags Reihe 2 −${Math.round((1 - rn) * 100)} %${ab ? ` ab ca. ${ab.t.toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit" })}` : ""} · ca. ${fmt(verlust, 1)} kWh weniger`; }
+    else if (rv == null && rn == null) { pill.className = "so-pill"; pill.textContent = "zu wenig Sonne für einen Vergleich"; }
+    else { pill.className = "so-pill bg-success text-success-content"; pill.textContent = "✓ beide Reihen liefern gleich viel"; }
+  }
+  // ---------- Module: Dach mit 22 Modulen, Sonne und Schatten (aus pv_reihen_bins) ----------
+  let dmBins = [], dmMon = new Date().getMonth() + 1;
+  function dmMonate() {
+    const da = new Set(dmBins.map(b => b.monat));
+    if (da.size && !da.has(dmMon)) dmMon = [...da].sort((a, b) => b - a)[0];
+    $("dmMon").innerHTML = SO_MN.map((n, i) => `<button class="btn btn-xs${i + 1 === dmMon ? " btn-primary" : ""}" data-m="${i + 1}"${da.has(i + 1) ? "" : " disabled title=\"noch keine Reihen-Werte\""}>${n}</button>`).join("");
+  }
+  function dmZeichnen() {
+    if (!$("dmSvg")) return;
+    dmMonate();
+    const t = +$("dmZeit").value, h = Math.floor(t), mi = Math.round((t - h) * 60);
+    $("dmZt").textContent = `${h}:${String(mi).padStart(2, "0")}`;
+    const tag = new Date(soYear, dmMon - 1, 15, h, mi), s = sonne(tag);
+    // Messwerte dieses Monats und dieser Viertelstunde
+    const slot = Math.floor((h * 60 + mi) / 15), sel = dmBins.filter(b => b.monat === dmMon && b.slot === slot);
+    const s1 = sel.reduce((a, b) => a + b.sum1, 0), s2 = sel.reduce((a, b) => a + b.sum2, 0), r = s1 > 0.5 ? s2 / s1 : null;
+    const k = r == null || r >= 0.95 ? 0 : Math.min(11, Math.max(1, Math.round((1 - r) / 0.8 * 11)));
+    const X = (a) => 40 + (Math.min(300, Math.max(60, a)) - 60) / 240 * 600, Y = (e) => 200 - e / 65 * 180;
+    let g = "", bahn = "";
+    for (let m2 = 4 * 60; m2 <= 22 * 60; m2 += 10) { const q = sonne(new Date(soYear, dmMon - 1, 15, 0, m2)); if (q.el > 0 && q.az >= 60 && q.az <= 300) bahn += `${bahn ? "L" : "M"}${X(q.az).toFixed(0)} ${Y(q.el).toFixed(0)}`; }
+    g += `<path d="${bahn}" fill="none" stroke="#EF9F27" stroke-width="1.5" stroke-dasharray="4 4" opacity=".7"/>`;
+    g += `<text x="40" y="218" font-size="12" fill="currentColor" fill-opacity=".6">Osten</text><text x="340" y="218" text-anchor="middle" font-size="12" fill="currentColor" fill-opacity=".6">Süden</text><text x="640" y="218" text-anchor="end" font-size="12" fill="currentColor" fill-opacity=".6">Westen</text>`;
+    const nacht = s.el <= 0;
+    if (!nacht) g += `<circle cx="${X(s.az).toFixed(0)}" cy="${Y(s.el).toFixed(0)}" r="15" fill="#FAC775" stroke="#EF9F27" stroke-width="2"/>`;
+    g += `<polygon points="150,305 530,305 500,226 180,226" fill="currentColor" fill-opacity=".08"/>`;
+    const px = (r2, i) => 192 + i * 27.3 + (r2 === 0 ? 4 : -4);
+    for (let r2 = 0; r2 < 2; r2++) for (let i = 0; i < 11; i++) {
+      const sh = r2 === 1 && !nacht && i >= 11 - k, y = r2 === 0 ? 232 : 268;
+      g += `<rect x="${px(r2, i).toFixed(1)}" y="${y}" width="25" height="31" rx="2" fill="${nacht ? "#444441" : sh ? "#5F5E5A" : "#185FA5"}" stroke="#E6F1FB" stroke-width="1"/>`;
+    }
+    g += `<text x="166" y="252" text-anchor="end" font-size="12" fill="currentColor">Reihe 1</text><text x="160" y="288" text-anchor="end" font-size="12" fill="currentColor">Reihe 2</text>`;
+    if (!nacht && k > 0) g += `<polygon points="${X(s.az) - 8},${Y(s.el) + 10} ${px(1, 11 - k)},268 ${px(1, 10) + 25},299 ${X(s.az) + 8},${Y(s.el) + 14}" fill="currentColor" fill-opacity=".06"/>`;
+    if (nacht) g += `<text x="340" y="110" text-anchor="middle" font-size="14" fill="currentColor" fill-opacity=".6">Die Sonne ist noch nicht auf- bzw. schon untergegangen</text>`;
+    $("dmSvg").innerHTML = g;
+    const box = $("dmBox"), wo = `Die Sonne steht im ${himmel(s.az)}, ${Math.round(s.el)}° über dem Horizont.`;
+    if (nacht) { box.className = "rounded-box p-3 text-sm bg-base-100 opacity-70"; box.textContent = "Ohne Sonne liefert die Anlage keinen Strom."; }
+    else if (r == null) { box.className = "rounded-box p-3 text-sm bg-base-100"; box.textContent = `${wo} Für diese Uhrzeit gibt es im ${SO_MN[dmMon - 1]} zu wenig Messwerte (zu dunkel oder noch nicht nachgetragen).`; }
+    else if (k > 0) { box.className = "rounded-box p-3 text-sm bg-warning text-warning-content"; box.innerHTML = `<b>ca. ${k} von 11 Modulen in Reihe 2 liegen im Schatten.</b> ${wo} Reihe 2 liefert hier ${Math.round((1 - r) * 100)} % weniger als Reihe 1.`; }
+    else { box.className = "rounded-box p-3 text-sm bg-success text-success-content"; box.innerHTML = `<b>Alle 22 Module bekommen volle Sonne.</b> ${wo} Beide Reihen liefern gleich viel.`; }
+  }
+  $("dmMon").addEventListener("click", (e) => { const b = e.target.closest("[data-m]"); if (!b || b.disabled) return; dmMon = +b.dataset.m; dmZeichnen(); });
+  $("dmZeit").addEventListener("input", dmZeichnen);
+
+  async function loadSchatten() {
+    let bins;
+    try { bins = await restAll(`rpc/pv_reihen_bins?p_year=${soYear}`); }
+    catch (e) { if (/404|PGRST202|42883|42703/.test(e.message)) { $("skText").textContent = "Auswertung fehlt noch – 21_pv_reihen_auswertung.sql ausführen."; $("rmRows").innerHTML = `<tr><td colspan="6" class="opacity-60">–</td></tr>`; return; } throw new Error("Schattenkarte: " + e.message); }
+    bins = bins.map(b => ({ ...b, sum1: +b.sum1, sum2: +b.sum2, r: +b.sum1 > 0 ? b.sum2 / b.sum1 : null }));
+    dmBins = bins;
+    const W = 680, X = (a) => 50 + (a - 60) / 240 * (W - 70), Y = (e) => 270 - e / 65 * 250;
+    let g = "";
+    for (let e = 0; e <= 60; e += 15) g += `<line x1="50" x2="${W - 20}" y1="${Y(e)}" y2="${Y(e)}" stroke="currentColor" stroke-opacity=".1"/><text x="44" y="${Y(e) + 4}" text-anchor="end" font-size="12" fill="currentColor" fill-opacity=".6">${e}°</text>`;
+    [[90, "Ost"], [135, "Südost"], [180, "Süd"], [225, "Südwest"], [270, "West"]].forEach(([a, n]) => g += `<line x1="${X(a)}" x2="${X(a)}" y1="15" y2="270" stroke="currentColor" stroke-opacity=".1"/><text x="${X(a)}" y="292" text-anchor="middle" font-size="12" fill="currentColor" fill-opacity=".6">${n}</text>`);
+    const pts = [];
+    bins.forEach(b => {
+      if (b.r == null || b.sum1 < 1.5) return;   // zu wenig Licht → nicht aussagekräftig
+      const d = new Date(soYear, 0, 1 + (b.woche - 1) * 7 + 3, 0, b.slot * 15 + 7.5), s = sonne(d);
+      if (s.el < 0 || s.az < 60 || s.az > 300) return;
+      pts.push({ ...s, r: b.r, monat: b.monat, d });
+    });
+    pts.forEach(q => { const c = q.r >= 0.95 ? "#1D9E75" : q.r >= 0.85 ? "#EF9F27" : "#E24B4A";
+      g += `<circle cx="${X(q.az).toFixed(1)}" cy="${Y(q.el).toFixed(1)}" r="4" fill="${c}" fill-opacity="${q.r >= 0.95 ? 0.35 : 0.85}"><title>${q.d.toLocaleDateString("de-DE", { day: "2-digit", month: "2-digit" })} ${q.d.toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit" })} · Sonne ${Math.round(q.az)}° / ${Math.round(q.el)}° · Reihe 2: ${Math.round(q.r * 100)} %</title></circle>`; });
+    [[5, 21, "21. Juni"], [2, 20, "März / Sept."], [11, 21, "21. Dez."]].forEach(([m, t, n]) => {
+      let pth = "", top = null;
+      for (let mi = 4 * 60; mi <= 22 * 60; mi += 10) { const s = sonne(new Date(soYear, m, t, 0, mi)); if (s.el > 0 && s.az >= 60 && s.az <= 300) { pth += `${pth ? "L" : "M"}${X(s.az).toFixed(1)} ${Y(s.el).toFixed(1)}`; if (!top || s.el > top.el) top = s; } }
+      g += `<path d="${pth}" fill="none" stroke="#EF9F27" stroke-width="1.8"/>`;
+      if (top) g += `<text x="${X(top.az)}" y="${Y(top.el) - 8}" text-anchor="middle" font-size="12" fill="#BA7517">${n}</text>`;
+    });
+    $("skSvg").innerHTML = g;
+
+    // Zusammenfassung Schatten
+    const rot = pts.filter(q => q.r < 0.85);
+    const preis = agState || { buy: soPrice.buy, sell: soPrice.sell };
+    // Monate
+    const mon = {};
+    bins.forEach(b => {
+      const m = (mon[b.monat] ||= { v: [0, 0], n: [0, 0], loss: 0, v1: 0, v2: 0, nv: 0 });
+      const k = b.slot < 48 ? "v" : "n";
+      m[k][0] += b.sum1; m[k][1] += b.sum2;
+      if (b.r != null && b.r < 0.95 && b.sum1 >= 1) m.loss += (b.sum1 - b.sum2) * 5 / 60;
+      m.v1 += +(b.sum_v1 || 0); m.v2 += +(b.sum_v2 || 0); m.nv += +(b.n_v || 0);
+    });
+    const ms = Object.keys(mon).map(Number).sort((a, b) => a - b), pc = (x) => x[0] > 2 ? x[1] / x[0] : null;
+    const lossJahr = ms.reduce((s, m) => s + mon[m].loss, 0);
+    const pill = $("skPill");
+    if (!pts.length) { pill.className = "so-pill"; pill.textContent = ""; $("skText").textContent = "Noch keine Reihen-Werte für " + soYear + "."; }
+    else if (rot.length < 3) { pill.className = "so-pill bg-success text-success-content"; pill.textContent = "✓ kein Schatten erkennbar"; $("skText").textContent = "Reihe 2 liefert bei allen Sonnenständen etwa so viel wie Reihe 1."; }
+    else {
+      const azs = rot.map(q => q.az).sort((a, b) => a - b), azMin = azs[Math.floor(azs.length * 0.05)], azMax = azs[Math.ceil(azs.length * 0.95) - 1];
+      const elMax = Math.max(...rot.map(q => q.el));
+      const rotMon = [...new Set(rot.map(q => q.monat))].sort((a, b) => a - b), freiMon = ms.filter(m => !rotMon.includes(m) && mon[m].n[0] > 5);
+      pill.className = "so-pill bg-warning text-warning-content"; pill.textContent = `kostet ca. ${fmt(lossJahr, 0)} kWh in ${soYear}`;
+      $("skText").innerHTML = `Schatten auf Reihe 2, wenn die Sonne im <b>${himmel((azMin + azMax) / 2)}</b> steht (ca. ${Math.round(azMin)}–${Math.round(azMax)}°) und <b>unter etwa ${Math.round(elMax)}°</b> hoch ist.
+        ${rotMon.length ? `Betroffen: ${rotMon.map(m => SO_MN[m - 1]).join(", ")}.` : ""}${freiMon.length ? ` Ohne Schatten: ${freiMon.map(m => SO_MN[m - 1]).join(", ")}.` : ""}
+        <div class="text-xs opacity-60 mt-1">Verlust ${fmt(lossJahr, 0)} kWh entspricht ca. ${fmt(lossJahr * preis.sell, 0)} € (wenn sonst verkauft) bis ${fmt(lossJahr * preis.buy, 0)} € (wenn sonst gekauft) · nur Monate mit Reihen-Werten</div>`;
+    }
+    // Tabelle pro Monat
+    const pz = (r) => r == null ? "–" : `<span class="${r < 0.85 ? "text-error font-semibold" : r < 0.95 ? "text-warning font-semibold" : ""}">${Math.round(r * 100)} %</span>`;
+    $("rmRows").innerHTML = ms.length ? ms.map(m => {
+      const x = mon[m], rv = pc(x.v), rn = pc(x.n), v1 = x.nv ? x.v1 / x.nv : null, v2 = x.nv ? x.v2 / x.nv : null;
+      const befund = v1 != null && Math.abs(v1 - v2) > 15 ? `⚠️ Spannung Reihe ${v1 > v2 ? 2 : 1} niedriger – Modul prüfen lassen`
+        : rn != null && rv != null && rn < rv - 0.07 ? "🌳 Schatten nachmittags" : rv != null && rn != null && rv < rn - 0.07 ? "🌳 Schatten vormittags" : "✓ gleich";
+      return `<tr><td>${SO_MN[m - 1]}</td><td class="text-right">${pz(rv)}</td><td class="text-right">${pz(rn)}</td><td class="text-right">${fmt(x.loss, 1)} kWh</td><td class="text-right">${v1 == null ? "–" : `${Math.round(v1)} / ${Math.round(v2)} V`}</td><td>${befund}</td></tr>`;
+    }).join("") : `<tr><td colspan="6" class="opacity-60">Noch keine Reihen-Werte für ${soYear}.</td></tr>`;
+    // Zusammenfassung in einem Satz (für das Dach oben)
+    const schattenMon = ms.filter(m => { const rv = pc(mon[m].v), rn = pc(mon[m].n); return rv != null && rn != null && rn < rv - 0.07; });
+    const starts = schattenMon.map(m => { const sl = {}; bins.filter(b => b.monat === m && b.slot >= 44).forEach(b => { (sl[b.slot] ||= [0, 0]); sl[b.slot][0] += b.sum1; sl[b.slot][1] += b.sum2; });
+      const k = Object.keys(sl).map(Number).sort((a, b) => a - b).find(x => sl[x][0] > 1 && sl[x][1] / sl[x][0] < 0.9); return k; }).filter(k => k != null).sort((a, b) => a - b);
+    const ab = starts.length ? starts[Math.floor(starts.length / 2)] : null;
+    const abTxt = ab != null ? ` ab ca. ${Math.floor(ab / 4)}:${String(ab % 4 * 15).padStart(2, "0")} Uhr` : "";
+    // Zeitraum in Worten: zusammenhängend („Jan bis Mär“), über den Jahreswechsel („Okt bis Feb“) oder als Liste
+    const zus = (l) => l.every((m, i) => !i || m === l[i - 1] + 1);
+    const spannOk = ms.every(m => { const x = mon[m]; return !x.nv || Math.abs(x.v1 / x.nv - x.v2 / x.nv) <= 15; });
+    const frei = ms.filter(m => !schattenMon.includes(m));
+    const zeitraum = schattenMon.length === 1 ? "Im " + SO_MN[schattenMon[0] - 1]
+      : zus(schattenMon) ? SO_MN[schattenMon[0] - 1] + " bis " + SO_MN[schattenMon[schattenMon.length - 1] - 1]
+      : frei.length && zus(frei) && schattenMon.some(m => m < frei[0]) && schattenMon.some(m => m > frei[frei.length - 1]) ? SO_MN[frei[frei.length - 1]] + " bis " + SO_MN[frei[0] - 2]
+      : schattenMon.map(m => SO_MN[m - 1]).join(", ");
+    $("dmSum").innerHTML = !ms.length ? "" : schattenMon.length
+      ? `📌 <b>${zeitraum}</b> fällt nachmittags${abTxt} Schatten auf Reihe 2. Das kostet ca. <b>${fmt(lossJahr, 0)} kWh</b> in ${soYear} (etwa ${fmt(lossJahr * preis.sell, 0)}–${fmt(lossJahr * preis.buy, 0)} €). ${spannOk ? "Alle Module funktionieren – die Spannung beider Reihen ist gleich." : "⚠️ Die Spannung einer Reihe ist niedriger – ein Modul sollte geprüft werden (siehe Monatstabelle)."}`
+      : `✅ Beide Reihen bekommen gleich viel Sonne – kein Schatten erkennbar.`;
+    dmZeichnen();
+    $("rmNote").textContent = "Prozent = Reihe 2 im Vergleich zu Reihe 1 · Verlust = was Reihe 2 weniger geliefert hat (nur Zeiten mit mehr als 5 % Unterschied) · fehlende Monate: Verlauf noch nicht nachgetragen";
+  }
+  $("rvPrev").addEventListener("click", () => { rvDate.setDate(rvDate.getDate() - 1); loadReihenTag().catch(err => logError("loadReihenTag: " + err.message, "laden")); });
+  $("rvNext").addEventListener("click", () => { const h = new Date(); h.setHours(0, 0, 0, 0); if (rvDate < h) { rvDate.setDate(rvDate.getDate() + 1); loadReihenTag().catch(err => logError("loadReihenTag: " + err.message, "laden")); } });
 
   // ---------- Solar: Unter-Reiter Energie | Akku (letzte Wahl wird gemerkt) ----------
   function soSub(name) {
-    if (!["energie", "akku"].includes(name)) name = "energie";
+    if (!["energie", "akku", "module"].includes(name)) name = "energie";
     document.querySelectorAll("#soSub [data-sub]").forEach(b => b.classList.toggle("on", b.dataset.sub === name));
     document.querySelectorAll("[data-subpanel]").forEach(p => p.classList.toggle("hidden", p.dataset.subpanel !== name));
     try { localStorage.setItem("wagael_solar_sub", name); } catch (e) {}
@@ -2464,15 +2749,164 @@
 
   // ---------- Akku: Zustand (Reiter „Solar“, Spalten aus 15_akku.sql) ----------
   // Ladestand, Energie drin, „reicht bis“, Temperatur, Gesundheit (SOH vom Akku), Zyklen (vom Akku gezählt), letzte 7 Tage.
-  // Kapazität und Reserve aus hp_stammdaten („Akku Kapazität“, „Akku Reserve“), sonst 12,8 kWh / 20 %.
+  // Kapazität und Reserve aus hp_stammdaten („Akku Kapazität“, „Akku Reserve“), sonst 12,8 kWh / 10 %.
+  // Grau schraffiert = Reserve (gibt der Akku nicht her), grün = nutzbarer Teil.
+  // ---------- Akku: Was hat er gebracht? (Reiter „Solar“ → „Akku“) ----------
+  // Ersparnis = aus dem Akku × Kaufpreis − in den Akku × Verkaufspreis
+  // (ohne Akku wäre der eingelagerte Sonnenstrom verkauft und der abgegebene Strom gekauft worden; Lade-Verluste sind damit drin).
+  // Gesamt aus den Akku-Zählern (seit Inbetriebnahme), Monate aus pv_daily (Jahr wie im Reiter „Energie“), heutige Preise.
+  let agState = null;
+  const euroIn = (s) => { const t = String(s ?? "").replace(/\.(?=\d{3}(\D|$))/g, "").replace(",", "."), m = t.match(/\d+(\.\d+)?/); return m ? parseFloat(m[0]) : null; };
+  function drawAkkuGeld() {
+    const g = agState; if (!$("agBody")) return;
+    if (!g) { $("agBody").innerHTML = `<div class="empty">Lade …</div>`; return; }
+    if (g.ch == null || g.dis == null) { $("agBody").innerHTML = `<div class="empty">Noch keine Akku-Zählerstände.</div>`; return; }
+    const eur = (v, d = 0) => `${fmt(v, d)} €`, ct = (v) => fmt(v * 100, v * 100 % 1 ? 1 : 0);
+    const plus = g.dis * g.buy, minus = g.ch * g.sell, total = plus - minus;
+    // Monate des gewählten Jahres
+    const mon = Array(12).fill(null);
+    soDaily.forEach(d => { if (d.bat_discharge_kwh == null || d.bat_charge_kwh == null) return; mon[d.m] = (mon[d.m] ?? 0) + d.bat_discharge_kwh * g.buy - d.bat_charge_kwh * g.sell; });
+    const has = mon.some(v => v != null), mx = Math.max(1, ...mon.map(v => Math.abs(v ?? 0)));
+    const tage = soDaily.filter(d => d.bat_discharge_kwh != null && d.bat_charge_kwh != null).length, jahr = mon.reduce((a, v) => a + (v ?? 0), 0);
+    const proJahr = tage >= 30 ? jahr / tage * 365 : null;
+    const bars = has ? `<div class="text-sm font-semibold mt-1">${soYear} pro Monat <span class="font-normal opacity-60">· zusammen ${eur(jahr)}</span></div>
+      <div class="ag-bars">${SO_MN.map((n, i) => mon[i] == null ? `<div class="ag-b" style="opacity:.35"><span></span><i style="height:3px;background:currentColor"></i><span>${n}</span></div>`
+        : `<div class="ag-b${mon[i] < 0 ? " neg" : ""}"><span>${eur(mon[i])}</span><i style="height:${Math.max(3, Math.abs(mon[i]) / mx * 80)}px"></i><span>${n}</span></div>`).join("")}</div>` : "";
+    let pay = "";
+    if (g.preis) {
+      const p = Math.min(100, total / g.preis * 100), rest = g.preis - total;
+      const wann = rest <= 0 ? "hat sich bereits bezahlt gemacht 🎉" : proJahr > 0 ? `bei gleichem Tempo in ca. ${fmt(rest / proJahr, rest / proJahr < 3 ? 1 : 0)} Jahren bezahlt` : "";
+      pay = `<div class="mt-4"><div class="flex justify-between text-sm"><span>Hat sich bezahlt gemacht</span><span class="opacity-70">${eur(total)} von ${eur(g.preis)} · ${fmt(p, 0)} %</span></div>
+        <div class="ak-tr mt-1"><div class="ak-rg" style="left:0;width:${Math.max(0, p)}%"></div></div>
+        <div class="text-xs opacity-60 mt-1">${wann}${proJahr ? ` · ${soYear} hochgerechnet ca. ${eur(proJahr)} pro Jahr` : ""}</div></div>`;
+    }
+    $("agBody").innerHTML = `
+      <div class="flex flex-wrap items-baseline gap-x-3 gap-y-1"><span style="font-size:2rem;font-weight:700;line-height:1;color:oklch(0.55 0.15 150)">${eur(total)}</span>
+        <span class="text-sm opacity-75">gespart seit Inbetriebnahme${g.cyc != null ? ` · ${fmt(g.cyc, 0)} Zyklen · ca. ${eur(total / Math.max(1, g.cyc), 2)} pro Zyklus` : ""}</span></div>
+      <div class="grid grid-cols-1 sm:grid-cols-2 gap-2 my-3">
+        <div class="ak-m"><div class="text-xs opacity-70">Weniger gekauft</div><div class="v">+${eur(plus)}</div><div class="text-xs opacity-60">${fmt(g.dis, 0)} kWh aus dem Akku × ${ct(g.buy)} ct</div></div>
+        <div class="ak-m"><div class="text-xs opacity-70">Weniger verkauft</div><div class="v">−${eur(minus)}</div><div class="text-xs opacity-60">${fmt(g.ch, 0)} kWh in den Akku × ${ct(g.sell)} ct</div></div>
+      </div>${bars}${pay}
+      <div class="text-xs opacity-60 mt-2">Ohne Akku wäre der eingelagerte Sonnenstrom für ${ct(g.sell)} ct verkauft und der Strom aus dem Akku für ${ct(g.buy)} ct gekauft worden · gerechnet mit den heutigen Preisen aus den Stammdaten${g.preis ? "" : " · Kaufpreis des Akkus eintragen („Akku Preis“ in hp_stammdaten), dann erscheint „Hat sich bezahlt gemacht“"}</div>`;
+  }
+
+  // ---------- Miele: Waschmaschine/Trockner + TwinDos (Tabelle miele_snapshots aus 18_miele.sql) ----------
+  // Restlaufzeit: Abnahme des Füllstands seit dem letzten Nachfüllen (Sprung nach oben) → % pro Tag und % pro Wäsche.
+  function mlEta(rows, key, now) {
+    const pts = rows.filter(r => r[key] != null).map(r => ({ t: new Date(r.captured_at), v: r[key] }));
+    if (pts.length < 2) return null;
+    let start = 0;
+    for (let i = 1; i < pts.length; i++) if (pts[i].v > pts[i - 1].v + 5) start = i;   // nachgefüllt
+    const seg = pts.slice(start), drop = seg[0].v - seg[seg.length - 1].v, tage = (now - seg[0].t) / 864e5;
+    // Wäschen im Abschnitt: Wechsel auf „in Betrieb“ (Status 5)
+    const wm = rows.filter(r => new Date(r.captured_at) >= seg[0].t);
+    let washes = 0; for (let i = 0; i < wm.length; i++) if (wm[i].status_raw === 5 && (i === 0 || wm[i - 1].status_raw !== 5)) washes++;
+    if (tage < 3 || drop < 3 || washes < 2) return { lernt: true, washes, tage };
+    const proTag = drop / tage, proWaesche = drop / washes, cur = seg[seg.length - 1].v;
+    return { tage: cur / proTag, waeschen: Math.floor(cur / proWaesche), bis: new Date(now.getTime() + cur / proTag * 864e5) };
+  }
+  async function loadMiele() {
+    const now = new Date(), from = new Date(now.getTime() - 120 * 864e5);
+    let rows, stamm;
+    try {
+      [rows, stamm] = await Promise.all([
+        restAll(`miele_snapshots?select=captured_at,device_id,device_type,model,status_raw,status,program,elapsed_min,remaining_min,energy_kwh,twindos1_pct,twindos2_pct,signal_info,signal_failure&captured_at=gte.${from.toISOString()}&order=captured_at.asc`),
+        rest("hp_stammdaten?select=key,value").catch(() => [])]);
+    } catch (e) {
+      if (/404|42P01|PGRST205/.test(e.message)) { $("mlBody").innerHTML = `<div class="empty">Noch keine Miele-Daten – 18_miele.sql und Edge Function „miele“ einrichten.</div>`; return; }
+      throw new Error("Miele: " + e.message);
+    }
+    if (!rows.length) { $("mlBody").innerHTML = `<div class="empty">Noch keine Miele-Daten.</div>`; return; }
+    const sv = (k, d) => stamm.find(x => x.key === k)?.value || d;
+    const byDev = {}; rows.forEach(r => (byDev[r.device_id] ||= []).push(r));
+    const hm = (d) => d.toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit" });
+    const dm = (d) => d.toLocaleDateString("de-DE", { day: "2-digit", month: "2-digit" });
+    const dauer = (m) => m == null ? "" : `${Math.floor(m / 60)}:${String(m % 60).padStart(2, "0")}`;
+    const last = rows[rows.length - 1];
+    $("mlAge").textContent = `Stand ${hm(new Date(last.captured_at))}`;
+    const geraet = (list) => {
+      const r = list[list.length - 1], typ = /dryer|trockner/i.test(r.device_type || "") ? "Trockner" : "Waschmaschine";
+      const icon = typ === "Trockner" ? "🌀" : "🧺", run = r.status_raw === 5;
+      const txt = run ? `läuft · ${r.program || "Programm"}${r.remaining_min != null ? ` · noch ${dauer(r.remaining_min)}` : ""}${r.energy_kwh != null ? ` · bisher ${fmt(r.energy_kwh, 1)} kWh` : ""}`
+        : r.status_raw === 7 ? `fertig${r.energy_kwh != null ? ` · ${fmt(r.energy_kwh, 1)} kWh` : ""} – bitte ausräumen`
+        : (r.status || "–");
+      const warn = r.signal_failure ? ` <span class="so-pill bg-error text-error-content">Störung</span>` : r.signal_info ? ` <span class="so-pill bg-warning text-warning-content">Hinweis am Gerät</span>` : "";
+      return `<div class="flex flex-wrap items-center gap-2 text-sm"><span>${icon} <b>${typ}</b> <span class="opacity-60">${r.model || ""}</span></span><span class="${run ? "font-semibold" : "opacity-70"}">${txt}</span>${warn}</div>`;
+    };
+    const devs = Object.values(byDev).sort((a, b) => (/dryer/i.test(a[0].device_type || "") ? 1 : 0) - (/dryer/i.test(b[0].device_type || "") ? 1 : 0));
+    const wm = devs.find(l => l.some(r => r.twindos1_pct != null || r.twindos2_pct != null));
+    let twin = "";
+    if (wm) {
+      const lw = wm[wm.length - 1];
+      const behaelter = (nr) => {
+        const key = `twindos${nr}_pct`, v = [...wm].reverse().find(r => r[key] != null)?.[key];
+        if (v == null) return "";
+        const name = sv(`TwinDos ${nr} Inhalt`, `TwinDos ${nr}`), eta = mlEta(wm, key, now);
+        const col = v < 10 ? "#E24B4A" : v < 30 ? "#EF9F27" : "#1D9E75", cls = v < 10 ? "text-error" : v < 30 ? "text-warning" : "";
+        const zustand = v <= 0 ? "leer – nachfüllen" : v < 10 ? "fast leer" : v < 30 ? "bald nachfüllen" : "";
+        const etaTxt = v <= 0 ? "" : !eta ? "" : eta.lernt ? `Restlaufzeit wird gelernt … (${eta.washes < 2 ? `${eta.washes} von mind. 2 Wäschen` : eta.tage < 3 ? "noch zu kurz gemessen" : "noch kein Verbrauch erkennbar"})` : `noch ca. ${eta.waeschen} Wäsche${eta.waeschen === 1 ? "" : "n"} · leer etwa am ${dm(eta.bis)}`;
+        return `<div><div class="flex justify-between gap-2 text-sm mb-1"><span>${nr} · ${name}</span><span class="font-semibold ${cls}">${fmt(v, 0)} %${zustand ? " · " + zustand : ""}</span></div>
+          <div class="ml-tr"><i style="width:${Math.max(1.5, Math.min(100, v))}%;background:${col}"></i></div>
+          ${etaTxt ? `<div class="text-xs opacity-60 mt-1">${etaTxt}</div>` : ""}</div>`;
+      };
+      twin = `<div class="rounded-box p-3 border border-base-300 bg-base-100 space-y-3"><div class="text-sm font-semibold">Waschmittel (TwinDos)</div>${behaelter(1)}${behaelter(2)}
+        <div class="text-xs opacity-60">grün ab 30 %, orange 10–30 %, rot unter 10 % · Namen änderbar in den Stammdaten („TwinDos 1 Inhalt“)</div></div>`;
+    }
+    $("mlBody").innerHTML = `<div class="grid gap-3 md:grid-cols-2"><div class="space-y-2">${devs.map(geraet).join("")}</div>${twin}</div>`;
+  }
+
+  // ---------- Akku: Simulation größerer Akku (Funktion pv_akku_sim aus 16_akku_sim.sql) ----------
+  // Spielt alle 5-Min-Messungen des Jahres durch: Akku voll + Verkauf → Zusatz-Modul lädt; Akku an der Reserve + Kauf → Modul liefert.
+  let simN = 1, simCache = {}, simPreisStd = 949, simKap = 12.8, simRes = 10;
+  async function loadSim() {
+    const key = `${soYear}|${simN}|${simRes}`;
+    if (!simCache[key]) {
+      const extra = 3.2 * simN * (1 - simRes / 100);
+      try { simCache[key] = await rest(`rpc/pv_akku_sim?p_year=${soYear}&p_extra=${extra.toFixed(2)}&p_reserve=${simRes}`); }
+      catch (e) {
+        if (/404|PGRST202|42883/.test(e.message)) { $("simBody").innerHTML = `<div class="empty">Funktion fehlt noch – 16_akku_sim.sql ausführen.</div>`; return; }
+        throw new Error("Akku-Simulation: " + e.message);
+      }
+    }
+    drawSim();
+  }
+  function drawSim() {
+    const rows = simCache[`${soYear}|${simN}|${simRes}`]; if (!rows) return;
+    const g = agState || { buy: 0.3709, sell: 0.078 }, eur = (v) => `${fmt(v, 0)} €`;
+    let st = null; try { st = localStorage.getItem("wagael_sim_preis"); } catch (e) {}
+    if (document.activeElement !== $("simPreis")) $("simPreis").value = st ?? simPreisStd;
+    const preis = Math.max(0, +$("simPreis").value || 0) * simN;
+    const mon = rows.map(r => ({ m: r.monat - 1, eur: r.geliefert_kwh * g.buy - r.geladen_kwh * g.sell, kwh: +r.geliefert_kwh, tage: r.tage }));
+    const sum = mon.reduce((a, r) => a + r.eur, 0), kwh = mon.reduce((a, r) => a + r.kwh, 0), tage = mon.reduce((a, r) => a + r.tage, 0);
+    const nTage = soDaily.length, proJahr = nTage >= 30 ? sum / nTage * 365 : null, jahre = proJahr > 0 ? preis / proJahr : null;
+    const neu = simKap + 3.2 * simN;
+    const v = jahre == null ? ["bg-base-300", "Zu wenig Daten für eine Aussage"] : jahre <= 10 ? ["bg-success text-success-content", "✓ Lohnt sich – vor Ende der Garantie (10 Jahre) bezahlt"]
+      : jahre <= 15 ? ["bg-warning text-warning-content", "⚠️ Knapp – erst nach der Garantie bezahlt"] : ["bg-error text-error-content", "✗ Lohnt sich eher nicht"];
+    const mx = Math.max(1, ...mon.map(r => Math.abs(r.eur)));
+    $("simBody").innerHTML = `
+      <div class="text-sm opacity-70 mb-2">${fmt(simKap, 1)} → ${fmt(neu, 1)} kWh · nutzbar ${fmt(simKap * (1 - simRes / 100), 1)} → ${fmt(neu * (1 - simRes / 100), 1)} kWh · durchgerechnet mit allen 5-Minuten-Werten ${soYear}${nTage < 360 ? ` (${nTage} Tage)` : ""}</div>
+      <div class="grid grid-cols-1 sm:grid-cols-3 gap-2 mb-3">
+        <div class="ak-m"><div class="text-xs opacity-70">Extra gespart pro Jahr</div><div class="v">${proJahr == null ? "–" : eur(proJahr)}</div><div class="text-xs opacity-60">${fmt(kwh, 0)} kWh weniger gekauft${nTage < 360 ? ` in ${nTage} Tagen` : ""}</div></div>
+        <div class="ak-m"><div class="text-xs opacity-70">Bezahlt nach</div><div class="v">${jahre == null ? "–" : jahre > 40 ? "über 40 Jahren" : fmt(jahre, 1) + " Jahren"}</div><div class="text-xs opacity-60">${eur(preis)} für ${simN} Modul${simN > 1 ? "e" : ""} · Garantie meist 10 Jahre</div></div>
+        <div class="ak-m"><div class="text-xs opacity-70">Hätte geholfen an</div><div class="v">${fmt(tage, 0)} Tagen</div><div class="text-xs opacity-60">Akku war voll – und trotzdem später an der Reserve</div></div>
+      </div>
+      <div class="flex flex-wrap items-center gap-2 mb-2"><span class="so-pill ${v[0]}">${v[1]}</span>${proJahr ? `<span class="text-sm opacity-70">rechnet sich bis ca. ${eur(Math.floor(proJahr * 10 / simN / 10) * 10)} pro Modul</span>` : ""}</div>
+      <div class="text-sm font-semibold mt-1">Extra gespart pro Monat (${soYear})</div>
+      <div class="ag-bars">${mon.map(r => `<div class="ag-b${r.eur < 0 ? " neg" : ""}"${r.kwh === 0 && r.eur === 0 ? ' style="opacity:.35"' : ""}><span>${r.kwh || r.eur ? eur(r.eur) : ""}</span><i style="height:${Math.max(3, Math.abs(r.eur) / mx * 80)}px;${r.kwh || r.eur ? "background:#7F77DD" : "background:currentColor"}"></i><span>${SO_MN[r.m]}</span></div>`).join("")}</div>
+      <div class="text-xs opacity-60 mt-2">So wird gerechnet: Jede 5-Minuten-Messung wird durchgespielt. War der Akku voll (ab 97 %) und wurde Strom verkauft, hätte das Zusatz-Modul geladen. War er an der Reserve und wurde Strom gekauft, hätte es geliefert. Gewinn = gelieferte kWh × ${fmt(g.buy * 100, 1)} ct − geladene kWh × ${fmt(g.sell * 100, 1)} ct, mit 10 % Lade-Verlust. „Pro Jahr“ ist auf 365 Tage hochgerechnet. Im ersten Jahr fehlen Monate, deshalb eher vorsichtig gerechnet.</div>`;
+  }
+  $("simN").addEventListener("click", (e) => { const b = e.target.closest("[data-n]"); if (!b) return; simN = +b.dataset.n;
+    document.querySelectorAll("#simN [data-n]").forEach(x => x.classList.toggle("on", x === b)); loadSim().catch(err => logError("loadSim: " + err.message, "laden")); });
+  $("simPreis").addEventListener("input", () => { try { localStorage.setItem("wagael_sim_preis", $("simPreis").value); } catch (e) {} drawSim(); });
+
   async function loadAkku() {
     const stamm = await rest("hp_stammdaten?select=key,value").catch(() => []);
     const sv = (k, d) => numIn(stamm.find(x => x.key === k)?.value) ?? d;
-    const kap = sv("Akku Kapazität", 12.8), res = sv("Akku Reserve", 20);
+    const kap = sv("Akku Kapazität", 12.8), res = sv("Akku Reserve", 10);
     const now = new Date(), from = new Date(now); from.setHours(0, 0, 0, 0); from.setDate(from.getDate() - 7);
     let rows;
     try {
-      rows = await restAll(`pv_snapshots?select=fox_time,captured_at,soc,bat_charge_kw,bat_discharge_kw,bat_discharge_total_kwh,bat_temp_c,soh,bat_cycles,inv_temp_c&captured_at=gte.${from.toISOString()}&order=captured_at.asc`);
+      rows = await restAll(`pv_snapshots?select=fox_time,captured_at,soc,bat_charge_kw,bat_discharge_kw,bat_charge_total_kwh,bat_discharge_total_kwh,bat_temp_c,soh,bat_cycles,inv_temp_c&captured_at=gte.${from.toISOString()}&order=captured_at.asc`);
     } catch (e) {
       if (/42703|bat_temp_c/.test(e.message)) { $("akPill").textContent = ""; $("akBody").innerHTML = `<div class="empty">Akku-Spalten fehlen noch – 15_akku.sql ausführen.</div>`; return; }
       if (/404|42P01|PGRST205/.test(e.message)) { $("akBody").innerHTML = `<div class="empty">Noch keine PV-Daten.</div>`; return; }
@@ -2483,6 +2917,13 @@
     if (!rows.length) { $("akPill").textContent = ""; $("akBody").innerHTML = `<div class="empty">Noch keine Akku-Werte.</div>`; return; }
     const last = rows[rows.length - 1], lastOf = (k) => { for (let i = rows.length - 1; i >= 0; i--) if (rows[i][k] != null) return rows[i][k]; return null; };
     const temp = lastOf("bat_temp_c"), inv = lastOf("inv_temp_c"), soh = lastOf("soh"), cyc = lastOf("bat_cycles");
+    // für „Was hat der Akku gebracht?“: Gesamt-Zähler des Akkus + Preise + Kaufpreis
+    const pr = (k, d) => { const v = numIn(stamm.find(x => x.key === k)?.value); return v == null ? d : v > 2 ? v / 100 : v; };
+    agState = { ch: lastOf("bat_charge_total_kwh"), dis: lastOf("bat_discharge_total_kwh"), cyc,
+      buy: pr("Strompreis Kauf", 0.3709), sell: pr("Strompreis Verkauf", 0.078), preis: euroIn(stamm.find(x => x.key === "Akku Preis")?.value) };
+    drawAkkuGeld();
+    simKap = kap; simRes = res; simPreisStd = euroIn(stamm.find(x => x.key === "Akku Modul Preis")?.value) ?? 949;
+    loadSim().catch(err => logError("loadSim: " + err.message, "laden"));
     const hm = (d) => d.toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit" });
     const alt = (now - last.t) > 30 * 60000;
 
@@ -2530,15 +2971,16 @@
     const sohU = soh == null ? "kein Wert" : soh >= 95 ? "Akku wie neu" : soh >= 90 ? "leichter Verschleiß, normal" : soh >= 80 ? "deutlicher Verschleiß" : "stark gealtert – Händler fragen";
     const zHeute = heute.dis != null ? heute.dis / kap : null;
     const tag = (d) => d.toLocaleDateString("de-DE", { weekday: "short" }).replace(".", "");
-    const reihe = (x) => x.min == null ? `<div class="ak-row"><span>${tag(x.d)}</span><div class="ak-tr"><div class="ak-rs" style="left:${pc(res)}%"></div></div><span class="opacity-50">keine Daten</span><span></span></div>`
-      : `<div class="ak-row"><span>${tag(x.d)}</span><div class="ak-tr" title="tiefster ${fmt(x.min, 0)} % · höchster ${fmt(x.max, 0)} %"><div class="ak-rg" style="left:${pc(x.min)}%;width:${Math.max(1, pc(x.max) - pc(x.min))}%"></div><div class="ak-rs" style="left:${pc(res)}%"></div></div>
-        <span class="opacity-70">${fmt(x.min, 0)}–${fmt(x.max, 0)} %${x.dis != null ? ` · ${fmt(x.dis / kap, 1)} Z.` : ""}</span><span class="opacity-70 text-right">${x.temp != null ? fmt(x.temp, 0) + " °C" : ""}</span></div>`;
+    const reihe = (x) => x.min == null ? `<div class="ak-row"><span>${tag(x.d)}</span><div class="ak-tr"><div class="ak-rz" style="width:${pc(res)}%"></div></div><span class="opacity-50">keine Daten</span></div>`
+      : `<div class="ak-row"><span>${tag(x.d)}</span><div class="ak-tr" title="tiefster ${fmt(x.min, 0)} % · höchster ${fmt(x.max, 0)} %"><div class="ak-rz" style="width:${pc(res)}%"></div><div class="ak-rg" style="left:${pc(x.min)}%;width:${Math.max(1, pc(x.max) - pc(x.min))}%"></div></div>
+        <span class="opacity-70">${x.min <= res + 2 ? "leer" : fmt(x.min, 0) + " %"} → ${x.max >= 99 ? "voll" : fmt(x.max, 0) + " %"}</span></div>`;
 
     $("akBody").innerHTML = `
       <div class="flex flex-wrap items-baseline gap-x-3 gap-y-1 mb-1"><span style="font-size:1.9rem;font-weight:700;line-height:1">${fmt(last.soc, 0)} %</span>
-        <span class="text-sm opacity-75">${fmt(last.soc / 100 * kap, 1)} kWh drin · ${reicht}${alt ? ` · Stand ${hm(last.t)}` : ""}</span></div>
-      <div class="ak-tr big"><div class="ak-rg" style="left:0;width:${pc(last.soc)}%"></div><div class="ak-rs" style="left:${pc(res)}%"></div></div>
-      <div class="text-xs opacity-60 mt-1 mb-3">Rote Linie = Reserve ${fmt(res, 0)} % (darunter wird Netzstrom gekauft)</div>
+        <span class="text-sm opacity-75">${fmt(nutzbar, 1)} kWh nutzbar · ${reicht}${alt ? ` · Stand ${hm(last.t)}` : ""}</span></div>
+      <div class="ak-tr big"><div class="ak-rz" style="width:${pc(res)}%"></div><div class="ak-rg" style="left:${pc(res)}%;width:${Math.max(0, pc(last.soc) - pc(res))}%"></div></div>
+      <div class="ak-sk"><span style="left:0">Reserve<br>0–${fmt(res, 0)} %</span><span style="left:${pc(res)}%;padding-left:6px;border-left:1px solid currentColor">nutzbar ${fmt(res, 0)}–100 % = ${fmt((100 - res) / 100 * kap, 1)} kWh</span><span style="right:0">100 %</span></div>
+      <div class="text-xs opacity-60 mt-1 mb-3">Grau = Reserve: gibt der Akku nicht her, schützt ihn vor Tiefentladung – ist sie erreicht, kommt der Strom fürs Haus aus dem Netz · Grün = Strom, den das Haus nutzen kann</div>
       <div class="grid grid-cols-2 lg:grid-cols-4 gap-2 mb-4">
         ${kachel("🌡️", "Temperatur", tempTxt, tempU)}
         ${kachel("❤️", "Gesundheit", soh == null ? "–" : fmt(soh, 0) + " %", sohU)}
@@ -2547,7 +2989,7 @@
       </div>
       <div class="text-sm font-semibold mb-1">Letzte 7 Tage · tiefster bis höchster Ladestand</div>
       <div class="space-y-1.5">${week.map(reihe).join("")}</div>
-      <div class="text-xs opacity-60 mt-2">Z. = Zyklen (aus dem Akku entladen ÷ ${fmt(kap, 1)} kWh) · °C = höchste Akku-Temperatur des Tages · „nachts leer“ = zwischen 0 und 9 Uhr an der Reserve · Gesundheit und Gesamt-Zyklen meldet der Akku selbst</div>`;
+      <div class="text-xs opacity-60 mt-2">„leer“ = bis zur Reserve entladen · „voll“ = 100 % erreicht · „nachts leer“ = zwischen 0 und 9 Uhr an der Reserve · Gesundheit und Gesamt-Zyklen meldet der Akku selbst</div>`;
   }
 
   // ---------- PV: Strom im Haus – woher, wohin (FoxESS) ----------
@@ -2680,10 +3122,12 @@
 
   // ---------- Alarme (Soll-Zustand, Push über ntfy) ----------
   async function restWrite(method, path, body, prefer = "") {
-    const headers = { apikey: SUPABASE_KEY, "Content-Type": "application/json" };
-    if (accessToken) headers.Authorization = `Bearer ${accessToken}`;
-    if (prefer) headers.Prefer = prefer;
-    const r = await fetch(`${SUPABASE_URL}/rest/v1/${path}`, { method, headers, body: body == null ? undefined : JSON.stringify(body) });
+    const go = () => { const headers = { apikey: SUPABASE_KEY, "Content-Type": "application/json" };
+      if (accessToken) headers.Authorization = `Bearer ${accessToken}`;
+      if (prefer) headers.Prefer = prefer;
+      return fetch(`${SUPABASE_URL}/rest/v1/${path}`, { method, headers, body: body == null ? undefined : JSON.stringify(body) }); };
+    let r = await go();
+    if (r.status === 401 && await frischesToken(true)) r = await go();
     if (!r.ok) throw new Error(`${r.status} ${await r.text()}`);
     const t = await r.text(); try { return JSON.parse(t); } catch (e) { return t; }
   }
@@ -2939,7 +3383,7 @@
       stateTile("📥", "Laden", `${cnt("laden")}`, "Bereich ohne Daten", cnt("laden") ? "warn" : "ok"),
       stateTile("⏱️", "Automatik", `${cnt("automatik")}`, "SmartThings-Abfrage", cnt("automatik") ? "warn" : "ok"),
     ].join("");
-    const SRC = { seite: "🖥️ Seite", laden: "📥 Laden", automatik: "⏱️ Automatik", pv: "☀️ PV (FoxESS)" };
+    const SRC = { seite: "🖥️ Seite", laden: "📥 Laden", automatik: "⏱️ Automatik", pv: "☀️ PV (FoxESS)", miele: "🧺 Miele" };
     $("erRows").innerHTML = erGroups.length ? erGroups.map(x => `<tr><td class="whitespace-nowrap">${SRC[x.source] || x.source}</td><td class="text-xs break-all">${x.message.replace(/</g, "&lt;")}${x.tabs.size ? `<br><span class="opacity-60">Reiter: ${[...x.tabs].join(", ")}</span>` : ""}</td>
       <td class="text-right tabular-nums">${x.n}×</td><td class="whitespace-nowrap">${dt(x.first)}</td><td class="whitespace-nowrap">${dt(x.last)}</td><td class="text-xs">${[...x.dev].join(", ") || "–"}<br><span class="opacity-60">${[...x.ver].join(", ")}</span></td></tr>`).join("")
       : `<tr><td colspan="6" class="empty">✅ Keine Fehler im gewählten Zeitraum.</td></tr>`;
@@ -3171,11 +3615,16 @@
   async function loadData() {
     applyPalette();
     // frische Anmeldung holen (nach Ruhezustand ist das alte Login-Token sonst abgelaufen → „JWT expired“)
-    try { const { data } = await sb.auth.getSession(); if (data?.session?.access_token) accessToken = data.session.access_token; } catch (e) {}
-    const L = { loadTiles, loadEnergy, loadHistory, loadAuto, loadDiagnose, loadMonth, loadCurve, loadBench, loadAnlage, loadState, loadKlima, loadDay, loadAlarms, loadCop, loadLive, loadErrors, loadModeCmp, loadOpt, loadSolar, loadAkku };
-    const names = Object.keys(L), res = await Promise.allSettled(names.map(n => L[n]()));
-    const bad = res.map((r, i) => r.status === "rejected" ? `${names[i]}: ${r.reason?.message || r.reason}` : null).filter(Boolean);
+    await frischesToken(false);
+    const L = { loadTiles, loadEnergy, loadHistory, loadAuto, loadDiagnose, loadMonth, loadCurve, loadBench, loadAnlage, loadState, loadKlima, loadDay, loadAlarms, loadCop, loadLive, loadErrors, loadModeCmp, loadOpt, loadSolar, loadAkku, loadMiele, loadModule };
+    await loadAnzeige();
+    const skip = new Set(Object.entries(AN_SKIP).filter(([t]) => anOff.has(t)).flatMap(([, f]) => f));
+    const names = Object.keys(L).filter(n => !skip.has(n)), res = await Promise.allSettled(names.map(n => L[n]()));
+    const alle = res.map((r, i) => r.status === "rejected" ? `${names[i]}: ${r.reason?.message || r.reason}` : null).filter(Boolean);
+    // abgelaufene Anmeldung ist kein Fehler der Seite → nicht ins Protokoll (sonst eine Push-Nachricht pro Bereich)
+    const jwt = alle.filter(m => /JWT expired|PGRST303|PGRST301/.test(m)), bad = alle.filter(m => !jwt.includes(m));
     bad.forEach(m => logError(m, "laden"));
+    if (jwt.length && !bad.length) { setMsg("Anmeldung abgelaufen – Seite neu laden oder neu anmelden.", "warn"); erFlush(); return; }
     setMsg(bad.length ? `Daten konnten nicht vollständig geladen werden (${bad.length} Bereich${bad.length > 1 ? "e" : ""}): ${bad[0]}` : "", bad.length ? "err" : "");
     erFlush();
   }
@@ -3250,6 +3699,68 @@
   setInterval(() => { if (loggedIn) loadData(); }, 5 * 60 * 1000);
   document.addEventListener("visibilitychange", () => { if (loggedIn && document.visibilityState === "visible") loadData(); });
 
+  // ---------- Anzeige anpassen: Reiter und Karten ein-/ausblenden (Tabelle wagael_settings, 17_anzeige.sql) ----------
+  // Schlüssel: Reiter-Name (z. B. "solar") oder "reiter|id" – id = ein festes Element in der Karte, die Karte ist dessen .card.
+  const AN_FIX = ["overview", "plant"];
+  const AN_CARDS = {
+    overview: [["lvPlay", "Anlage live"], ["stateAge", "Zustand auf einen Blick"], ["mlBody", "Waschmaschine & Trockner"], ["auto", "Token & Automatik"], ["tiles", "Letzte Erfassung"], ["price", "Monat & Hochrechnung"], ["benchToday", "Richtwert-Check"]],
+    history: [["cTemp", "Temperaturen"], ["cPower", "Elektrische Leistung"], ["cCycleTemp", "Vorlauf, Rücklauf & Außen"], ["hzSummary", "Verdichter: Läufe & Starts"], ["dhw", "Warmwasser-Ladungen"], ["energy", "Verbrauch je Gerät"]],
+    day: [["tLegend", "Zeitleiste"], ["pvSum", "Strom im Haus – woher, wohin"], ["hSum", "Wohin ging der Strom – und wann?"], ["tEvents", "Ereignisse"], ["zSum", "Speicher-Zyklen"]],
+    solar: [["soYearLine", "⚡ Jahr & Monate"], ["soBlkSum", "⚡ Wann wurde Strom gekauft?"], ["soMonthTitle", "⚡ Tage im Monat"], ["akInfo", "🔋 Akku: Zustand"], ["agBody", "🔋 Was hat der Akku gebracht?"], ["simN", "🔋 Lohnt sich ein größerer Akku?"], ["dmSvg", "☀️ Dach: volle Sonne?"], ["rvSvg", "🔍 Reihe 1 gegen Reihe 2"], ["skSvg", "🔍 Schattenkarte"], ["rmRows", "🔍 Pro Monat"]],
+    klima: [["cHalleT", "Temperatur Halle"], ["cHalleH", "Luftfeuchte Halle"]],
+    diagnose: [["diag", "Diagnose – letzte 7 Tage"], ["cCurve", "Heizkurven-Check"], ["copRows", "Effizienz je Tag"], ["mcDays", "Warmwasser: ECO gegen STD"], ["fcSearch", "Fehlercode nachschlagen"]],
+    config: [["goals", "Was muss ich wo einstellen?"], ["curveText", "Heizkurve – einfach erklärt"]],
+    plant: [["stamm", "Stammdaten"], ["ist", "IST-Einstellungen"], ["slog", "Änderungsprotokoll"], ["fsvTable", "Alle Einstellwerte (FSV)"], ["erDays", "Fehlerprotokoll"], ["alTest", "Alarme"]],
+  };
+  const AN_SKIP = { solar: ["loadSolar", "loadAkku", "loadModule"], klima: ["loadKlima"], opt: ["loadOpt"] };
+  let anOff = new Set(), anLoaded = false, anOpen = new Set(), anDb = true;
+  try { anOff = new Set(JSON.parse(localStorage.getItem("wagael_anzeige") || "[]")); } catch (e) {}
+  const anTabName = (t) => document.querySelector(`#tabs .tab[data-tab="${t}"]`)?.textContent.trim() || t;
+  function anApply() {
+    document.querySelectorAll("#tabs .tab").forEach(t => t.classList.toggle("cfg-off", anOff.has(t.dataset.tab) && !AN_FIX.includes(t.dataset.tab)));
+    Object.entries(AN_CARDS).forEach(([tab, list]) => list.forEach(([id]) => { const c = $(id)?.closest(".card"); if (c) c.classList.toggle("cfg-off", anOff.has(`${tab}|${id}`)); }));
+    const cur = document.querySelector("#tabs .tab-active")?.dataset.tab;
+    if (cur && anOff.has(cur) && !AN_FIX.includes(cur)) showTab("overview");
+  }
+  async function loadAnzeige() {
+    if (anLoaded) return;
+    try { const r = await rest("wagael_settings?select=value&key=eq.anzeige_aus"); if (r[0]?.value) anOff = new Set(r[0].value); anLoaded = true; anDb = true; }
+    catch (e) { anDb = false; anLoaded = true; }
+    try { localStorage.setItem("wagael_anzeige", JSON.stringify([...anOff])); } catch (e) {}
+    anApply();
+  }
+  async function anSave() {
+    const list = [...anOff];
+    try { localStorage.setItem("wagael_anzeige", JSON.stringify(list)); } catch (e) {}
+    anApply(); anDraw();
+    if (!anDb) { $("anMsg").textContent = "Nur auf diesem Gerät gespeichert – für alle Geräte 17_anzeige.sql ausführen."; return; }
+    try { await restWrite("POST", "wagael_settings?on_conflict=key", { key: "anzeige_aus", value: list, updated_at: new Date().toISOString() }, "resolution=merge-duplicates,return=minimal"); $("anMsg").textContent = ""; }
+    catch (e) { anDb = !/404|42P01|PGRST205/.test(e.message); $("anMsg").textContent = anDb ? "Speichern fehlgeschlagen: " + e.message : "Nur auf diesem Gerät gespeichert – für alle Geräte 17_anzeige.sql ausführen."; if (anDb) logError("Anzeige speichern: " + e.message, "seite"); }
+  }
+  function anDraw() {
+    const tabs = [...document.querySelectorAll("#tabs .tab")].map(t => t.dataset.tab);
+    $("anList").innerHTML = tabs.map(tab => {
+      const on = !anOff.has(tab) || AN_FIX.includes(tab), cards = AN_CARDS[tab] || [], open = anOpen.has(tab) && on;
+      const nOn = cards.filter(([id]) => !anOff.has(`${tab}|${id}`)).length;
+      return `<div class="an-r${on ? "" : " off"}">${cards.length ? `<button class="an-chev" data-o="${tab}" aria-label="Karten zeigen">${open ? "▾" : "▸"}</button>` : `<span style="width:1.25rem"></span>`}
+          <span class="n">${anTabName(tab)}${cards.length ? ` <span class="text-xs opacity-60">${nOn}/${cards.length} Karten</span>` : ""}</span>
+          ${AN_FIX.includes(tab) ? `<span class="text-xs opacity-60">immer sichtbar</span>` : `<button class="an-sw${on ? " on" : ""}" data-k="${tab}" aria-label="${anTabName(tab)} ein/aus"></button>`}</div>
+        ${open ? `<div class="an-sub">${cards.map(([id, n]) => { const k = `${tab}|${id}`, o = !anOff.has(k); return `<div class="an-r${o ? "" : " off"}"><span class="n">${n}</span><button class="an-sw${o ? " on" : ""}" data-k="${k}" aria-label="${n} ein/aus"></button></div>`; }).join("")}</div>` : ""}`;
+    }).join("");
+    $("anCnt").textContent = anOff.size ? `${anOff.size} ausgeblendet` : "alles sichtbar";
+  }
+  $("anBtn").addEventListener("click", () => { anDraw(); $("anMsg").textContent = anDb ? "" : "Nur auf diesem Gerät gespeichert – für alle Geräte 17_anzeige.sql ausführen."; $("anDlg").showModal(); });
+  $("anList").addEventListener("click", (e) => {
+    const sw = e.target.closest("[data-k]"), ch = e.target.closest("[data-o]");
+    if (ch) { const k = ch.dataset.o; anOpen.has(k) ? anOpen.delete(k) : anOpen.add(k); anDraw(); return; }
+    if (!sw) return;
+    const k = sw.dataset.k, warAus = anOff.has(k);
+    warAus ? anOff.delete(k) : anOff.add(k);
+    anSave();
+    if (warAus && AN_SKIP[k] && loggedIn) loadData();   // Reiter wieder an → Daten nachladen
+  });
+  $("anReset").addEventListener("click", () => { const war = [...anOff]; anOff.clear(); anSave(); if (war.some(k => AN_SKIP[k]) && loggedIn) loadData(); });
+
   // ---------- Reiter ----------
   function showTab(name) {
     document.querySelectorAll("#tabs .tab").forEach(t => t.classList.toggle("tab-active", t.dataset.tab === name));
@@ -3262,7 +3773,8 @@
   document.querySelectorAll("#tabs .tab").forEach(t => t.addEventListener("click", () => showTab(t.dataset.tab)));
   let startTab = location.hash.slice(1);
   try { startTab = startTab || localStorage.getItem("wagael_tab"); } catch (e) {}
-  showTab(["overview", "history", "day", "solar", "klima", "opt", "diagnose", "config", "plant"].includes(startTab) ? startTab : "overview");
+  showTab(["overview", "history", "day", "solar", "klima", "opt", "diagnose", "config", "plant"].includes(startTab) && !anOff.has(startTab) ? startTab : "overview");
+  anApply();
 
   // ---------- Design (daisyUI-Themes) ----------
   const THEMES = [["night", "Night"], ["dim", "Dim"], ["business", "Business"], ["dracula", "Dracula"], ["sunset", "Sunset"],
