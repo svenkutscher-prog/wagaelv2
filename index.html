@@ -481,7 +481,7 @@
     <div id="dmBox" class="rounded-box p-3 text-sm"></div>
     <div id="dmSum" class="text-sm"></div>
   </div></div>
-  <details id="rvDetails" class="collapse collapse-arrow bg-base-200">
+  <details id="rvDetails" class="collapse collapse-arrow bg-base-200 hidden">
   <summary class="collapse-title text-sm font-medium">Details für Technik-Interessierte: Schattenkarte, Monatstabelle</summary>
   <div class="collapse-content space-y-4">
   <div class="card bg-base-100"><div class="card-body p-4 gap-3">
@@ -748,7 +748,7 @@
   function setMsg(text, cls = "") { $("msg").className = cls; $("msg").textContent = text; }
 
   // ---------- Fehlerprotokoll: jeden Fehler nach Supabase (wagael_errors) ----------
-  const APP_VERSION = "2026-11-21k";
+  const APP_VERSION = "2026-11-21l";
   const erQueue = [], erSent = {};
   const erDevice = () => { const u = navigator.userAgent; const d = /iPad|Macintosh.*Mobile|Macintosh(?=.*Safari)(?!.*Chrome)/.test(u) && navigator.maxTouchPoints > 1 ? "iPad" : /iPhone/.test(u) ? "iPhone" : /Macintosh/.test(u) ? "Mac" : /Android/.test(u) ? "Android" : "anderes";
     return `${d} · ${/Edg\//.test(u) ? "Edge" : /Chrome\//.test(u) ? "Chrome" : /Firefox\//.test(u) ? "Firefox" : /Safari\//.test(u) ? "Safari" : "Browser"} · ${innerWidth}px`; };
@@ -3068,7 +3068,7 @@
   let skGeladen = false;
   let skZeit = "den letzten 12 Monaten";
   function skWarten() {
-    $("dmCtl").classList.add("hidden"); $("dmSvg").classList.add("hidden"); $("dmSvg").innerHTML = "";
+    $("dmCtl").classList.add("hidden"); $("dmSvg").classList.add("hidden"); $("dmSvg").innerHTML = ""; $("rvDetails").classList.add("hidden");
     $("dmSub").textContent = "22 Module in 2 Reihen";
     const mod = (y, c) => Array.from({ length: 10 }, (_, i) => `<rect x="${4 + i * 11}" y="${y}" width="9" height="16" rx="1" fill="${c(i)}"/>`).join("");
     const vor = (svg, t, d) => `<div class="rounded-box bg-base-100 p-3"><svg viewBox="0 0 120 50" class="w-full" style="height:50px" aria-hidden="true">${svg}</svg><div class="text-sm font-semibold mt-1">${t}</div><div class="text-xs opacity-70">${d}</div></div>`;
@@ -3148,7 +3148,7 @@
       catch (e2) { if (!/404|PGRST202|42883/.test(e2.message)) throw e2; bins = await restAll(`rpc/pv_reihen_bins?p_year=${soYear}`); bins.forEach(b => { b.von = `${soYear}-01-01`; b.bis = `${soYear}-12-01`; }); }
       const MN = (d) => new Date(d).toLocaleDateString("de-DE", { month: "short", year: "numeric" });
       skZeit = bins.length && bins[0].von ? `${MN(bins[0].von)} – ${MN(bins[0].bis)}` : "den letzten 12 Monaten";
-      $("dmCtl").classList.remove("hidden"); $("dmSvg").classList.remove("hidden");
+      $("dmCtl").classList.remove("hidden"); $("dmSvg").classList.remove("hidden"); $("rvDetails").classList.remove("hidden");
       $("dmSub").textContent = `22 Module in 2 Reihen · Monat und Uhrzeit wählen · Messungen ${skZeit}${bins[0]?.stand ? ` · berechnet ${new Date(bins[0].stand).toLocaleString("de-DE", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" })}` : ""}`;
     }
     catch (e) { if (/404|PGRST202|42883|42703/.test(e.message)) { $("skText").textContent = "Auswertung fehlt noch – 21_pv_reihen_auswertung.sql ausführen."; $("rmRows").innerHTML = `<tr><td colspan="6" class="opacity-60">–</td></tr>`; return; } throw new Error("Schattenkarte: " + e.message); }
