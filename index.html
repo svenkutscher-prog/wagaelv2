@@ -472,33 +472,24 @@
   </div>
   <div data-subpanel="module" class="space-y-4 lg:space-y-6 hidden">
   <div class="card bg-base-200"><div class="card-body p-4 gap-3">
-    <div class="ctitle" style="opacity:1"><span class="font-semibold">☀️ Bekommt dein Dach volle Sonne?</span><span class="opacity-60">22 Module in 2 Reihen · Monat und Uhrzeit wählen – Schatten aus deinen Messungen</span></div>
-    <div class="flex flex-wrap items-center gap-3">
+    <div class="ctitle" style="opacity:1"><span class="font-semibold">☀️ Bekommt dein Dach volle Sonne?</span><span id="dmSub" class="opacity-60">22 Module in 2 Reihen</span></div>
+    <div id="dmCtl" class="flex flex-wrap items-center gap-3 hidden">
       <div id="dmMon" class="flex flex-wrap gap-1"></div>
       <label class="text-sm flex items-center gap-2 grow" style="min-width:220px">Uhrzeit <input id="dmZeit" type="range" min="7" max="19" step="0.25" value="14.5" class="range range-xs grow"> <b id="dmZt" class="tabular-nums w-12">14:30</b></label>
     </div>
-    <svg id="dmSvg" class="w-full block max-w-3xl mx-auto" viewBox="0 0 680 320" role="img" aria-label="Dach mit Sonne und Schatten"></svg>
+    <svg id="dmSvg" class="w-full block max-w-3xl mx-auto hidden" viewBox="0 0 680 320" role="img" aria-label="Dach mit Sonne und Schatten"></svg>
     <div id="dmBox" class="rounded-box p-3 text-sm"></div>
     <div id="dmSum" class="text-sm"></div>
   </div></div>
-  <details class="collapse collapse-arrow bg-base-200">
-  <summary class="collapse-title text-sm font-medium">Details für Technik-Interessierte: Tageskurven, Schattenkarte, Monatstabelle</summary>
+  <details id="rvDetails" class="collapse collapse-arrow bg-base-200">
+  <summary class="collapse-title text-sm font-medium">Details für Technik-Interessierte: Schattenkarte, Monatstabelle</summary>
   <div class="collapse-content space-y-4">
-  <div class="card bg-base-100"><div class="card-body p-4 gap-3">
-    <div class="flex flex-wrap items-center justify-between gap-2">
-      <div class="ctitle" style="opacity:1"><span class="font-semibold">🔍 Reihe 1 gegen Reihe 2</span><span class="opacity-60">beide Modulreihen (je 11 Module) zeigen in dieselbe Richtung – sie sollten gleich viel liefern</span></div>
-      <div class="flex items-center gap-2"><button id="rvPrev" class="btn btn-xs" aria-label="Tag zurück">‹</button><span id="rvDay" class="text-sm tabular-nums"></span><button id="rvNext" class="btn btn-xs" aria-label="Tag vor">›</button></div>
-    </div>
-    <div><span id="rvPill" class="so-pill"></span></div>
-    <svg id="rvSvg" class="w-full block" viewBox="0 0 680 190" role="img" aria-label="Leistung Reihe 1 und Reihe 2 über den Tag"></svg>
-    <div class="flex flex-wrap gap-4 text-xs opacity-70"><span><span style="display:inline-block;width:14px;height:3px;background:#1D9E75;vertical-align:middle"></span> Reihe 1</span><span><span style="display:inline-block;width:14px;height:3px;background:#7F77DD;vertical-align:middle"></span> Reihe 2</span><span><span style="display:inline-block;width:14px;height:8px;background:rgba(226,75,74,.3);vertical-align:middle"></span> Reihe 2 liefert weniger (Schatten?)</span></div>
-  </div></div>
   <div class="card bg-base-100"><div class="card-body p-4 gap-3">
     <div class="flex flex-wrap items-center justify-between gap-2">
       <div class="ctitle" style="opacity:1"><span class="font-semibold">🗺️ Schattenkarte · Reihe 2</span><span class="opacity-60">jeder Punkt = Sonnenstand (15 Min. einer Woche) · Farbe = Reihe 2 im Vergleich zu Reihe 1</span></div>
       <span id="skPill" class="so-pill"></span>
     </div>
-    <svg id="skSvg" class="w-full block" viewBox="0 0 680 310" role="img" aria-label="Schattenkarte mit Sonnenbahnen"></svg>
+    <svg id="skSvg" class="w-full block max-w-3xl mx-auto" viewBox="0 0 680 310" role="img" aria-label="Schattenkarte mit Sonnenbahnen"></svg>
     <div class="flex flex-wrap gap-4 text-xs opacity-70"><span><span style="display:inline-block;width:9px;height:9px;border-radius:50%;background:#1D9E75;vertical-align:middle"></span> gleich (ab 95 %)</span><span><span style="display:inline-block;width:9px;height:9px;border-radius:50%;background:#EF9F27;vertical-align:middle"></span> etwas weniger (85–95 %)</span><span><span style="display:inline-block;width:9px;height:9px;border-radius:50%;background:#E24B4A;vertical-align:middle"></span> deutlich weniger (unter 85 %)</span><span><span style="display:inline-block;width:14px;height:2px;background:#EF9F27;vertical-align:middle"></span> Sonnenbahn</span></div>
     <div id="skText" class="text-sm"></div>
   </div></div>
@@ -757,7 +748,7 @@
   function setMsg(text, cls = "") { $("msg").className = cls; $("msg").textContent = text; }
 
   // ---------- Fehlerprotokoll: jeden Fehler nach Supabase (wagael_errors) ----------
-  const APP_VERSION = "2026-11-21h";
+  const APP_VERSION = "2026-11-21k";
   const erQueue = [], erSent = {};
   const erDevice = () => { const u = navigator.userAgent; const d = /iPad|Macintosh.*Mobile|Macintosh(?=.*Safari)(?!.*Chrome)/.test(u) && navigator.maxTouchPoints > 1 ? "iPad" : /iPhone/.test(u) ? "iPhone" : /Macintosh/.test(u) ? "Mac" : /Android/.test(u) ? "Android" : "anderes";
     return `${d} · ${/Edg\//.test(u) ? "Edge" : /Chrome\//.test(u) ? "Chrome" : /Firefox\//.test(u) ? "Firefox" : /Safari\//.test(u) ? "Safari" : "Browser"} · ${innerWidth}px`; };
@@ -3072,58 +3063,40 @@
     return { az: (az + 360) % 360, el: el / R };
   }
   const himmel = (a) => ["Norden", "Nordosten", "Osten", "Südosten", "Süden", "Südwesten", "Westen", "Nordwesten"][Math.round(a / 45) % 8];
-  let rvDate = null;
+
   // Dach, Schattenkarte und Monatsübersicht rechnen über das ganze Jahr → nur auf Knopfdruck laden
   let skGeladen = false;
+  let skZeit = "den letzten 12 Monaten";
   function skWarten() {
-    const btn = `<button class="btn btn-sm btn-primary" data-sk-load="1">☀️ Auswertung laden</button>`;
-    $("dmSvg").innerHTML = "";
-    $("dmBox").innerHTML = `<div class="flex flex-wrap items-center gap-3">${btn}<span class="opacity-70">Dach, Schattenkarte und Monatsübersicht werden aus allen Messungen des Jahres berechnet – nur bei Bedarf laden.</span></div>`;
+    $("dmCtl").classList.add("hidden"); $("dmSvg").classList.add("hidden"); $("dmSvg").innerHTML = "";
+    $("dmSub").textContent = "22 Module in 2 Reihen";
+    const mod = (y, c) => Array.from({ length: 10 }, (_, i) => `<rect x="${4 + i * 11}" y="${y}" width="9" height="16" rx="1" fill="${c(i)}"/>`).join("");
+    const vor = (svg, t, d) => `<div class="rounded-box bg-base-100 p-3"><svg viewBox="0 0 120 50" class="w-full" style="height:50px" aria-hidden="true">${svg}</svg><div class="text-sm font-semibold mt-1">${t}</div><div class="text-xs opacity-70">${d}</div></div>`;
+    const dach = mod(6, () => "#1D9E75") + mod(27, (i) => i < 6 ? "#1D9E75" : i < 8 ? "#EF9F27" : "#E24B4A");
+    const karte = `<path d="M5 45 Q60 -5 115 45" fill="none" stroke="currentColor" stroke-opacity=".25"/><path d="M15 45 Q60 12 105 45" fill="none" stroke="currentColor" stroke-opacity=".25"/>`
+      + [[25, 27, "#1D9E75"], [38, 18, "#1D9E75"], [52, 14, "#1D9E75"], [64, 14, "#1D9E75"], [30, 33, "#1D9E75"], [45, 25, "#1D9E75"], [76, 18, "#EF9F27"], [72, 27, "#EF9F27"], [88, 25, "#E24B4A"], [84, 33, "#E24B4A"], [98, 37, "#E24B4A"]].map(([x, y, c]) => `<circle cx="${x}" cy="${y}" r="3" fill="${c}"/>`).join("");
+    const balken = [15, 23, 33, 37, 35, 25, 17].map((h, i) => `<rect x="${6 + i * 15}" y="${45 - h}" width="10" height="${h}" rx="1" fill="#7F77DD"/>`).join("");
+    $("dmBox").innerHTML = `<div class="text-sm opacity-80 mb-3">Deine 22 Module hängen in zwei Reihen. WAGAEL vergleicht die Messungen der letzten 12 Monate und findet heraus, wann und wo Schatten Strom kostet.</div>
+      <div class="grid gap-3 mb-4" style="grid-template-columns:repeat(auto-fit,minmax(11rem,1fr))">
+        ${vor(dach, "Dein Dach", "Monat und Uhrzeit wählen – sieh, wann Reihe 2 im Schatten liegt")}
+        ${vor(karte, "Schattenkarte", "Bei welchem Sonnenstand entsteht Schatten – rot = Verlust")}
+        ${vor(balken, "Verlust pro Monat", "Wie viel kWh und Euro der Schatten im Jahr kostet")}
+      </div>
+      <div class="flex flex-wrap items-center gap-3"><button class="btn btn-primary" data-sk-load="1">▶ Start Analyse</button><span id="skStand" class="text-xs opacity-60">dauert ein paar Sekunden · letzte 12 Monate</span></div>`;
     $("dmSum").innerHTML = ""; $("skSvg").innerHTML = ""; $("skPill").textContent = ""; $("skPill").className = "so-pill";
-    $("skText").innerHTML = `<div class="flex flex-wrap items-center gap-3">${btn}<span class="opacity-70">noch nicht geladen</span></div>`;
-    $("rmRows").innerHTML = `<tr><td colspan="6" class="opacity-60">noch nicht geladen – oben „Auswertung laden“</td></tr>`;
+    $("skText").innerHTML = `<span class="opacity-70">Wird mit „▶ Start Analyse“ oben geladen.</span>`;
+    $("rmRows").innerHTML = `<tr><td colspan="6" class="opacity-60">Wird mit „▶ Start Analyse“ oben geladen.</td></tr>`;
+    rest("wagael_settings?select=value&key=eq.pv_bins_stand").then(([x]) => { if (x?.value && $("skStand")) $("skStand").textContent = `dauert ein paar Sekunden · letzte 12 Monate · zuletzt berechnet ${new Date(x.value).toLocaleString("de-DE", { weekday: "short", hour: "2-digit", minute: "2-digit" })}`; }).catch(() => {});
   }
   document.addEventListener("click", (e) => {
     if (!e.target.closest("[data-sk-load]")) return;
     skGeladen = true;
-    $("dmBox").innerHTML = `<span class="opacity-70">Lade Auswertung …</span>`; $("skText").innerHTML = `<span class="opacity-70">Lade …</span>`;
+    $("dmBox").innerHTML = `<span class="loading loading-dots loading-sm"></span> <span class="opacity-70">Analyse läuft …</span>`; $("skText").innerHTML = `<span class="opacity-70">Lade …</span>`;
     loadSchatten().catch(err => { logError("loadModule: Schattenkarte: " + err.message, "laden"); $("dmBox").innerHTML = `<span class="text-error">Konnte nicht geladen werden – später nochmal versuchen.</span>`; });
   });
   async function loadModule() {
-    if (!rvDate) { rvDate = new Date(); rvDate.setHours(0, 0, 0, 0); }
     if (!skGeladen) skWarten();
-    await Promise.all([loadReihenTag(), skGeladen ? loadSchatten() : null]);
-  }
-  async function loadReihenTag() {
-    const a = new Date(rvDate), b = new Date(a); b.setDate(b.getDate() + 1);
-    $("rvDay").textContent = a.toLocaleDateString("de-DE", { weekday: "short", day: "2-digit", month: "2-digit", year: "numeric" });
-    let rows;
-    try { rows = await restAll(`pv_snapshots?select=fox_time,pv1_kw,pv2_kw&fox_time=gte.${a.toISOString()}&fox_time=lt.${b.toISOString()}&order=fox_time.asc`); }
-    catch (e) { if (/42703|pv1_kw/.test(e.message)) { $("rvPill").textContent = "Spalten fehlen – 20_pv_reihen.sql ausführen"; return; } throw new Error("Reihen: " + e.message); }
-    const p = rows.filter(r => r.pv1_kw != null && r.pv2_kw != null).map(r => ({ t: new Date(r.fox_time), h: 0, a: +r.pv1_kw, b: +r.pv2_kw }));
-    p.forEach(r => { r.h = r.t.getHours() + r.t.getMinutes() / 60; });
-    const W = 680, H0 = 155, X = (h) => 50 + (h - 6) / 15 * (W - 70);
-    const mx = Math.max(0.5, ...p.map(r => Math.max(r.a, r.b))) * 1.1, Y = (v) => H0 - v / mx * 135;
-    let g = "";
-    for (let h = 6; h <= 21; h += 3) g += `<line x1="${X(h)}" x2="${X(h)}" y1="15" y2="${H0}" stroke="currentColor" stroke-opacity=".1"/><text x="${X(h)}" y="${H0 + 18}" text-anchor="middle" font-size="12" fill="currentColor" fill-opacity=".6">${h}:00</text>`;
-    g += `<line x1="50" x2="${W - 20}" y1="${H0}" y2="${H0}" stroke="currentColor" stroke-opacity=".25"/><text x="44" y="${Y(mx / 1.1) + 4}" text-anchor="end" font-size="12" fill="currentColor" fill-opacity=".6">${fmt(mx / 1.1, 1)} kW</text>`;
-    if (p.length < 3) { $("rvSvg").innerHTML = g + `<text x="${W / 2}" y="85" text-anchor="middle" font-size="14" fill="currentColor" fill-opacity=".6">Für diesen Tag keine Reihen-Werte</text>`; $("rvPill").className = "so-pill"; $("rvPill").textContent = ""; return; }
-    // Fläche, wo Reihe 2 deutlich weniger liefert
-    let seg = [];
-    const flush = () => { if (seg.length > 1) g += `<polygon points="${seg.map(r => `${X(r.h).toFixed(1)},${Y(r.a).toFixed(1)}`).concat(seg.slice().reverse().map(r => `${X(r.h).toFixed(1)},${Y(r.b).toFixed(1)}`)).join(" ")}" fill="rgba(226,75,74,.3)"/>`; seg = []; };
-    p.forEach(r => { if (r.a >= 0.1 && r.b < r.a * 0.93) seg.push(r); else flush(); }); flush();
-    const path = (k) => p.map((r, i) => `${i ? "L" : "M"}${X(r.h).toFixed(1)} ${Y(r[k]).toFixed(1)}`).join(" ");
-    g += `<path d="${path("a")}" fill="none" stroke="#1D9E75" stroke-width="2"/><path d="${path("b")}" fill="none" stroke="#7F77DD" stroke-width="2" stroke-dasharray="5 3"/>`;
-    $("rvSvg").innerHTML = g;
-    const sum = (f) => p.filter(f).reduce((s, r) => [s[0] + r.a, s[1] + r.b], [0, 0]);
-    const vm = sum(r => r.h < 12 && r.a >= 0.1), nm = sum(r => r.h >= 12 && r.a >= 0.1);
-    const rv = vm[0] > 0.5 ? vm[1] / vm[0] : null, rn = nm[0] > 0.5 ? nm[1] / nm[0] : null;
-    const ab = p.find(r => r.h >= 11 && r.a >= 0.2 && r.b < r.a * 0.9);
-    const verlust = p.reduce((s, r) => s + (r.a >= 0.1 && r.b < r.a * 0.95 ? (r.a - r.b) * 5 / 60 : 0), 0);
-    const pill = $("rvPill");
-    if (rn != null && (rn < 0.9 || (rv != null && rn < rv - 0.07))) { pill.className = "so-pill bg-warning text-warning-content"; pill.textContent = `nachmittags Reihe 2 −${Math.round((1 - rn) * 100)} %${ab ? ` ab ca. ${ab.t.toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit" })}` : ""} · ca. ${fmt(verlust, 1)} kWh weniger`; }
-    else if (rv == null && rn == null) { pill.className = "so-pill"; pill.textContent = "zu wenig Sonne für einen Vergleich"; }
-    else { pill.className = "so-pill bg-success text-success-content"; pill.textContent = "✓ beide Reihen liefern gleich viel"; }
+    if (skGeladen) await loadSchatten();
   }
   // ---------- Module: Dach mit 22 Modulen, Sonne und Schatten (aus pv_reihen_bins) ----------
   let dmBins = [], dmMon = new Date().getMonth() + 1;
@@ -3170,7 +3143,14 @@
 
   async function loadSchatten() {
     let bins;
-    try { bins = await restAll(`rpc/pv_reihen_bins?p_year=${soYear}`); }
+    try {
+      try { bins = await restAll(`rpc/pv_reihen_bins12`); }
+      catch (e2) { if (!/404|PGRST202|42883/.test(e2.message)) throw e2; bins = await restAll(`rpc/pv_reihen_bins?p_year=${soYear}`); bins.forEach(b => { b.von = `${soYear}-01-01`; b.bis = `${soYear}-12-01`; }); }
+      const MN = (d) => new Date(d).toLocaleDateString("de-DE", { month: "short", year: "numeric" });
+      skZeit = bins.length && bins[0].von ? `${MN(bins[0].von)} – ${MN(bins[0].bis)}` : "den letzten 12 Monaten";
+      $("dmCtl").classList.remove("hidden"); $("dmSvg").classList.remove("hidden");
+      $("dmSub").textContent = `22 Module in 2 Reihen · Monat und Uhrzeit wählen · Messungen ${skZeit}${bins[0]?.stand ? ` · berechnet ${new Date(bins[0].stand).toLocaleString("de-DE", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" })}` : ""}`;
+    }
     catch (e) { if (/404|PGRST202|42883|42703/.test(e.message)) { $("skText").textContent = "Auswertung fehlt noch – 21_pv_reihen_auswertung.sql ausführen."; $("rmRows").innerHTML = `<tr><td colspan="6" class="opacity-60">–</td></tr>`; return; } throw new Error("Schattenkarte: " + e.message); }
     bins = bins.map(b => ({ ...b, sum1: +b.sum1, sum2: +b.sum2, r: +b.sum1 > 0 ? b.sum2 / b.sum1 : null }));
     dmBins = bins;
@@ -3210,13 +3190,13 @@
     const ms = Object.keys(mon).map(Number).sort((a, b) => a - b), pc = (x) => x[0] > 2 ? x[1] / x[0] : null;
     const lossJahr = ms.reduce((s, m) => s + mon[m].loss, 0);
     const pill = $("skPill");
-    if (!pts.length) { pill.className = "so-pill"; pill.textContent = ""; $("skText").textContent = "Noch keine Reihen-Werte für " + soYear + "."; }
+    if (!pts.length) { pill.className = "so-pill"; pill.textContent = ""; $("skText").textContent = "Noch keine Reihen-Werte für " + skZeit + "."; }
     else if (rot.length < 3) { pill.className = "so-pill bg-success text-success-content"; pill.textContent = "✓ kein Schatten erkennbar"; $("skText").textContent = "Reihe 2 liefert bei allen Sonnenständen etwa so viel wie Reihe 1."; }
     else {
       const azs = rot.map(q => q.az).sort((a, b) => a - b), azMin = azs[Math.floor(azs.length * 0.05)], azMax = azs[Math.ceil(azs.length * 0.95) - 1];
       const elMax = Math.max(...rot.map(q => q.el));
       const rotMon = [...new Set(rot.map(q => q.monat))].sort((a, b) => a - b), freiMon = ms.filter(m => !rotMon.includes(m) && mon[m].n[0] > 5);
-      pill.className = "so-pill bg-warning text-warning-content"; pill.textContent = `kostet ca. ${fmt(lossJahr, 0)} kWh in ${soYear}`;
+      pill.className = "so-pill bg-warning text-warning-content"; pill.textContent = `kostet ca. ${fmt(lossJahr, 0)} kWh in 12 Monaten`;
       $("skText").innerHTML = `Schatten auf Reihe 2, wenn die Sonne im <b>${himmel((azMin + azMax) / 2)}</b> steht (ca. ${Math.round(azMin)}–${Math.round(azMax)}°) und <b>unter etwa ${Math.round(elMax)}°</b> hoch ist.
         ${rotMon.length ? `Betroffen: ${rotMon.map(m => SO_MN[m - 1]).join(", ")}.` : ""}${freiMon.length ? ` Ohne Schatten: ${freiMon.map(m => SO_MN[m - 1]).join(", ")}.` : ""}
         <div class="text-xs opacity-60 mt-1">Verlust ${fmt(lossJahr, 0)} kWh entspricht ca. ${fmt(lossJahr * preis.sell, 0)} € (wenn sonst verkauft) bis ${fmt(lossJahr * preis.buy, 0)} € (wenn sonst gekauft) · nur Monate mit Reihen-Werten</div>`;
@@ -3228,7 +3208,7 @@
       const befund = v1 != null && Math.abs(v1 - v2) > 15 ? `⚠️ Spannung Reihe ${v1 > v2 ? 2 : 1} niedriger – Modul prüfen lassen`
         : rn != null && rv != null && rn < rv - 0.07 ? "🌳 Schatten nachmittags" : rv != null && rn != null && rv < rn - 0.07 ? "🌳 Schatten vormittags" : "✓ gleich";
       return `<tr><td>${SO_MN[m - 1]}</td><td class="text-right">${pz(rv)}</td><td class="text-right">${pz(rn)}</td><td class="text-right">${fmt(x.loss, 1)} kWh</td><td class="text-right">${v1 == null ? "–" : `${Math.round(v1)} / ${Math.round(v2)} V`}</td><td>${befund}</td></tr>`;
-    }).join("") : `<tr><td colspan="6" class="opacity-60">Noch keine Reihen-Werte für ${soYear}.</td></tr>`;
+    }).join("") : `<tr><td colspan="6" class="opacity-60">Noch keine Reihen-Werte für ${skZeit}.</td></tr>`;
     // Zusammenfassung in einem Satz (für das Dach oben)
     const schattenMon = ms.filter(m => { const rv = pc(mon[m].v), rn = pc(mon[m].n); return rv != null && rn != null && rn < rv - 0.07; });
     const starts = schattenMon.map(m => { const sl = {}; bins.filter(b => b.monat === m && b.slot >= 44).forEach(b => { (sl[b.slot] ||= [0, 0]); sl[b.slot][0] += b.sum1; sl[b.slot][1] += b.sum2; });
@@ -3244,13 +3224,11 @@
       : frei.length && zus(frei) && schattenMon.some(m => m < frei[0]) && schattenMon.some(m => m > frei[frei.length - 1]) ? SO_MN[frei[frei.length - 1]] + " bis " + SO_MN[frei[0] - 2]
       : schattenMon.map(m => SO_MN[m - 1]).join(", ");
     $("dmSum").innerHTML = !ms.length ? "" : schattenMon.length
-      ? `📌 <b>${zeitraum}</b> fällt nachmittags${abTxt} Schatten auf Reihe 2. Das kostet ca. <b>${fmt(lossJahr, 0)} kWh</b> in ${soYear} (etwa ${fmt(lossJahr * preis.sell, 0)}–${fmt(lossJahr * preis.buy, 0)} €). ${spannOk ? "Alle Module funktionieren – die Spannung beider Reihen ist gleich." : "⚠️ Die Spannung einer Reihe ist niedriger – ein Modul sollte geprüft werden (siehe Monatstabelle)."}`
+      ? `📌 <b>${zeitraum}</b> fällt nachmittags${abTxt} Schatten auf Reihe 2. Das kostet ca. <b>${fmt(lossJahr, 0)} kWh</b> in ${skZeit} (etwa ${fmt(lossJahr * preis.sell, 0)}–${fmt(lossJahr * preis.buy, 0)} €). ${spannOk ? "Alle Module funktionieren – die Spannung beider Reihen ist gleich." : "⚠️ Die Spannung einer Reihe ist niedriger – ein Modul sollte geprüft werden (siehe Monatstabelle)."}`
       : `✅ Beide Reihen bekommen gleich viel Sonne – kein Schatten erkennbar.`;
     dmZeichnen();
     $("rmNote").textContent = "Prozent = Reihe 2 im Vergleich zu Reihe 1 · Verlust = was Reihe 2 weniger geliefert hat (nur Zeiten mit mehr als 5 % Unterschied) · fehlende Monate: Verlauf noch nicht nachgetragen";
   }
-  $("rvPrev").addEventListener("click", () => { rvDate.setDate(rvDate.getDate() - 1); loadReihenTag().catch(err => logError("loadReihenTag: " + err.message, "laden")); });
-  $("rvNext").addEventListener("click", () => { const h = new Date(); h.setHours(0, 0, 0, 0); if (rvDate < h) { rvDate.setDate(rvDate.getDate() + 1); loadReihenTag().catch(err => logError("loadReihenTag: " + err.message, "laden")); } });
 
   // ---------- Solar: Unter-Reiter Energie | Akku (letzte Wahl wird gemerkt) ----------
   function soSub(name) {
@@ -4227,7 +4205,7 @@
     overview: [["lvPlay", "Anlage live"], ["stateAge", "Zustand auf einen Blick"], ["mlBody", "Waschmaschine & Trockner"], ["auto", "Token & Automatik"], ["tiles", "Letzte Erfassung"], ["price", "Monat & Hochrechnung"], ["benchToday", "Richtwert-Check"]],
     history: [["cTemp", "Temperaturen"], ["cPower", "Elektrische Leistung"], ["cCycleTemp", "Vorlauf, Rücklauf & Außen"], ["hzSummary", "Verdichter: Läufe & Starts"], ["dhw", "Warmwasser-Ladungen"], ["energy", "Verbrauch je Gerät"]],
     day: [["tLegend", "Zeitleiste"], ["pvSum", "Strom im Haus – woher, wohin"], ["hSum", "Wohin ging der Strom – und wann?"], ["tEvents", "Ereignisse"], ["zSum", "Speicher-Zyklen"]],
-    solar: [["soYearLine", "⚡ Jahr & Monate"], ["soBlkSum", "⚡ Wann wurde Strom gekauft?"], ["soMonthTitle", "⚡ Tage im Monat"], ["akInfo", "🔋 Akku: Zustand"], ["agBody", "🔋 Was hat der Akku gebracht?"], ["simN", "🔋 Lohnt sich ein größerer Akku?"], ["dmSvg", "☀️ Dach: volle Sonne?"], ["rvSvg", "🔍 Reihe 1 gegen Reihe 2"], ["skSvg", "🔍 Schattenkarte"], ["rmRows", "🔍 Pro Monat"]],
+    solar: [["soYearLine", "⚡ Jahr & Monate"], ["soBlkSum", "⚡ Wann wurde Strom gekauft?"], ["soMonthTitle", "⚡ Tage im Monat"], ["akInfo", "🔋 Akku: Zustand"], ["agBody", "🔋 Was hat der Akku gebracht?"], ["simN", "🔋 Lohnt sich ein größerer Akku?"], ["dmSvg", "☀️ Dach: volle Sonne?"], ["skSvg", "🔍 Schattenkarte"], ["rmRows", "🔍 Pro Monat"]],
     klima: [["cHalleT", "Temperatur Halle"], ["cHalleH", "Luftfeuchte Halle"]],
     diagnose: [["tkBody", "Taktet die Wärmepumpe?"], ["lgBody", "Legionellenschutz"], ["diag", "Diagnose – letzte 7 Tage"], ["cCurve", "Heizkurven-Check"], ["copRows", "Effizienz je Tag"], ["mcDays", "Warmwasser: ECO gegen STD"], ["fcSearch", "Fehlercode nachschlagen"]],
     config: [["goals", "Was muss ich wo einstellen?"], ["curveText", "Heizkurve – einfach erklärt"]],
