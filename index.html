@@ -146,7 +146,7 @@
       <a role="tab" class="tab whitespace-nowrap" data-tab="opt">Optimierung</a>
       <a role="tab" class="tab whitespace-nowrap" data-tab="config">Konfigurator</a>
       <a role="tab" class="tab whitespace-nowrap" data-tab="haus">🏠 Haus</a>
-      <a role="tab" class="tab whitespace-nowrap" data-tab="plant">Anlage</a>
+      <a role="tab" class="tab whitespace-nowrap" data-tab="plant">Anlage<span id="fwBadge" class="badge badge-warning badge-sm ml-1 hidden" title="Software-Update für die Wärmepumpe verfügbar">Update</span></a>
     </nav>
     <div class="flex items-center gap-2">
       <button id="anBtn" class="btn btn-ghost btn-sm btn-square" title="Anzeige anpassen" aria-label="Anzeige anpassen">⚙️</button>
@@ -556,6 +556,13 @@
     </div>
     <div id="tkBody"><div class="empty">Lade …</div></div>
   </div></div>
+  <div class="card bg-base-200 mb-4"><div class="card-body p-4 sm:p-5 gap-3">
+    <div class="flex flex-wrap items-center justify-between gap-2">
+      <div><h2 class="card-title text-base">🦠 Legionellenschutz</h2><div class="text-sm opacity-70">Wann wurde das Warmwasser zuletzt heiß genug – und was hat es gekostet?</div></div>
+      <span id="lgPill" class="so-pill"></span>
+    </div>
+    <div id="lgBody"><div class="empty">Lade …</div></div>
+  </div></div>
   <div class="grid gap-4 xl:grid-cols-2 items-start">
     <div class="card bg-base-200"><div class="card-body p-4 sm:p-5">
       <h2 class="card-title text-base">Diagnose – letzte 7 Tage</h2>
@@ -643,9 +650,10 @@
     <div id="hsSum"><div class="empty">Lade …</div></div>
   </div></div>
   <div class="flex flex-wrap gap-2 items-center">
-    <button id="hsKiBtn" class="btn btn-sm btn-primary">🤖 Liste von ChatGPT prüfen lassen</button>
+    <div id="hsArtF" class="flex flex-wrap gap-1" role="group" aria-label="Geräte nach Art anzeigen">
+      <button class="btn btn-sm" data-hs-artf="immer">♾️ Läuft immer</button><button class="btn btn-sm" data-hs-artf="zeit">⏱️ Zeitweise</button><button class="btn btn-sm" data-hs-artf="gang">🔁 Pro Durchgang</button><button class="btn btn-sm" data-hs-artf="mess">📡 Gemessen</button></div>
+    <label class="input input-bordered input-sm flex items-center gap-2 grow" style="max-width:22rem">🔍<input id="hsSuche" type="search" class="grow" placeholder="Gerät suchen, z. B. Kühlschrank" autocomplete="off" aria-label="Gerät suchen"></label>
   </div>
-  <div id="hsKi" class="hidden card bg-base-200"><div class="card-body p-4 gap-2 text-sm" id="hsKiBody"></div></div>
   <div id="hsRooms"><div class="empty">Lade …</div></div>
 </section>
 
@@ -749,7 +757,7 @@
   function setMsg(text, cls = "") { $("msg").className = cls; $("msg").textContent = text; }
 
   // ---------- Fehlerprotokoll: jeden Fehler nach Supabase (wagael_errors) ----------
-  const APP_VERSION = "2026-11-20j";
+  const APP_VERSION = "2026-11-21h";
   const erQueue = [], erSent = {};
   const erDevice = () => { const u = navigator.userAgent; const d = /iPad|Macintosh.*Mobile|Macintosh(?=.*Safari)(?!.*Chrome)/.test(u) && navigator.maxTouchPoints > 1 ? "iPad" : /iPhone/.test(u) ? "iPhone" : /Macintosh/.test(u) ? "Mac" : /Android/.test(u) ? "Android" : "anderes";
     return `${d} · ${/Edg\//.test(u) ? "Edge" : /Chrome\//.test(u) ? "Chrome" : /Firefox\//.test(u) ? "Firefox" : /Safari\//.test(u) ? "Safari" : "Browser"} · ${innerWidth}px`; };
@@ -1012,6 +1020,28 @@
     });
     if (cur) runs.push(cur);
     return runs;
+  }
+
+  // Heizstab im Speicher (z. B. Legionellenschutz): Warmwasser steigt deutlich, obwohl das Ventil NICHT auf „tank“ steht.
+  // SmartThings meldet diesen Heizstab nicht (hp_booster bleibt „off“) – darum Erkennung über die Temperatur.
+  function spRuns(rows) {
+    const p = rows.filter(r => r.temperature != null), mark = new Array(p.length).fill(false);
+    for (let i = 0, j = 0; i < p.length; i++) {
+      if (j <= i) j = i + 1;
+      while (j < p.length && p[j].t - p[i].t < 14 * 60000) j++;
+      if (j >= p.length || p[j].t - p[i].t > 25 * 60000) continue;
+      let ok = p[j].temperature - p[i].temperature >= 1;
+      for (let k = i; ok && k <= j; k++) if (p[k].hp_valve === "tank") ok = false;
+      mark[i] = ok;
+    }
+    const out = []; let cur = null;
+    p.forEach((r, i) => { if (!mark[i]) return;
+      if (cur && r.t - cur.lastT <= 20 * 60000) cur.lastT = r.t; else { if (cur) out.push(cur); cur = { start: r.t, lastT: r.t, startTemp: r.temperature }; } });
+    if (cur) out.push(cur);
+    return out.map(x => { let peak = x.startTemp, end = x.start;
+      p.forEach(r => { if (r.t >= x.start && r.t <= x.lastT + 30 * 60000 && r.temperature > peak) { peak = r.temperature; end = r.t; } });
+      return { start: x.start, end, startTemp: x.startTemp, peak, nurHS: true };
+    }).filter(x => x.peak - x.startTemp >= 5 && x.end - x.start >= 30 * 60000 && x.peak >= 50);
   }
 
   // Zählermeldungen der Wärmepumpe (Beginn, Ende, Wh) – Ansicht hp_energy_reports
@@ -1369,7 +1399,7 @@
           `Letzte Starts: ${starts}. Mit PV besser mittags laden (z. B. Zeitprogramm 11–15 Uhr).`));
 
       // 4) Legionellenschaltung
-      const legio = dr.filter(x => (x.peak ?? 0) >= 58);
+      const legio = [...dr.filter(x => (x.peak ?? 0) >= 58), ...spRuns(rows).filter(x => x.peak >= 58).map(x => ({ ...x, booster: true }))].sort((a, b) => a.start - b.start);
       out.push(legio.length
         ? verdict("info", "Legionellenschaltung", `${legio.length}× erkannt (≥ 58 °C)`, `Zuletzt ${ddmm(legio[legio.length - 1].start)} ${hhmm(legio[legio.length - 1].start)}${legio.some(x => x.booster) ? ", mit Heizstab" : ""}. Kann auf die Mittagszeit gelegt werden.`)
         : verdict("ok", "Legionellenschaltung", "nicht erkannt", "Keine Aufheizung über 58 °C im Zeitraum."));
@@ -1673,6 +1703,9 @@
     const out = devOut ?? hp?.outdoor_temp;
     const ver = (m["samsungce.softwareVersion"]?.versions?.value || []).map(v => v.versionNumber).join(", ");
     const ident = m["samsungce.deviceIdentification"] || {};
+    // Firmware-Update: SmartThings meldet es bei jeder Abfrage mit – Badge am Reiter „Anlage“
+    const fwNr = m.ocf?.mnfv?.value, fwUpd = String(m["samsungce.softwareUpdate"]?.newVersionAvailable?.value) === "true";
+    $("fwBadge")?.classList.toggle("hidden", !fwUpd);
 
     LIVE = {
       fsv, curve, out,
@@ -1689,7 +1722,7 @@
     const auto = [
       ["Gerätekennung (automatisch)", `${ident.binaryId?.value ?? "–"} · ${ident.description?.value ?? ""}`],
       ["Baujahr laut Gerät (automatisch)", ident.releaseYear?.value != null ? `20${ident.releaseYear.value}` : "–"],
-      ["Software / Firmware (automatisch)", ver || "–"],
+      ["Software / Firmware (automatisch)", `${ver || "–"}${fwNr ? ` · WLAN-Modul ${fwNr}` : ""} · ${fwUpd ? '<span class="badge badge-warning">Update verfügbar</span> <span class="src">in der SmartThings-App einspielen oder Fachbetrieb fragen</span>' : '<span class="text-success">aktuell ✓</span>'}`],
     ];
     $("stamm").innerHTML = (stamm.length ? stamm.map(s => [s.key, s.value]) : [["Hinweis", "Tabelle hp_stammdaten fehlt – 05_anlage.sql ausführen"]])
       .concat(auto).map(([k, v]) => `<tr><td>${k}</td><td>${v ?? "–"}</td></tr>`).join("");
@@ -2160,7 +2193,7 @@
       });
       if (cur) out.push(cur); return out;
     };
-    const sHK = segs("hk", r => r.st), sWW = segs("ww", r => r.st), sAB = segs("ab", r => r.st), sHS = segs("on", r => r.hp_booster);
+    const sHK = segs("hk", r => r.st), sWW = segs("ww", r => r.st), sAB = segs("ab", r => r.st), sHS = segs("on", r => r.hp_booster), sSP = spRuns(rows);
     const segWh = (sg) => sg.reduce((a, x) => a + (reps && reps.length ? energyBetween(reps, x.start, x.end) : rows.filter(r => r.t > x.start && r.t <= x.end).reduce((s, r) => s + r.dWh, 0)), 0);
     const inPV = (t) => sun.pvA && sun.pvB && t >= sun.pvA && t <= sun.pvB;
     const whAll = rows.reduce((a, r) => a + r.dWh, 0), whWW = segWh(sWW), whHK = Math.max(0, whAll - whWW);
@@ -2202,8 +2235,8 @@
         <td>${z.rate == null ? "–" : night ? '<span class="pill ok">🌙 nachts – Wärmeverlust</span>' : fast ? '<span class="pill info">🚿 Wasser gezapft</span>' : '<span class="pill ok">🌡️ wie nachts – kaum gezapft</span>'}</td></tr>`; }).join("")
       : `<tr><td colspan="6" class="empty">Keine Warmwasser-Ladung an diesem Tag.</td></tr>`;
     $("zLoss").innerHTML = lossRef != null ? `Wärmeverlust ohne Zapfen (nachts gemessen): <b>${fmt(lossRef, 1)} °C pro Stunde</b>${lossRef >= 0.8 ? ' – <span class="warn">auffällig hoch</span>: ein gut gedämmter Speicher verliert meist nur 0,3–0,5 °C pro Stunde. Häufige Ursachen: Zirkulationspumpe läuft dauernd, Rohranschlüsse ungedämmt, Schwerkraftzirkulation (fehlende Rückschlagventile).' : ""}` : "";
-    tCache = { rows, cyc, A, B, sun, sHK, sWW, sAB, sHS, slog, zyk, thr, pv };
-    drawHours({ rows, cyc, reps, A, B, sun, sHS, HS_KW, hsInCounter, pWith, pWithout, pv });
+    tCache = { rows, cyc, A, B, sun, sHK, sWW, sAB, sHS, sSP, slog, zyk, thr, pv };
+    drawHours({ rows, cyc, reps, A, B, sun, sHS, sSP, HS_KW, hsInCounter, pWith, pWithout, pv });
     drawPvBalance({ rows, pv });
 
     $("tSun").textContent = sun.rise ? `☀️ Aufgang ${hhmm(sun.rise)} · Untergang ${hhmm(sun.set)} · PV nutzbar ca. ${sun.pvA ? hhmm(sun.pvA) + "–" + hhmm(sun.pvB) : "kaum (Sonne < 10°)"} · max. ${fmt(sun.max, 0)}°` : "";
@@ -2229,7 +2262,8 @@
         <td>${fmt(x.startTemp, 0)} → ${fmt(x.peak, 0)} °C${x.booster ? ' · <span class="pill err">Heizstab</span>' : ""}</td><td class="text-right">${fmt(runWh(x, reps) / 1000, 2)}</td><td>${sunTag(x.start)}</td></tr>` });
     });
     sAB.forEach(x => { const r = rows.find(y => y.t >= x.start); const c = nearest(cyc, x.start);
-      ev.push({ t: x.start, html: `<tr><td>${hhmm(x.start)}</td><td>🧊 Abtauen</td><td>${fmt((x.end - x.start) / 60000, 0)} Min.${c?.out_air != null ? ` · ${fmt(c.out_air, 0)} °C außen` : r?.outdoor_temp != null ? ` · ${fmt(r.outdoor_temp, 0)} °C außen` : ""}</td><td></td><td>${sunTag(x.start)}</td></tr>` }); });
+      ev.push({ t: x.start, html: `<tr><td>${hhmm(x.start)}</td><td>🧊 Abtauen</td><td>${fmt((x.end - x.start) / 60000, 0)} Min.${c?.out_air != null ? ` · ${fmt(c.out_air, 0)} °C außen` : r?.outdoor_temp != null ? ` · ${fmt(r.outdoor_temp, 0)} °C außen` : ""}</td><td class="text-right">${fmt(segWh([x]) / 1000, 2)}</td><td>${sunTag(x.start)}</td></tr>` }); });
+    sSP.forEach(x => ev.push({ t: x.start + 1, html: `<tr><td>${hhmm(x.start)}–${hhmm(x.end)}</td><td>${x.peak >= 58 ? "🦠 Legionellenschutz · Heizstab im Speicher" : "🔌 Heizstab im Speicher"}</td><td>${fmt(x.startTemp, 0)} → ${fmt(x.peak, 0)} °C · ${fmt((x.end - x.start) / 60000, 0)} Min. × ${fmt(HS_KW, 1)} kW (geschätzt, Ventil auf Heizen)</td><td class="text-right">≈ ${fmt((x.end - x.start) / 3600e3 * HS_KW, 2)}</td><td>${sunTag(x.start)}</td></tr>` }));
     sHS.forEach(x => ev.push({ t: x.start + 1, html: `<tr><td>${hhmm(x.start)}–${hhmm(x.end)}</td><td>🔌 Heizstab an</td><td>${fmt((x.end - x.start) / 60000, 0)} Min. × ${fmt(HS_KW, 1)} kW (geschätzt)</td><td class="text-right">≈ ${fmt((x.end - x.start) / 3600e3 * HS_KW, 2)}</td><td>${sunTag(x.start)}</td></tr>` }));
     slog.filter(x => !x.base && x.t >= A && x.t < B).forEach(x => ev.push({ t: x.t, html: `<tr><td>${hhmm(x.t)}</td><td>⚙️ Einstellung geändert</td><td>${setName(x.setting)}: <b>${valDE(x.old_value)} → ${valDE(x.new_value)}</b></td><td></td><td>${sunTag(x.t)}</td></tr>` }));
     if (runsHK.length) ev.push({ t: B, html: `<tr><td>ganzer Tag</td><td>🔥 Heizen</td><td>${runsHK.length} Läufe · erster ${hhmm(runsHK[0].start)}, letzter ${hhmm(runsHK[runsHK.length - 1].end)}</td><td class="text-right">${fmt(whHK / 1000, 2)}</td><td></td></tr>` });
@@ -2284,7 +2318,7 @@
   function drawDay() {
     if (!tCache) return;
     const P = TPAL[C.dark ? "dark" : "light"];
-    const { rows, cyc, A, B, sun, sHK, sWW, sAB, sHS, slog, zyk = [], thr, pv = [] } = tCache;
+    const { rows, cyc, A, B, sun, sHK, sWW, sAB, sHS, sSP = [], slog, zyk = [], thr, pv = [] } = tCache;
     const svg = $("tSvg"), W = Math.max(320, $("tWrap").clientWidth || 800), small = W < 640;
     const L = small ? 62 : 84, R = 10, fs = 11;
     const X = (t) => L + (t - A) / (B - A) * (W - L - R);
@@ -2334,6 +2368,8 @@
       if (!cyc.some(c => c.pump_pct != null)) s += `<text x="${L + 4}" y="${y.pu + 12}" font-size="${fs}" fill="${ink}" opacity=".6">keine Pumpendaten – 10_cycle_erweitert.sql ausführen</text>`;
     }
     if (tOn("hs")) sHS.forEach(x => s += r(X(x.start), Math.max(X(x.end) - 1, X(x.start) + 3), y.hs, 15, red, 'rx="3"'));
+    if (tOn("hs")) sSP.forEach(x => { s += r(X(x.start), Math.max(X(x.end) - 1, X(x.start) + 3), y.hs, 15, red, 'rx="3" opacity="0.75"');
+      if (x.peak >= 58 && X(x.end) - X(x.start) > 18) s += `<text x="${((X(x.start) + X(x.end)) / 2).toFixed(1)}" y="${y.hs + 11.5}" font-size="10" text-anchor="middle">🦠</text>`; });
     // Verdichter-Hz
     const hzMax = Math.max(60, ...cyc.map(c => c.comp_hz ?? 0)), yHz = (v) => y.hz + y.hzH - v / hzMax * y.hzH;
     s += `<line x1="${L}" x2="${W - R}" y1="${yHz(0)}" y2="${yHz(0)}" stroke="${grid}"/><text x="${W - R - 2}" y="${yHz(hzMax) + 8}" font-size="${fs}" fill="${ink}" opacity=".6" text-anchor="end">${fmt(hzMax, 0)} Hz</text>`;
@@ -2654,8 +2690,11 @@
     if (anteil != null && startsTag >= 10) urs.push([anteil < 0.5 ? "gelb" : "gruen", anteil < 0.5 ? "Das Haus braucht weniger Wärme, als die Wärmepumpe mindestens liefert" : "Laufanteil beim Heizen passt",
       `Sie heizt nur ca. ${fmt(anteil * 24, 1)} Std. am Tag (${fmt(anteil * 100, 0)} %). ${anteil < 0.5 ? "Kleiner als ihre kleinste Stufe kann sie nicht – also geht sie an und aus. An milden Tagen normal, keine Fehleinstellung; bei Frost sollten die Starts weniger werden." : "Sie läuft den Großteil des Tages durch."}`]);
     const t91 = fv("2091"), t92 = fv("2092"), t93 = fv("2093");
-    if (t91 === 0 && t92 === 0 && t93 != null) urs.push(["info", "Kein externes Raumthermostat – Regelung über das Bedienteil",
-      `FSV 2091/2092 = 0, FSV 2093 = ${t93}. Falls am Bedienteil die Raumtemperatur-Regelung aktiv ist, zählt sein Standort: hängt es warm (Sonne, Flur, Ofen), meldet es zu früh „warm genug“ und die Wärmepumpe startet öfter neu.`]);
+    const tRef = tkSnap?.raw?.components?.main?.["samsungce.ehsTemperatureReference"]?.temperatureReference?.value;
+    if (tRef === "water") urs.push(["info", "Regelt nach Wassertemperatur, nicht nach Raumtemperatur",
+      "Die Wärmepumpe schaltet nach dem Vorlauf (Heizkurve) – der Standort vom Bedienteil spielt keine Rolle. Sie springt wieder an, sobald das Wasser ca. 2 °C unter das Ziel fällt."]);
+    else if (t91 === 0 && t92 === 0 && t93 != null) urs.push(["info", "Kein externes Raumthermostat – Regelung über das Bedienteil",
+      `FSV 2091/2092 = 0, FSV 2093 = ${t93}. Regelt das Bedienteil nach Raumtemperatur, zählt sein Standort: hängt es warm (Sonne, Flur, Ofen), meldet es zu früh „warm genug“ und die Wärmepumpe startet öfter neu.`]);
     const k21 = fv("2021"), k22 = fv("2022");
     if (k22 != null) urs.push([k22 >= 20 ? "gruen" : "gelb", k22 >= 20 ? "Heizkurve passt zur Fußbodenheizung" : "Heizkurve an milden Tagen sehr niedrig",
       `${fmt(k22, 0)} °C Vorlauf an milden Tagen (FSV 2022)${k21 != null ? `, ${fmt(k21, 0)} °C bei Frost (FSV 2021)` : ""}. ${k22 >= 20 ? "Kein Grund fürs Takten." : "Unter 20 °C kann die Wärmepumpe kaum noch sinnvoll regeln."}`]);
@@ -2666,7 +2705,7 @@
     const ursHtml = `<div class="mt-4 rounded-box border border-base-300 p-3">
       <div class="text-sm font-semibold">🔍 Warum startet sie so oft? <span class="font-normal opacity-60">· automatisch geprüft</span></div>
       ${urs.map(([s, t, d]) => `<div class="flex gap-2 py-2 border-t border-base-300 mt-2 text-sm"><span>${UI[s][0]}</span><div><div class="font-semibold ${UI[s][1]}">${t}</div><div class="text-xs opacity-70 leading-relaxed">${d}</div></div></div>`).join("")}
-      <div class="text-xs rounded-box bg-base-200 px-3 py-2 mt-1"><b>Was du tun kannst:</b> Standort vom Bedienteil prüfen · Fußbodenkreise möglichst alle offen lassen · mit dem Fachbetrieb über Raumregelung und Mindestleistung sprechen.</div></div>`;
+      <div class="text-xs rounded-box bg-base-200 px-3 py-2 mt-1"><b>Was du tun kannst:</b> ${tRef === "water" ? "" : "Standort vom Bedienteil prüfen · "}Fußbodenkreise möglichst alle offen lassen · mit dem Fachbetrieb über Raumregelung und Mindestleistung sprechen.</div></div>`;
     $("tkBody").innerHTML = `
       <div class="space-y-2 text-sm leading-relaxed">${`<div>${satz1}</div>`}${satz2 ? `<div>${satz2}</div>` : ""}</div>
       <div class="mt-4 text-sm font-semibold">Laufzeit am Stück · ${ref === heute ? "heute" : ref ? ref.d.toLocaleDateString("de-DE", { weekday: "long" }) : ""}: ${ref ? fmt(ref.min, 0) + " Minuten" : "–"} <span class="font-normal opacity-60">(${ref ? ref.runs.length : 0}× gestartet)</span></div>
@@ -2692,6 +2731,53 @@
       </div>
       ${ursHtml}
       <div class="text-xs opacity-50 mt-3">Für das Gespräch mit dem Fachbetrieb: „Laufzeit am Stück“ = Verdichterlaufzeit pro Start (Takten: &lt; 10 Min.). „Abkühlung des Heizwassers“ = Spreizung Vorlauf − Rücklauf im Heizbetrieb (Ø ${spr7 != null ? fmt(spr7, 1) : "–"} K, gemessen in ganzen Grad, daher grob). Ursache einer kleinen Spreizung oft: Umwälzpumpe zu hoch eingestellt oder kein hydraulischer Abgleich.</div>`;
+  }
+
+  // ---------- 🦠 Legionellenschutz: letzter Lauf, Temperatur, Mehrverbrauch, Bewertung ----------
+  // Erkennt beides: Aufheizen über 58 °C per Wärmepumpe (Ventil „tank“) und per Heizstab im Speicher (Ventil auf Heizen).
+  async function loadLegio() {
+    const now = Date.now(), von = new Date(now - 21 * 864e5);
+    const [hp, stamm, [erst] = []] = await Promise.all([
+      hpRows(von.toISOString(), new Date(now).toISOString()),
+      rest("hp_stammdaten?select=key,value").catch(() => []),
+      rest("snapshots?select=captured_at&hp_valve=not.is.null&order=captured_at.asc&limit=1").catch(() => [])]);
+    const rows = withDeltas(hp);
+    const HS_KW = numIn(stamm.find(x => x.key === "Heizstab-Leistung")?.value) ?? 3, preis = soPrice.buy;
+    const seit = erst ? new Date(erst.captured_at).getTime() : rows[0]?.t ?? now;
+    const L = [...spRuns(rows).map(x => ({ ...x, kwh: (x.end - x.start) / 3600e3 * HS_KW })),
+      ...dhwRuns(rows).filter(x => (x.peak ?? 0) >= 58).map(x => ({ start: x.start, end: x.end, startTemp: x.startTemp, peak: x.peak, nurHS: false, kwh: x.wh / 1000 }))]
+      .filter(x => x.peak >= 58).sort((a, b) => a.start - b.start);
+    const pill = $("lgPill"), last = L[L.length - 1], spanT = (now - seit) / 864e5;
+    const vor = (t) => { const h = (now - t) / 36e5; return h < 24 ? `vor ${fmt(h, 0)} Std.` : `vor ${fmt(h / 24, 0)} ${h < 48 ? "Tag" : "Tagen"}`; };
+    if (!last) {
+      const rot = spanT >= 8;
+      pill.className = `so-pill ${rot ? "bg-error text-error-content" : ""}`; pill.textContent = rot ? "⚠️ fehlt" : "";
+      $("lgBody").innerHTML = rot ? `<div class="text-sm">⚠️ <b>Seit über 8 Tagen kein Legionellenschutz erkannt</b> – das Warmwasser war nie 58 °C oder heißer. Am Bedienteil prüfen: Installateur → <b>FSV 3041</b> (an/aus) und <b>FSV 3044</b> (Temperatur).</div>`
+        : `<div class="empty">Noch kein Legionellenschutz erkannt (Daten seit ${new Date(seit).toLocaleDateString("de-DE")}). Meist läuft er 1× pro Woche.</div>`;
+      return;
+    }
+    const tage = (now - last.start) / 864e5, h = new Date(last.start).getHours(), nacht = h < 7 || h >= 21;
+    const abst = L.slice(1).map((x, i) => (x.start - L[i].start) / 864e5).filter(d => d > 2).sort((a, b) => a - b);
+    const takt = abst.length ? abst[Math.floor(abst.length / 2)] : 7, next = last.start + Math.round(takt) * 864e5;
+    const chk = [];
+    chk.push(tage <= 8 ? ["✅", "", `Läuft regelmäßig – letzter Lauf ${vor(last.start)}`] : ["⚠️", "text-error", `Letzter Lauf ${vor(last.start)} – länger als 8 Tage. Am Bedienteil FSV 3041 prüfen.`]);
+    chk.push(nacht ? ["🌙", "text-warning", `Läuft nachts (${hhmm(last.start)} Uhr) – Strom kommt komplett aus dem Netz. Mittags ~13 Uhr nutzt Solarstrom (FSV 3043).`] : ["✅", "", `Läuft tagsüber (${hhmm(last.start)} Uhr) – Solarstrom kann helfen.`]);
+    chk.push(last.peak > 65 ? ["🌡️", "text-warning", `${fmt(last.peak, 0)} °C ist mehr als nötig – 60 °C reichen gegen Legionellen (FSV 3044).`] : ["✅", "", `${fmt(last.peak, 0)} °C – passt.`]);
+    if (last.nurHS) chk.push(["🔌", "text-warning", `Der Heizstab im Speicher heizt allein von ${fmt(last.startTemp, 0)} auf ${fmt(last.peak, 0)} °C (Ventil stand auf Heizen) – die teuerste Art: 1 kWh Strom = 1 kWh Wärme. Besser direkt nach einer normalen Warmwasser-Ladung starten, dann legt der Heizstab nur noch ca. 12 °C nach.`]);
+    const hinw = chk.filter(c => c[1]).length, rot = tage > 8;
+    pill.className = `so-pill ${rot ? "bg-error text-error-content" : hinw ? "bg-warning text-warning-content" : "bg-success text-success-content"}`;
+    pill.textContent = rot ? "⚠️ überfällig" : hinw ? `${hinw} ${hinw === 1 ? "Hinweis" : "Hinweise"}` : "✓ alles gut";
+    const tile = (l, v, sub, cls = "") => `<div class="ak-m"><div class="text-xs opacity-70">${l}</div><div class="v ${cls}">${v}</div><div class="text-xs opacity-60">${sub}</div></div>`;
+    $("lgBody").innerHTML = `
+      <div class="grid gap-3 grid-cols-2 lg:grid-cols-4">
+        ${tile("Zuletzt", `${ddmm(last.start)} ${hhmm(last.start)}`, `${vor(last.start)} · bis ${hhmm(last.end)}${new Date(last.end).getDate() !== new Date(last.start).getDate() ? " (nächster Tag)" : ""}`, rot ? "text-error" : "")}
+        ${tile("Temperatur", `${fmt(last.peak, 0)} °C`, `von ${fmt(last.startTemp, 0)} °C · 60 °C reichen`, last.peak > 65 ? "text-warning" : "")}
+        ${tile("Mehrverbrauch", `${fmt(last.kwh, 1)} kWh`, `ca. ${fmt(last.kwh * preis, 2)} € · ~${fmt(last.kwh * preis * 365 / takt, 0)} €/Jahr${last.nurHS ? ` · Heizstab ${fmt(HS_KW, 1)} kW × ${fmt((last.end - last.start) / 36e5, 1)} Std.` : ""}`)}
+        ${tile("Nächster", next > now ? ddmm(next) : "überfällig", abst.length ? `erwartet, alle ${fmt(takt, 0)} Tage` : "erwartet, falls wöchentlich", next > now ? "" : "text-error")}
+      </div>
+      <div class="mt-3 text-sm">${chk.map(([i, c, t]) => `<div class="flex gap-2 py-1.5 border-t border-base-300"><span>${i}</span><span class="${c}">${t}</span></div>`).join("")}</div>
+      ${L.length > 1 ? `<div class="text-xs opacity-70 mt-2">Bisherige Läufe: ${L.slice(-6).reverse().map(x => `${ddmm(x.start)} ${hhmm(x.start)} (${fmt(x.peak, 0)} °C, ${fmt(x.kwh, 1)} kWh)`).join(" · ")}</div>` : ""}
+      <div class="text-xs opacity-50 mt-2">Erkennung: Warmwasser ≥ 58 °C. Steigt es, obwohl das Ventil auf Heizen steht, heizt der Heizstab im Speicher – SmartThings meldet den nicht, darum Mehrverbrauch = Dauer × „Heizstab-Leistung“ aus den Stammdaten (Standard 3 kW). Daten seit ${new Date(seit).toLocaleDateString("de-DE")}.</div>`;
   }
 
   // ---------- 🏠 Haus: Räume und Geräte (Tabellen aus 22_haus_geraete.sql, KI über Edge Function „ki“) ----------
@@ -2771,11 +2857,16 @@
       if (/404|42P01|PGRST205/.test(e.message)) { $("hsSum").innerHTML = ""; $("hsRooms").innerHTML = `<div class="empty">Noch nicht eingerichtet – 22_haus_geraete.sql im SQL Editor ausführen.</div>`; return; }
       throw new Error("Haus: " + e.message);
     }
-    haus.raeume = r; haus.geraete = g;
-    hausZeichnen();
-    await hausMessen().catch(e => logError("Haus-Messwerte: " + e.message, "laden"));
-    hausZeichnen();
+    const tippt = hausForm || hausNeuRaum || hausRaumEdit;   // nicht dazwischenfunken, während etwas eingegeben wird
+    if (!tippt) { haus.raeume = r; haus.geraete = g; }
+    tippt ? hausOben() : hausZeichnen();
+    // Messwerte sind 30-Tage-Mittel → höchstens 1× pro Stunde neu abfragen
+    if (Date.now() - hausMessZeit < 60 * 60000) return;
+    await hausMessen().then(() => { hausMessZeit = Date.now(); }).catch(e => logError("Haus-Messwerte: " + e.message, "laden"));
+    (hausForm || hausNeuRaum || hausRaumEdit) ? hausOben() : hausZeichnen();
   }
+  let hausMessZeit = 0, hausSuche = "", hausArtF = "";
+  const HS_ARTF = { immer: ["immer", "jahr"], zeit: ["zeit"], gang: ["gang"], mess: ["mess"] }, HS_ARTN = { immer: "♾️ Läuft immer", zeit: "⏱️ Läuft zeitweise", gang: "🔁 Pro Durchgang", mess: "📡 Gemessen" };
   async function hausMessen() {
     const now = new Date(), h0 = new Date(now); h0.setHours(0, 0, 0, 0);
     const d30 = new Date(h0); d30.setDate(d30.getDate() - 30);
@@ -2822,7 +2913,8 @@
     nacht.sort((a, b) => a - b);
     haus.ref = { rest, wp: wpAvg, tage: beide.length || Object.keys(haustag).length, grund: nacht.length >= 12 ? nacht[Math.floor(nacht.length * 0.1)] : null };
   }
-  function hausZeichnen() {
+  // Oben: Hausverbrauch – davon erfasst – noch offen
+  function hausOben() {
     const preis = (agState || soPrice).buy, ref = haus.ref;
     let sMess = 0, sSch = 0, dauer = 0;
     haus.geraete.forEach(g => { const k = hsKwh(g); if (k == null) return; if (g.art === "mess") sMess += k; else sSch += k; if (g.art === "immer" || g.art === "jahr") dauer += k / 24; });
@@ -2831,16 +2923,27 @@
       const R = ref.rest, unb = Math.max(0, R - sMess - sSch), pc = Math.round((sMess + sSch) / R * 100), w = (v) => Math.min(100, v / Math.max(R, sMess + sSch) * 100);
       pill.className = "so-pill " + (pc >= 85 && pc <= 115 ? "bg-success text-success-content" : pc > 115 ? "bg-warning text-warning-content" : pc >= 60 ? "bg-warning text-warning-content" : "bg-error text-error-content");
       pill.textContent = pc > 115 ? `Liste ist ${pc - 100} % zu hoch` : `Liste erklärt ${pc} %`;
-      const gw = dauer * 1000, gm = ref.grund != null ? ref.grund * 1000 : null;
+      const gw = dauer * 1000, gm = ref.grund != null ? ref.grund * 1000 : null, E = sMess + sSch;
+      const zahl = (l, v, sub, cls = "") => `<div><div class="text-xs opacity-70">${l}</div><div class="text-2xl font-semibold tabular-nums ${cls}">${v}</div><div class="text-xs opacity-60">${sub}</div></div>`;
       $("hsSum").innerHTML = `
-        <div class="hs-bar my-1"><div style="width:${w(sMess)}%;background:#1D9E75"></div><div style="width:${w(sSch)}%;background:#7F77DD"></div><div style="flex:1;background:repeating-linear-gradient(135deg,color-mix(in oklab,currentColor 25%,transparent) 0 4px,transparent 4px 8px)"></div></div>
-        <div class="flex flex-wrap gap-x-4 gap-y-1 text-xs opacity-80"><span><b style="color:#1D9E75">●</b> gemessen ${fmt(sMess, 1)} kWh</span><span><b style="color:#7F77DD">●</b> geschätzt ${fmt(sSch, 1)} kWh</span><span>▨ unbekannt ${fmt(unb, 1)} kWh</span><span>Rest-Haus gemessen <b>${fmt(R, 1)} kWh/Tag</b> (${fmt(R * 365, 0)} kWh/Jahr · ca. ${fmt(R * 365 * preis, 0)} €)</span></div>
-        <div class="text-sm mt-2">Grundlast-Check: Geräte, die immer laufen, ergeben <b>${fmt(gw, 0)} W</b>${gm != null ? ` – gemessen nachts <b>${fmt(gm, 0)} W</b>. ${gm - gw > 80 ? `<span class="text-warning">Es fehlen ca. ${fmt(gm - gw, 0)} W Dauerverbraucher (Kühltruhe? Pumpe? Standby?).</span>` : gw - gm > 80 ? `<span class="text-warning">Die Liste hat ${fmt(gw - gm, 0)} W mehr Dauerverbraucher als gemessen – Werte zu hoch?</span>` : "✓ passt."}` : "."}</div>
-        <div class="text-xs opacity-60 mt-1">Wärmepumpe separat: ${ref.wp != null ? `Ø ${fmt(ref.wp, 1)} kWh/Tag` : "noch keine Werte"} · Grundlage: ${ref.tage} Tage</div>`;
+        <div class="grid grid-cols-3 gap-3">
+          ${zahl("Hausverbrauch", `${fmt(R, 1)} <span class="text-sm font-normal">kWh/Tag</span>`, `${fmt(R * 365, 0)} kWh · ca. ${fmt(R * 365 * preis, 0)} €/Jahr`)}
+          ${zahl("davon erfasst", `${fmt(E, 1)} <span class="text-sm font-normal">kWh</span>`, `${pc} % · ${haus.geraete.length} Geräte`, "text-primary")}
+          ${zahl(E > R ? "zu viel erfasst" : "noch offen", `${fmt(Math.abs(R - E), 1)} <span class="text-sm font-normal">kWh</span>`, E > R ? "Werte zu hoch geschätzt?" : `${fmt(Math.max(0, 100 - pc), 0)} % · ca. ${fmt(unb * 365 * preis, 0)} €/Jahr`, E > R ? "text-warning" : "")}
+        </div>
+        <div class="hs-bar my-2"><div style="width:${w(E)}%;background:#7F77DD"></div><div style="flex:1;background:repeating-linear-gradient(135deg,color-mix(in oklab,currentColor 25%,transparent) 0 4px,transparent 4px 8px)"></div></div>
+        <details class="text-sm"><summary class="cursor-pointer opacity-70">Details</summary>
+        <div class="text-xs opacity-80 mt-1">Erfasst = ${fmt(sMess, 1)} kWh gemessen (Miele, SmartThings) + ${fmt(sSch, 1)} kWh geschätzt (deine Angaben). Hausverbrauch = FoxESS-Bilanz minus Wärmepumpe.</div>
+        <div class="mt-2">Grundlast-Check: Geräte, die immer laufen, ergeben <b>${fmt(gw, 0)} W</b>${gm != null ? ` – gemessen nachts <b>${fmt(gm, 0)} W</b>. ${gm - gw > 80 ? `<span class="text-warning">Es fehlen ca. ${fmt(gm - gw, 0)} W Dauerverbraucher (Kühltruhe? Pumpe? Standby?).</span>` : gw - gm > 80 ? `<span class="text-warning">Die Liste hat ${fmt(gw - gm, 0)} W mehr Dauerverbraucher als gemessen – Werte zu hoch?</span>` : "✓ passt."}` : "."}</div>
+        <div class="text-xs opacity-60 mt-1">Wärmepumpe separat: ${ref.wp != null ? `Ø ${fmt(ref.wp, 1)} kWh/Tag` : "noch keine Werte"} · Grundlage: ${ref.tage} Tage</div></details>`;
     } else {
       pill.className = "so-pill"; pill.textContent = "";
       $("hsSum").innerHTML = ref ? `<div class="text-sm opacity-70">Noch zu wenig Messwerte für den Vergleich. Geräteliste: ${fmt(sMess + sSch, 1)} kWh/Tag.</div>` : `<div class="empty">Messwerte werden geladen …</div>`;
     }
+  }
+  function hausZeichnen() {
+    hausOben();
+    const preis = (agState || soPrice).buy, ref = haus.ref;
     // Kacheln je Raum (Standard-Raum „Nicht zugeordnet“ zuerst), Klick öffnet den Raum darunter
     const sumR = (r) => haus.geraete.filter(g => g.raum_id === r.id).reduce((a, g) => a + (hsKwh(g) || 0), 0);
     const R = ref?.rest > 0 ? ref.rest : Math.max(0.01, ...haus.raeume.map(sumR));
@@ -2856,7 +2959,21 @@
           <div class="flex gap-1 mt-auto"><button class="btn btn-xs btn-primary" data-hs-raumsave="1">Anlegen</button><button class="btn btn-xs btn-ghost" data-hs-raumcancel="1">Abbrechen</button></div></div>`
       : `<button type="button" class="hs-k" style="border:2px dashed color-mix(in oklab,currentColor 25%,transparent);align-items:center;justify-content:center;opacity:.75" data-hs-neuraum="1"><span style="font-size:1.4rem">＋</span><span class="text-sm">Raum erstellen</span></button>`;
     let det = "";
-    const r = haus.raeume.find(x => x.id === hausOffen);
+    const q = hausSuche.trim().toLowerCase();
+    document.querySelectorAll("#hsArtF [data-hs-artf]").forEach(b => b.classList.toggle("btn-primary", b.dataset.hsArtf === hausArtF));
+    const r = q || hausArtF ? null : haus.raeume.find(x => x.id === hausOffen);
+    if (q || hausArtF) {
+      const hits = haus.geraete.filter(g => (!q || (g.name || "").toLowerCase().includes(q)) && (!hausArtF || HS_ARTF[hausArtF].includes(g.art)))
+        .sort((a, b) => (hsKwh(b) || 0) - (hsKwh(a) || 0));
+      const summe = hits.reduce((a, g) => a + (hsKwh(g) || 0), 0);
+      det = `<div class="card bg-base-200 overflow-hidden mt-3"><div class="flex flex-wrap items-center gap-2 px-4 py-3 bg-base-300/40 text-sm"><b class="grow">${hausArtF ? HS_ARTN[hausArtF] : "🔍"} · ${hits.length} ${hits.length === 1 ? "Gerät" : "Geräte"}${q ? ` mit „${hsEsc(hausSuche.trim())}“` : ""}</b>
+        <span class="opacity-70">${fmt(summe, 2)} kWh/Tag · ${fmt(summe * 365, 0)} kWh/Jahr · ${fmt(summe * 365 * preis, 0)} €</span>${hausArtF ? `<button class="btn btn-ghost btn-xs" data-hs-artclose="1" aria-label="Filter schließen">✕</button>` : ""}</div>
+        <div class="overflow-x-auto"><table class="table table-sm"><thead><tr><th>Gerät</th><th>Raum</th><th class="text-right">kWh/Jahr</th><th class="text-right">€/Jahr</th><th></th></tr></thead><tbody>
+        ${hits.length ? hits.map(g => { const k = hsKwh(g), rr = haus.raeume.find(x => x.id === g.raum_id);
+          return `<tr><td>${hsEsc(g.name)}</td><td>${rr ? hsEsc(hsIcon(rr) + " " + hsRaumName(rr)) : "–"}</td><td class="text-right tabular-nums">${k == null ? "–" : fmt(k * 365, 0)}</td><td class="text-right tabular-nums">${k == null ? "–" : fmt(k * 365 * preis, 0)}</td>
+            <td class="text-right"><button class="btn btn-ghost btn-xs" data-hs-edit="${g.id}" title="im Raum öffnen und bearbeiten">✎</button></td></tr>`; }).join("") : `<tr><td colspan="5" class="opacity-60">Kein Gerät gefunden.</td></tr>`}
+        </tbody></table></div></div>`;
+    }
     if (r) {
       const gs = haus.geraete.filter(g => g.raum_id === r.id), sum = sumR(r), std = r === hsStd() && r.sort === 0;
       const zeile = (g) => { const k = hsKwh(g), del = hausDel === g.id;
@@ -2883,8 +3000,10 @@
   const hsOeffne = (id) => { hausOffen = id; hausForm = null; hausRaumEdit = false; hausDelRaum = null; try { localStorage.setItem("wagael_haus_raum", id || ""); } catch (e) {} hausZeichnen(); };
   $("hsRooms").addEventListener("click", (e) => {
     const b = e.target.closest("button"); if (!b) return;
+    if (b.dataset.hsOpen && (hausArtF || hausSuche)) { hausArtF = ""; hausSuche = ""; $("hsSuche").value = ""; hausOffen = null; }
     if (b.dataset.hsOpen) { const id = +b.dataset.hsOpen; hsOeffne(hausOffen === id ? null : id); return; }
     if (b.dataset.hsClose) { hsOeffne(null); return; }
+    if (b.dataset.hsArtclose) { hausArtF = ""; hausZeichnen(); return; }
     if (b.dataset.hsNeuraum) { hausNeuRaum = true; hausZeichnen(); $("hsNeuName")?.focus(); return; }
     if (b.dataset.hsRaumcancel) { hausNeuRaum = false; hausZeichnen(); return; }
     if (b.dataset.hsRaumsave) { const n = $("hsNeuName").value.trim(); if (!n) { $("hsNeuName").placeholder = "Bitte einen Namen eingeben"; $("hsNeuName").focus(); return; }
@@ -2895,6 +3014,7 @@
       hausAktion(() => restWrite("PATCH", `haus_raeume?id=eq.${+b.dataset.hsRename}`, { name: n }, "return=minimal")); return; }
     if (b.dataset.hsAdd) { hausForm = { raum_id: +b.dataset.hsAdd, art: "zeit", name: "" }; hausZeichnen(); document.querySelector('[data-hs-f="name"]')?.focus(); return; }
     if (b.dataset.hsEdit) { const g = haus.geraete.find(x => x.id === +b.dataset.hsEdit); if (!g) return;
+      if (hausSuche || hausArtF) { hausSuche = ""; hausArtF = ""; $("hsSuche").value = ""; hausOffen = g.raum_id; try { localStorage.setItem("wagael_haus_raum", g.raum_id); } catch (e) {} }
       hausForm = { id: g.id, raum_id: g.raum_id, name: g.name, art: g.art === "jahr" ? "immer" : g.art, label: g.art === "jahr", watt: g.watt, stunden: g.stunden, kwh_gang: g.kwh_gang, pro_woche: g.pro_woche, kwh_jahr: g.kwh_jahr };
       hausZeichnen(); document.querySelector('[data-hs-f="name"]')?.focus(); return; }
     if (b.dataset.hsArt) { hausForm.art = b.dataset.hsArt; hausZeichnen(); return; }
@@ -2935,23 +3055,9 @@
   $("hsRooms").addEventListener("keydown", (e) => {
     if (e.key === "Enter" && e.target.id === "hsNeuName") document.querySelector("[data-hs-raumsave]")?.click();
     if (e.key === "Enter" && e.target.id === "hsRaumName") document.querySelector("[data-hs-rename]")?.click(); });
-  $("hsKiBtn").addEventListener("click", async () => {
-    const box = $("hsKi"), body = $("hsKiBody"), ref = haus.ref || {};
-    box.classList.remove("hidden"); body.innerHTML = `<span class="loading loading-dots loading-sm"></span> ChatGPT prüft die Liste …`;
-    const liste = haus.raeume.map(r => `Raum ${r.name}:\n` + (haus.geraete.filter(g => g.raum_id === r.id).map(g => { const k = hsKwh(g);
-      return `- ${g.name}: ${hsNutzung(g)}${k != null ? ` → ${fmt(k * 365, 0)} kWh/Jahr` : ""}`; }).join("\n") || "- (leer)")).join("\n\n");
-    const text = `Gemessen (Ø letzte 30 Tage): Hausverbrauch ohne Wärmepumpe ${ref.rest != null ? fmt(ref.rest, 1) + " kWh/Tag" : "unbekannt"}, nächtliche Grundlast ${ref.grund != null ? fmt(ref.grund * 1000, 0) + " W" : "unbekannt"}, Strompreis ${fmt((agState || soPrice).buy * 100, 1)} ct/kWh. Haushalt mit Wärmepumpe, PV-Anlage und Akku.\n\nGeräteliste:\n${liste}`;
-    try {
-      await frischesToken(false);
-      const r = await fetch(`${SUPABASE_URL}/functions/v1/ki`, { method: "POST", headers: { apikey: SUPABASE_KEY, Authorization: `Bearer ${accessToken}`, "Content-Type": "application/json" }, body: JSON.stringify({ text }) });
-      const o = await r.json().catch(() => ({}));
-      if (!r.ok || !o.ok) throw new Error(o.error || `HTTP ${r.status}`);
-      body.innerHTML = hsEsc(o.antwort).replace(/^### (.*)$/gm, '<div class="font-semibold mt-2">$1</div>').replace(/\*\*(.+?)\*\*/g, "<b>$1</b>").replace(/^[-•] (.*)$/gm, "<div class=\"pl-3\">• $1</div>").replace(/\n{2,}/g, "<br>").replace(/\n/g, "")
-        + `<div class="text-xs opacity-60 mt-2">Antwort von ${hsEsc(o.model || "ChatGPT")} – Vorschläge prüfen, nicht blind übernehmen.</div>`;
-    } catch (e) {
-      body.innerHTML = /404|not found/i.test(e.message) ? "Die Edge Function „ki“ ist noch nicht eingerichtet." : `ChatGPT nicht erreichbar: ${hsEsc(e.message)}`;
-    }
-  });
+  $("hsSuche").addEventListener("input", (e) => { hausSuche = e.target.value; hausForm = null; hausZeichnen(); });
+  $("hsArtF").addEventListener("click", (e) => { const b = e.target.closest("[data-hs-artf]"); if (!b) return;
+    hausArtF = hausArtF === b.dataset.hsArtf ? "" : b.dataset.hsArtf; hausForm = null; hausZeichnen(); });
 
   // ---------- Solar → Module: Reihe 1 gegen Reihe 2, Schattenkarte, Monatsübersicht (Spalten aus 20_pv_reihen.sql, Funktion aus 21_…) ----------
   const PV_LAT = 50.878, PV_LON = 6.177;
@@ -2967,9 +3073,26 @@
   }
   const himmel = (a) => ["Norden", "Nordosten", "Osten", "Südosten", "Süden", "Südwesten", "Westen", "Nordwesten"][Math.round(a / 45) % 8];
   let rvDate = null;
+  // Dach, Schattenkarte und Monatsübersicht rechnen über das ganze Jahr → nur auf Knopfdruck laden
+  let skGeladen = false;
+  function skWarten() {
+    const btn = `<button class="btn btn-sm btn-primary" data-sk-load="1">☀️ Auswertung laden</button>`;
+    $("dmSvg").innerHTML = "";
+    $("dmBox").innerHTML = `<div class="flex flex-wrap items-center gap-3">${btn}<span class="opacity-70">Dach, Schattenkarte und Monatsübersicht werden aus allen Messungen des Jahres berechnet – nur bei Bedarf laden.</span></div>`;
+    $("dmSum").innerHTML = ""; $("skSvg").innerHTML = ""; $("skPill").textContent = ""; $("skPill").className = "so-pill";
+    $("skText").innerHTML = `<div class="flex flex-wrap items-center gap-3">${btn}<span class="opacity-70">noch nicht geladen</span></div>`;
+    $("rmRows").innerHTML = `<tr><td colspan="6" class="opacity-60">noch nicht geladen – oben „Auswertung laden“</td></tr>`;
+  }
+  document.addEventListener("click", (e) => {
+    if (!e.target.closest("[data-sk-load]")) return;
+    skGeladen = true;
+    $("dmBox").innerHTML = `<span class="opacity-70">Lade Auswertung …</span>`; $("skText").innerHTML = `<span class="opacity-70">Lade …</span>`;
+    loadSchatten().catch(err => { logError("loadModule: Schattenkarte: " + err.message, "laden"); $("dmBox").innerHTML = `<span class="text-error">Konnte nicht geladen werden – später nochmal versuchen.</span>`; });
+  });
   async function loadModule() {
     if (!rvDate) { rvDate = new Date(); rvDate.setHours(0, 0, 0, 0); }
-    await Promise.all([loadReihenTag(), loadSchatten()]);
+    if (!skGeladen) skWarten();
+    await Promise.all([loadReihenTag(), skGeladen ? loadSchatten() : null]);
   }
   async function loadReihenTag() {
     const a = new Date(rvDate), b = new Date(a); b.setDate(b.getDate() + 1);
@@ -3010,7 +3133,7 @@
     $("dmMon").innerHTML = SO_MN.map((n, i) => `<button class="btn btn-xs${i + 1 === dmMon ? " btn-primary" : ""}" data-m="${i + 1}"${da.has(i + 1) ? "" : " disabled title=\"noch keine Reihen-Werte\""}>${n}</button>`).join("");
   }
   function dmZeichnen() {
-    if (!$("dmSvg")) return;
+    if (!$("dmSvg") || !skGeladen) return;
     dmMonate();
     const t = +$("dmZeit").value, h = Math.floor(t), mi = Math.round((t - h) * 60);
     $("dmZt").textContent = `${h}:${String(mi).padStart(2, "0")}`;
@@ -3419,7 +3542,7 @@
   }
 
   // ---------- Strom je Stunde, aufgeteilt nach Verwendung ----------
-  function drawHours({ rows, cyc, reps, A, B, sun, sHS, HS_KW, hsInCounter, pWith, pWithout, pv: pvData = [] }) {
+  function drawHours({ rows, cyc, reps, A, B, sun, sHS, sSP = [], HS_KW, hsInCounter, pWith, pWithout, pv: pvData = [] }) {
     const K = [["hk", "Heizen", C.hk], ["ww", "Warmwasser", C.ww], ["hs", "Heizstab (geschätzt)", getComputedStyle(document.documentElement).getPropertyValue("--color-error").trim() || "#e34948"], ["sb", "Bereitschaft", "#888780"]];
     // Aufteilung über die Zählerfenster (Zeitraum + gemessene Wh). Der gemeldete Leistungswert ist ein Fenster-
     // Mittelwert und gilt auch in Pausen weiter – daher nicht nach kW gewichten, sondern nach Laufzeit des Verdichters.
@@ -3474,6 +3597,12 @@
       if (!hsWh) return;
       if (hsInCounter) { const pool = d.hk + d.ww, take = Math.min(hsWh, pool); if (pool > 0) { d.hk -= take * d.hk / pool; d.ww -= take * (d.ww / (pool || 1)); } d.hs = take; }
       else d.hs = hsWh;
+    });
+    // Heizstab im Speicher: steckt immer im Zähler (Leistung springt sichtbar) – aus „Heizen“ herausrechnen
+    H.forEach(d => {
+      const a = A + d.h * 3600e3, b = a + 3600e3;
+      const spWh = sSP.reduce((s2, x) => s2 + Math.max(0, Math.min(b, x.end) - Math.max(a, x.start)) / 3600e3, 0) * HS_KW * 1000;
+      if (!spWh) return; const take = Math.min(spWh, d.hk); d.hk -= take; d.hs += take;
     });
     const tot = (d) => d.hk + d.ww + d.hs + d.sb, all = H.reduce((s2, d) => s2 + tot(d), 0), sum = (k) => H.reduce((s2, d) => s2 + d[k], 0);
     $("hSum").textContent = `· ${fmt(all / 1000, 1)} kWh`;
@@ -4008,7 +4137,7 @@
     applyPalette();
     // frische Anmeldung holen (nach Ruhezustand ist das alte Login-Token sonst abgelaufen → „JWT expired“)
     await frischesToken(false);
-    const L = { loadTiles, loadEnergy, loadHistory, loadAuto, loadDiagnose, loadMonth, loadCurve, loadBench, loadAnlage, loadState, loadKlima, loadDay, loadAlarms, loadCop, loadLive, loadErrors, loadModeCmp, loadOpt, loadSolar, loadAkku, loadMiele, loadModule, loadHaus, loadTakt };
+    const L = { loadTiles, loadEnergy, loadHistory, loadAuto, loadDiagnose, loadMonth, loadCurve, loadBench, loadAnlage, loadState, loadKlima, loadDay, loadAlarms, loadCop, loadLive, loadErrors, loadModeCmp, loadOpt, loadSolar, loadAkku, loadMiele, loadModule, loadHaus, loadTakt, loadLegio };
     await loadAnzeige();
     const skip = new Set(Object.entries(AN_SKIP).filter(([t]) => anOff.has(t)).flatMap(([, f]) => f));
     const names = Object.keys(L).filter(n => !skip.has(n)), res = await Promise.allSettled(names.map(n => L[n]()));
@@ -4100,7 +4229,7 @@
     day: [["tLegend", "Zeitleiste"], ["pvSum", "Strom im Haus – woher, wohin"], ["hSum", "Wohin ging der Strom – und wann?"], ["tEvents", "Ereignisse"], ["zSum", "Speicher-Zyklen"]],
     solar: [["soYearLine", "⚡ Jahr & Monate"], ["soBlkSum", "⚡ Wann wurde Strom gekauft?"], ["soMonthTitle", "⚡ Tage im Monat"], ["akInfo", "🔋 Akku: Zustand"], ["agBody", "🔋 Was hat der Akku gebracht?"], ["simN", "🔋 Lohnt sich ein größerer Akku?"], ["dmSvg", "☀️ Dach: volle Sonne?"], ["rvSvg", "🔍 Reihe 1 gegen Reihe 2"], ["skSvg", "🔍 Schattenkarte"], ["rmRows", "🔍 Pro Monat"]],
     klima: [["cHalleT", "Temperatur Halle"], ["cHalleH", "Luftfeuchte Halle"]],
-    diagnose: [["tkBody", "Taktet die Wärmepumpe?"], ["diag", "Diagnose – letzte 7 Tage"], ["cCurve", "Heizkurven-Check"], ["copRows", "Effizienz je Tag"], ["mcDays", "Warmwasser: ECO gegen STD"], ["fcSearch", "Fehlercode nachschlagen"]],
+    diagnose: [["tkBody", "Taktet die Wärmepumpe?"], ["lgBody", "Legionellenschutz"], ["diag", "Diagnose – letzte 7 Tage"], ["cCurve", "Heizkurven-Check"], ["copRows", "Effizienz je Tag"], ["mcDays", "Warmwasser: ECO gegen STD"], ["fcSearch", "Fehlercode nachschlagen"]],
     config: [["goals", "Was muss ich wo einstellen?"], ["curveText", "Heizkurve – einfach erklärt"]],
     haus: [["hsSum", "Wohin geht der Hausstrom?"]],
     plant: [["stamm", "Stammdaten"], ["ist", "IST-Einstellungen"], ["slog", "Änderungsprotokoll"], ["fsvTable", "Alle Einstellwerte (FSV)"], ["erDays", "Fehlerprotokoll"], ["alTest", "Alarme"]],
