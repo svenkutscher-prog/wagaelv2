@@ -458,6 +458,13 @@
     <div id="akBody"><div class="empty">Lade …</div></div>
   </div></div>
   <div class="card bg-base-200"><div class="card-body p-4 gap-3">
+    <div class="flex flex-wrap items-center justify-between gap-2">
+      <div class="ctitle" style="opacity:1"><span class="font-semibold">🔧 Akku-Technik</span><span class="opacity-60">Status, Reserve, Spannung, Software – direkt von FoxESS</span></div>
+      <span id="atPill" class="so-pill"></span>
+    </div>
+    <div id="atBody"><div class="empty">Lade …</div></div>
+  </div></div>
+  <div class="card bg-base-200"><div class="card-body p-4 gap-3">
     <div class="ctitle" style="opacity:1"><span class="font-semibold">🐷 Was hat der Akku gebracht?</span></div>
     <div id="agBody"><div class="empty">Lade …</div></div>
   </div></div>
@@ -748,12 +755,14 @@
   function setMsg(text, cls = "") { $("msg").className = cls; $("msg").textContent = text; }
 
   // ---------- Fehlerprotokoll: jeden Fehler nach Supabase (wagael_errors) ----------
-  const APP_VERSION = "2026-11-21n";
+  const APP_VERSION = "2026-11-21r";
   const erQueue = [], erSent = {};
   const erDevice = () => { const u = navigator.userAgent; const d = /iPad|Macintosh.*Mobile|Macintosh(?=.*Safari)(?!.*Chrome)/.test(u) && navigator.maxTouchPoints > 1 ? "iPad" : /iPhone/.test(u) ? "iPhone" : /Macintosh/.test(u) ? "Mac" : /Android/.test(u) ? "Android" : "anderes";
     return `${d} · ${/Edg\//.test(u) ? "Edge" : /Chrome\//.test(u) ? "Chrome" : /Firefox\//.test(u) ? "Firefox" : /Safari\//.test(u) ? "Safari" : "Browser"} · ${innerWidth}px`; };
   function logError(message, source = "seite") {
     const msg = String(message || "unbekannt").slice(0, 2000), key = source + "|" + msg;
+    // Netzwerk kurz weg (Mac aus dem Ruhezustand, WLAN-Wechsel): kein Protokoll-Eintrag, nur Hinweis oben – beim nächsten Laden klappt es wieder
+    if (/Load failed|Failed to fetch|NetworkError|network connection was lost/i.test(msg)) { try { setMsg("Keine Verbindung – Daten werden beim nächsten Laden geholt.", "text-warning"); } catch (e) {} return; }
     if (erSent[key] && Date.now() - erSent[key] < 10 * 60000) return;   // gleiche Meldung höchstens alle 10 Min.
     erSent[key] = Date.now();
     erQueue.push({ source, message: msg, tab: (localStorage.getItem("wagael_tab") || "overview"), device: erDevice(), version: APP_VERSION });
@@ -2970,7 +2979,7 @@
       const zeile = (g) => { const k = hsKwh(g), del = hausDel === g.id;
         return `<tr><td>${hsEsc(g.name)} <span class="hs-tag ${g.art === "mess" ? "bg-success text-success-content" : "bg-base-300"}">${g.art === "mess" ? "gemessen" : "geschätzt"}</span></td>
           <td class="opacity-70">${hsNutzung(g)}</td><td class="text-right tabular-nums">${k == null ? "–" : fmt(k, 2)}</td><td class="text-right tabular-nums">${k == null ? "–" : fmt(k * 365, 0)}</td>
-          <td class="text-right whitespace-nowrap"><button class="btn btn-ghost btn-xs" data-hs-edit="${g.id}" aria-label="${hsEsc(g.name)} bearbeiten oder verschieben" title="bearbeiten / verschieben">✎</button><button class="btn btn-ghost btn-xs${del ? " text-error" : ""}" data-hs-del="${g.id}" aria-label="${hsEsc(g.name)} löschen" title="löschen">${del ? "wirklich löschen?" : "✕"}</button></td></tr>`; };
+          <td class="text-right whitespace-nowrap"><button class="btn btn-ghost btn-xs" data-hs-edit="${g.id}" aria-label="${hsEsc(g.name)} bearbeiten oder verschieben" title="bearbeiten / verschieben">✎</button>${g.art === "mess" ? "" : `<button class="btn btn-ghost btn-xs" data-hs-dup="${g.id}" aria-label="${hsEsc(g.name)} duplizieren" title="duplizieren – gleiches Gerät nochmal anlegen">⧉</button>`}<button class="btn btn-ghost btn-xs${del ? " text-error" : ""}" data-hs-del="${g.id}" aria-label="${hsEsc(g.name)} löschen" title="löschen">${del ? "wirklich löschen?" : "✕"}</button></td></tr>`; };
       const form = hausForm && +hausForm.raum_id === r.id && !hausForm.fremd ? hsFormHtml() : `<div class="p-2 border-t border-base-300"><button class="btn btn-ghost btn-sm" data-hs-add="${r.id}">+ Gerät hinzufügen</button></div>`;
       const kopf = hausRaumEdit && !std
         ? `<input id="hsRaumName" class="input input-bordered input-sm grow" value="${hsEsc(r.name)}" aria-label="Raumname"><button class="btn btn-xs btn-primary" data-hs-rename="${r.id}">Speichern</button><button class="btn btn-xs btn-ghost" data-hs-renamecancel="1">Abbrechen</button>`
@@ -3008,6 +3017,9 @@
       if (hausSuche || hausArtF) { hausSuche = ""; hausArtF = ""; $("hsSuche").value = ""; hausOffen = g.raum_id; try { localStorage.setItem("wagael_haus_raum", g.raum_id); } catch (e) {} }
       hausForm = { id: g.id, raum_id: g.raum_id, name: g.name, art: g.art === "jahr" ? "immer" : g.art, label: g.art === "jahr", watt: g.watt, stunden: g.stunden, kwh_gang: g.kwh_gang, pro_woche: g.pro_woche, kwh_jahr: g.kwh_jahr };
       hausZeichnen(); document.querySelector('[data-hs-f="name"]')?.focus(); return; }
+    if (b.dataset.hsDup) { const g = haus.geraete.find(x => x.id === +b.dataset.hsDup); if (!g) return;   // Kopie als neues Gerät, Name markiert zum Ändern
+      hausForm = { raum_id: g.raum_id, name: g.name + " (Kopie)", art: g.art === "jahr" ? "immer" : g.art, label: g.art === "jahr", watt: g.watt, stunden: g.stunden, kwh_gang: g.kwh_gang, pro_woche: g.pro_woche, kwh_jahr: g.kwh_jahr };
+      hausZeichnen(); const n = document.querySelector('[data-hs-f="name"]'); if (n) { n.focus(); n.select(); } return; }
     if (b.dataset.hsArt) { hausForm.art = b.dataset.hsArt; hausZeichnen(); return; }
     if (b.dataset.hsCancel) { hausForm = null; hausZeichnen(); return; }
     if (b.dataset.hsDel) { const id = +b.dataset.hsDel; if (hausDel !== id) { hausDel = id; hausZeichnen(); return; } hausDel = null; hausAktion(() => restWrite("DELETE", `haus_geraete?id=eq.${id}`)); return; }
@@ -3392,10 +3404,58 @@
     document.querySelectorAll("#simN [data-n]").forEach(x => x.classList.toggle("on", x === b)); loadSim().catch(err => logError("loadSim: " + err.message, "laden")); });
   $("simPreis").addEventListener("input", () => { try { localStorage.setItem("wagael_sim_preis", $("simPreis").value); } catch (e) {} drawSim(); });
 
+  // ---------- 🔧 Akku-Technik: Status, Reserve, Spannung/Strom, Zeitplan, Software (fox-1.4 + SQL 27) ----------
+  const RUN_STATE = { 160: "Selbsttest", 161: "wartet", 162: "prüft", 163: "Normalbetrieb am Netz", 164: "Notstrom (Netz aus)", 165: "Störung", 166: "dauerhafte Störung", 167: "Standby", 168: "Software-Update", 169: "Werkstest" };
+  async function loadAkkuTechnik() {
+    const [snap, sets] = await Promise.all([
+      rest("pv_snapshots?select=captured_at,soc,bat_v,bat_a,run_state,fault&order=captured_at.desc&limit=1").catch(e => { if (/42703|bat_v/.test(e.message)) return "fehlt"; throw e; }),
+      rest("wagael_settings?select=key,value,updated_at&key=in.(fox_minsoc,fox_scheduler,fox_detail)").catch(() => [])]);
+    if (snap === "fehlt") { $("atPill").textContent = ""; $("atBody").innerHTML = `<div class="empty">Neue Spalten fehlen noch – 27_akku_technik.sql ausführen und Edge Function fox-1.4 einspielen.</div>`; return; }
+    const r = snap[0] || {}, S = Object.fromEntries(sets.map(x => [x.key, x.value]));
+    const ms = S.fox_minsoc?.result, det = S.fox_detail?.result, sch = S.fox_scheduler;
+    const kw = r.bat_v != null && r.bat_a != null ? r.bat_v * r.bat_a / 1000 : null;
+    const st = r.run_state, stTxt = st == null ? "–" : (RUN_STATE[st] || "Code " + st), stOk = st === 163, stRot = st === 165 || st === 166;
+    const fault = r.fault && String(r.fault).trim();
+    const pill = $("atPill");
+    if (stRot || fault) { pill.className = "so-pill bg-error text-error-content"; pill.textContent = "⛔ " + (fault ? "Störung " + fault : stTxt); }
+    else if (st != null && !stOk) { pill.className = "so-pill bg-warning text-warning-content"; pill.textContent = "⚠️ " + stTxt; }
+    else if (st != null) { pill.className = "so-pill bg-success text-success-content"; pill.textContent = "✓ läuft normal"; }
+    else { pill.className = "so-pill"; pill.textContent = ""; }
+    const tile = (l, v, sub) => `<div class="ak-m"><div class="text-xs opacity-70">${l}</div><div class="v">${v}</div><div class="text-xs opacity-60">${sub}</div></div>`;
+    const plan = sch == null ? "noch nicht abgefragt" : sch.result == null ? "kein Zeitplan aktiv – lädt mit Sonne, entlädt bei Bedarf"
+      : `${(sch.result.groups || []).filter(g => g.enable).length} Zeitfenster aktiv`;
+    // Software: bekannte Felder aus device/detail, Rest weglassen
+    const sw = [];
+    if (det) {
+      if (det.deviceType) sw.push(["Wechselrichter", det.deviceType + (det.capacity ? ` · ${det.capacity} kW` : "")]);
+      if (det.masterVersion) sw.push(["Software Wechselrichter (Master)", det.masterVersion]);
+      if (det.slaveVersion) sw.push(["Software Wechselrichter (Slave)", det.slaveVersion]);
+      if (det.managerVersion) sw.push(["Software Steuerung (Manager)", det.managerVersion]);
+      if (det.afciVersion) sw.push(["Lichtbogen-Schutz (AFCI)", det.afciVersion]);
+      // batteryList: bcu = Akku-Steuerung, bmu = je ein Modul (capacity in Wh), ivu ohne Bedeutung
+      const BL = det.batteryList || [], md = (ms) => ms ? new Date(ms).toLocaleDateString("de-DE", { month: "2-digit", year: "numeric" }) : "";
+      BL.filter(b => b.type === "bcu").forEach(b => sw.push([`Akku-Steuerung (BCU)${b.model ? " · " + b.model : ""}`, `Software ${b.version}`]));
+      BL.filter(b => b.type === "bmu").forEach((b, i) => sw.push([`Modul ${i + 1}${b.capacity ? ` · ${fmt(b.capacity / 1000, 1)} kWh` : ""}`, [b.version && "Software " + b.version, b.productDate && "gebaut " + md(b.productDate), b.batterySN && "SN " + b.batterySN].filter(Boolean).join(" · ")]));
+    }
+    const hm = (d) => new Date(d).toLocaleString("de-DE", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" });
+    $("atBody").innerHTML = `
+      <div class="grid gap-3 grid-cols-2 lg:grid-cols-4">
+        ${tile("Status", stTxt, fault ? `Störung: ${fault}` : "keine Störung gemeldet")}
+        ${tile("Reserve", ms ? `${fmt(ms.minSocOnGrid, 0)} %` : "–", ms ? `bei Stromausfall ${fmt(ms.minSoc, 0)} %` : "noch nicht abgefragt")}
+        ${tile("Gerade", kw == null ? "–" : Math.abs(kw) < 0.05 ? "ruht" : `${kw < 0 ? "entlädt" : "lädt"} ${fmt(Math.abs(kw), 1)} kW`, r.bat_v != null ? `${fmt(r.bat_v, 1)} V · ${fmt(r.bat_a, 1)} A` : "kein Wert")}
+        ${tile("Zeitplan", sch?.result == null ? "keiner" : "aktiv", plan)}
+      </div>
+      ${ms && ms.minSoc <= ms.minSocOnGrid ? `<div class="text-xs opacity-70 mt-2">ℹ️ Notstrom-Reserve = Alltags-Reserve. Fällt nachts der Strom aus, wenn der Akku schon bei ${fmt(ms.minSocOnGrid, 0)} % ist, bleibt kaum etwas für Notstrom. Wer Notstrom braucht, setzt in der FoxESS-App die Notstrom-Reserve höher (z. B. 20 %).</div>` : ""}
+      ${sw.length ? `<table class="table table-sm mt-2"><tbody>${sw.map(([a, b]) => `<tr><td class="opacity-70">${a}</td><td class="text-right">${b}</td></tr>`).join("")}</tbody></table>` : ""}
+      <div class="text-xs opacity-50 mt-1">Messung ${r.captured_at ? hm(r.captured_at) : "–"} · Einstellungen ${S.fox_minsoc?.at ? hm(S.fox_minsoc.at) : "–"} (stündlich)</div>`;
+  }
+
   async function loadAkku() {
     const stamm = await rest("hp_stammdaten?select=key,value").catch(() => []);
     const sv = (k, d) => numIn(stamm.find(x => x.key === k)?.value) ?? d;
-    const kap = sv("Akku Kapazität", 12.8), res = sv("Akku Reserve", 10);
+    const kap = sv("Akku Kapazität", 12.8);
+    const foxRes = await rest("wagael_settings?select=value&key=eq.fox_minsoc").then(([x]) => numIn(x?.value?.result?.minSocOnGrid)).catch(() => null);
+    const res = foxRes ?? sv("Akku Reserve", 10);   // Reserve direkt aus FoxESS (fox-1.4), sonst Stammdaten
     const now = new Date(), from = new Date(now); from.setHours(0, 0, 0, 0); from.setDate(from.getDate() - 7);
     let rows;
     try {
@@ -4115,7 +4175,7 @@
     applyPalette();
     // frische Anmeldung holen (nach Ruhezustand ist das alte Login-Token sonst abgelaufen → „JWT expired“)
     await frischesToken(false);
-    const L = { loadTiles, loadEnergy, loadHistory, loadAuto, loadDiagnose, loadMonth, loadCurve, loadBench, loadAnlage, loadState, loadKlima, loadDay, loadAlarms, loadCop, loadLive, loadErrors, loadModeCmp, loadOpt, loadSolar, loadAkku, loadMiele, loadModule, loadHaus, loadTakt, loadLegio };
+    const L = { loadTiles, loadEnergy, loadHistory, loadAuto, loadDiagnose, loadMonth, loadCurve, loadBench, loadAnlage, loadState, loadKlima, loadDay, loadAlarms, loadCop, loadLive, loadErrors, loadModeCmp, loadOpt, loadSolar, loadAkku, loadAkkuTechnik, loadMiele, loadModule, loadHaus, loadTakt, loadLegio };
     await loadAnzeige();
     const skip = new Set(Object.entries(AN_SKIP).filter(([t]) => anOff.has(t)).flatMap(([, f]) => f));
     const names = Object.keys(L).filter(n => !skip.has(n)), res = await Promise.allSettled(names.map(n => L[n]()));
