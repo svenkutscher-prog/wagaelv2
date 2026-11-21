@@ -748,7 +748,7 @@
   function setMsg(text, cls = "") { $("msg").className = cls; $("msg").textContent = text; }
 
   // ---------- Fehlerprotokoll: jeden Fehler nach Supabase (wagael_errors) ----------
-  const APP_VERSION = "2026-11-21l";
+  const APP_VERSION = "2026-11-21n";
   const erQueue = [], erSent = {};
   const erDevice = () => { const u = navigator.userAgent; const d = /iPad|Macintosh.*Mobile|Macintosh(?=.*Safari)(?!.*Chrome)/.test(u) && navigator.maxTouchPoints > 1 ? "iPad" : /iPhone/.test(u) ? "iPhone" : /Macintosh/.test(u) ? "Mac" : /Android/.test(u) ? "Android" : "anderes";
     return `${d} · ${/Edg\//.test(u) ? "Edge" : /Chrome\//.test(u) ? "Chrome" : /Firefox\//.test(u) ? "Firefox" : /Safari\//.test(u) ? "Safari" : "Browser"} · ${innerWidth}px`; };
@@ -2797,8 +2797,8 @@
     return 0;
   }
   function hsFormHtml() {
-    const f = hausForm, mess = f.art === "mess", feld = (k, lbl, ph, hilfe) => `<label class="form-control"><span class="text-sm font-medium">${lbl}</span>
-        <input data-hs-f="${k}" type="text" inputmode="decimal" autocomplete="off" class="input input-bordered input-sm" placeholder="${ph}" value="${f[k] ?? ""}">
+    const f = hausForm, mess = f.art === "mess", feld = (k, lbl, ph, hilfe) => `<label class="flex flex-col gap-1 min-w-0"><span class="text-sm font-medium">${lbl}</span>
+        <input data-hs-f="${k}" type="text" inputmode="decimal" autocomplete="off" class="input input-bordered input-sm w-full" placeholder="${ph}" value="${f[k] ?? ""}">
         ${hilfe ? `<span class="text-xs opacity-60 mt-1">${hilfe}</span>` : ""}</label>`;
     const felder = mess ? `<div class="text-sm opacity-70">Dieses Gerät wird gemessen – nur der Name lässt sich ändern.</div>`
       : f.art === "zeit" ? feld("watt", "Leistung in Watt", "z. B. 90", "Steht auf dem Typenschild oder im Datenblatt. Fernseher 50–150 W, LED-Lampe 5–15 W, PC 50–300 W.") + feld("stunden", "Stunden pro Tag", "z. B. 3", "Wie lange läuft es an einem normalen Tag? Halbe Stunden als 0,5.")
@@ -2809,13 +2809,13 @@
     const k = hsFormKwh(f), preis = (agState || soPrice).buy;
     return `<div class="p-3 border-t border-base-300 space-y-3 bg-base-100">
       <div class="font-semibold text-sm">${f.id ? "Gerät bearbeiten" : "Neues Gerät"}</div>
-      <div class="grid gap-3" style="grid-template-columns:repeat(auto-fit,minmax(12rem,1fr))">
-        <label class="form-control"><span class="text-sm font-medium">Name</span><input data-hs-f="name" class="input input-bordered input-sm" placeholder="z. B. Fernseher Wohnzimmer" value="${hsEsc(f.name || "")}"></label>
-        <label class="form-control"><span class="text-sm font-medium">Raum</span><select data-hs-f="raum_id" class="select select-bordered select-sm">${haus.raeume.map(x => `<option value="${x.id}"${x.id === +f.raum_id ? " selected" : ""}>${hsEsc(hsIcon(x) + " " + hsRaumName(x))}</option>`).join("")}</select></label></div>
-      ${mess ? "" : `<div><div class="text-sm font-medium mb-1">Wie läuft das Gerät?</div><div class="grid gap-2" style="grid-template-columns:repeat(auto-fit,minmax(11rem,1fr))">${HS_ARTEN.map(([a, t, b]) =>
-        `<button type="button" class="btn h-auto py-2 justify-start text-left normal-case ${f.art === a ? "btn-primary" : "btn-outline"}" data-hs-art="${a}"><span><span class="block">${t}</span><span class="block text-xs font-normal opacity-75">${b}</span></span></button>`).join("")}</div></div>`}
-      <div class="grid gap-3" style="grid-template-columns:repeat(auto-fit,minmax(12rem,1fr))">${felder}</div>
-      ${mess ? "" : `<div id="hsVorschau" class="text-sm rounded-box bg-base-200 px-3 py-2">${k > 0 ? `= <b>${fmt(k, 2)} kWh am Tag</b> · ${fmt(k * 365, 0)} kWh im Jahr · ca. ${fmt(k * 365 * preis, 0)} € im Jahr` : "Werte eintragen – das Ergebnis erscheint hier."}</div>`}
+      <div class="grid gap-3" style="grid-template-columns:repeat(auto-fit,minmax(min(100%,12rem),1fr))">
+        <label class="flex flex-col gap-1 min-w-0"><span class="text-sm font-medium">Name</span><input data-hs-f="name" class="input input-bordered input-sm w-full" placeholder="z. B. Fernseher Wohnzimmer" value="${hsEsc(f.name || "")}"></label>
+        <label class="flex flex-col gap-1 min-w-0"><span class="text-sm font-medium">Raum</span><select data-hs-f="raum_id" class="select select-bordered select-sm w-full">${haus.raeume.map(x => `<option value="${x.id}"${x.id === +f.raum_id ? " selected" : ""}>${hsEsc(hsIcon(x) + " " + hsRaumName(x))}</option>`).join("")}</select></label></div>
+      ${mess ? "" : `<div><div class="text-sm font-medium mb-1">Wie läuft das Gerät?</div><div class="grid gap-2" style="grid-template-columns:repeat(auto-fit,minmax(min(100%,11rem),1fr))">${HS_ARTEN.map(([a, t, b]) =>
+        `<button type="button" class="btn h-auto min-h-0 py-2 justify-start text-left normal-case whitespace-normal min-w-0 w-full ${f.art === a ? "btn-primary" : "btn-outline"}" data-hs-art="${a}"><span><span class="block">${t}</span><span class="block text-xs font-normal opacity-75">${b}</span></span></button>`).join("")}</div></div>`}
+      <div class="grid gap-3" style="grid-template-columns:repeat(auto-fit,minmax(min(100%,12rem),1fr))">${felder}</div>
+      ${mess ? "" : `<div id="hsVorschau" class="text-sm rounded-box bg-base-200 px-3 py-2">${k > 0 ? `= <b>${fmt(k, 2)} kWh am Tag</b> · ${fmt(k * 365, 0)} kWh im Jahr` : "Werte eintragen – das Ergebnis erscheint hier."}</div>`}
       <div id="hsFerr" class="text-error text-sm"></div>
       <div class="flex gap-2"><button class="btn btn-sm btn-primary" data-hs-save="1">Speichern</button><button class="btn btn-sm btn-ghost" data-hs-cancel="1">Abbrechen</button></div></div>`;
   }
@@ -2918,9 +2918,9 @@
       const zahl = (l, v, sub, cls = "") => `<div><div class="text-xs opacity-70">${l}</div><div class="text-2xl font-semibold tabular-nums ${cls}">${v}</div><div class="text-xs opacity-60">${sub}</div></div>`;
       $("hsSum").innerHTML = `
         <div class="grid grid-cols-3 gap-3">
-          ${zahl("Hausverbrauch", `${fmt(R, 1)} <span class="text-sm font-normal">kWh/Tag</span>`, `${fmt(R * 365, 0)} kWh · ca. ${fmt(R * 365 * preis, 0)} €/Jahr`)}
+          ${zahl("Hausverbrauch", `${fmt(R, 1)} <span class="text-sm font-normal">kWh/Tag</span>`, `${fmt(R * 365, 0)} kWh im Jahr`)}
           ${zahl("davon erfasst", `${fmt(E, 1)} <span class="text-sm font-normal">kWh</span>`, `${pc} % · ${haus.geraete.length} Geräte`, "text-primary")}
-          ${zahl(E > R ? "zu viel erfasst" : "noch offen", `${fmt(Math.abs(R - E), 1)} <span class="text-sm font-normal">kWh</span>`, E > R ? "Werte zu hoch geschätzt?" : `${fmt(Math.max(0, 100 - pc), 0)} % · ca. ${fmt(unb * 365 * preis, 0)} €/Jahr`, E > R ? "text-warning" : "")}
+          ${zahl(E > R ? "zu viel erfasst" : "noch offen", `${fmt(Math.abs(R - E), 1)} <span class="text-sm font-normal">kWh</span>`, E > R ? "Werte zu hoch geschätzt?" : `${fmt(Math.max(0, 100 - pc), 0)} % · ${fmt(unb * 365, 0)} kWh im Jahr`, E > R ? "text-warning" : "")}
         </div>
         <div class="hs-bar my-2"><div style="width:${w(E)}%;background:#7F77DD"></div><div style="flex:1;background:repeating-linear-gradient(135deg,color-mix(in oklab,currentColor 25%,transparent) 0 4px,transparent 4px 8px)"></div></div>
         <details class="text-sm"><summary class="cursor-pointer opacity-70">Details</summary>
@@ -2942,7 +2942,7 @@
     const kachel = (r) => { const n = haus.geraete.filter(g => g.raum_id === r.id).length, k = sumR(r), alle = n && haus.geraete.filter(g => g.raum_id === r.id).every(g => g.art === "mess");
       return `<button type="button" class="hs-k bg-base-200${hausOffen === r.id ? " on" : ""}" data-hs-open="${r.id}" aria-expanded="${hausOffen === r.id}">
         <span style="font-size:1.4rem;line-height:1">${hsIcon(r)}</span><span class="font-semibold text-sm">${hsEsc(hsRaumName(r))}</span>
-        <span class="text-xs opacity-70">${n} Gerät${n === 1 ? "" : "e"}${n ? ` · ${alle ? "gemessen" : fmt(k * 365 * preis, 0) + " €/Jahr"}` : ""}</span>
+        <span class="text-xs opacity-70">${n} Gerät${n === 1 ? "" : "e"}${n && alle ? " · gemessen" : ""}</span>
         <span class="text-lg font-semibold tabular-nums">${fmt(k, 2)} <span class="text-xs font-normal opacity-70">kWh/Tag</span></span>
         <span class="bar"><i style="width:${Math.min(100, k / R * 100)}%"></i></span></button>`; };
     const neu = hausNeuRaum
@@ -2958,10 +2958,10 @@
         .sort((a, b) => (hsKwh(b) || 0) - (hsKwh(a) || 0));
       const summe = hits.reduce((a, g) => a + (hsKwh(g) || 0), 0);
       det = `<div class="card bg-base-200 overflow-hidden mt-3"><div class="flex flex-wrap items-center gap-2 px-4 py-3 bg-base-300/40 text-sm"><b class="grow">${hausArtF ? HS_ARTN[hausArtF] : "🔍"} · ${hits.length} ${hits.length === 1 ? "Gerät" : "Geräte"}${q ? ` mit „${hsEsc(hausSuche.trim())}“` : ""}</b>
-        <span class="opacity-70">${fmt(summe, 2)} kWh/Tag · ${fmt(summe * 365, 0)} kWh/Jahr · ${fmt(summe * 365 * preis, 0)} €</span>${hausArtF ? `<button class="btn btn-ghost btn-xs" data-hs-artclose="1" aria-label="Filter schließen">✕</button>` : ""}</div>
-        <div class="overflow-x-auto"><table class="table table-sm"><thead><tr><th>Gerät</th><th>Raum</th><th class="text-right">kWh/Jahr</th><th class="text-right">€/Jahr</th><th></th></tr></thead><tbody>
+        <span class="opacity-70">${fmt(summe, 2)} kWh/Tag · ${fmt(summe * 365, 0)} kWh/Jahr</span>${hausArtF ? `<button class="btn btn-ghost btn-xs" data-hs-artclose="1" aria-label="Filter schließen">✕</button>` : ""}</div>
+        <div class="overflow-x-auto"><table class="table table-sm"><thead><tr><th>Gerät</th><th>Raum</th><th class="text-right">kWh/Tag</th><th class="text-right">kWh/Jahr</th><th></th></tr></thead><tbody>
         ${hits.length ? hits.map(g => { const k = hsKwh(g), rr = haus.raeume.find(x => x.id === g.raum_id);
-          return `<tr><td>${hsEsc(g.name)}</td><td>${rr ? hsEsc(hsIcon(rr) + " " + hsRaumName(rr)) : "–"}</td><td class="text-right tabular-nums">${k == null ? "–" : fmt(k * 365, 0)}</td><td class="text-right tabular-nums">${k == null ? "–" : fmt(k * 365 * preis, 0)}</td>
+          return `<tr><td>${hsEsc(g.name)}</td><td>${rr ? hsEsc(hsIcon(rr) + " " + hsRaumName(rr)) : "–"}</td><td class="text-right tabular-nums">${k == null ? "–" : fmt(k, 2)}</td><td class="text-right tabular-nums">${k == null ? "–" : fmt(k * 365, 0)}</td>
             <td class="text-right"><button class="btn btn-ghost btn-xs" data-hs-edit="${g.id}" title="im Raum öffnen und bearbeiten">✎</button></td></tr>`; }).join("") : `<tr><td colspan="5" class="opacity-60">Kein Gerät gefunden.</td></tr>`}
         </tbody></table></div></div>`;
     }
@@ -2969,16 +2969,16 @@
       const gs = haus.geraete.filter(g => g.raum_id === r.id), sum = sumR(r), std = r === hsStd() && r.sort === 0;
       const zeile = (g) => { const k = hsKwh(g), del = hausDel === g.id;
         return `<tr><td>${hsEsc(g.name)} <span class="hs-tag ${g.art === "mess" ? "bg-success text-success-content" : "bg-base-300"}">${g.art === "mess" ? "gemessen" : "geschätzt"}</span></td>
-          <td class="opacity-70">${hsNutzung(g)}</td><td class="text-right tabular-nums">${k == null ? "–" : fmt(k * 365, 0)}</td><td class="text-right tabular-nums">${k == null ? "–" : fmt(k * 365 * preis, 0)}</td>
+          <td class="opacity-70">${hsNutzung(g)}</td><td class="text-right tabular-nums">${k == null ? "–" : fmt(k, 2)}</td><td class="text-right tabular-nums">${k == null ? "–" : fmt(k * 365, 0)}</td>
           <td class="text-right whitespace-nowrap"><button class="btn btn-ghost btn-xs" data-hs-edit="${g.id}" aria-label="${hsEsc(g.name)} bearbeiten oder verschieben" title="bearbeiten / verschieben">✎</button><button class="btn btn-ghost btn-xs${del ? " text-error" : ""}" data-hs-del="${g.id}" aria-label="${hsEsc(g.name)} löschen" title="löschen">${del ? "wirklich löschen?" : "✕"}</button></td></tr>`; };
       const form = hausForm && +hausForm.raum_id === r.id && !hausForm.fremd ? hsFormHtml() : `<div class="p-2 border-t border-base-300"><button class="btn btn-ghost btn-sm" data-hs-add="${r.id}">+ Gerät hinzufügen</button></div>`;
       const kopf = hausRaumEdit && !std
         ? `<input id="hsRaumName" class="input input-bordered input-sm grow" value="${hsEsc(r.name)}" aria-label="Raumname"><button class="btn btn-xs btn-primary" data-hs-rename="${r.id}">Speichern</button><button class="btn btn-xs btn-ghost" data-hs-renamecancel="1">Abbrechen</button>`
-        : `<b class="grow">${hsEsc(hsRaumName(r))}</b><span class="text-sm opacity-70">${fmt(sum, 2)} kWh/Tag · ${fmt(sum * 365, 0)} kWh/Jahr · ${fmt(sum * 365 * preis, 0)} €</span>
+        : `<b class="grow">${hsEsc(hsRaumName(r))}</b><span class="text-sm opacity-70">${fmt(sum, 2)} kWh/Tag · ${fmt(sum * 365, 0)} kWh/Jahr</span>
            ${std ? "" : `<button class="btn btn-ghost btn-xs" data-hs-renameopen="1">✎ Umbenennen</button><button class="btn btn-ghost btn-xs${hausDelRaum === r.id ? " text-error" : ""}" data-hs-delraum="${r.id}" title="Raum löschen">${hausDelRaum === r.id ? (gs.length ? `löschen? ${gs.length} Gerät${gs.length === 1 ? "" : "e"} → Nicht zugeordnet` : "wirklich löschen?") : "🗑"}</button>`}
            <button class="btn btn-ghost btn-xs" data-hs-close="1" aria-label="Raum schließen">✕</button>`;
       det = `<div class="card bg-base-200 overflow-hidden mt-3"><div class="flex flex-wrap items-center gap-2 px-4 py-3 bg-base-300/40"><span style="font-size:1.25rem">${hsIcon(r)}</span>${kopf}</div>
-        <div class="overflow-x-auto"><table class="table table-sm"><thead><tr><th>Gerät</th><th>Leistung · Nutzung</th><th class="text-right">kWh/Jahr</th><th class="text-right">€/Jahr</th><th></th></tr></thead>
+        <div class="overflow-x-auto"><table class="table table-sm"><thead><tr><th>Gerät</th><th>Leistung · Nutzung</th><th class="text-right">kWh/Tag</th><th class="text-right">kWh/Jahr</th><th></th></tr></thead>
         <tbody>${gs.length ? gs.map(zeile).join("") : `<tr><td colspan="5" class="opacity-60">${std ? "Alle Geräte sind einem Raum zugeordnet. 👍" : "Noch keine Geräte"}</td></tr>`}</tbody></table></div>${form}</div>`;
     }
     $("hsRooms").innerHTML = `<div class="hs-grid">${haus.raeume.map(kachel).join("")}${neu}</div>${det || `<div class="text-xs opacity-60 mt-2">Auf einen Raum tippen, um seine Geräte zu sehen.</div>`}`;
@@ -3037,7 +3037,7 @@
     if (k === "label") { hausForm.label = el.checked; hausZeichnen(); return; }
     hausForm[k] = el.value; if ($("hsFerr")) $("hsFerr").textContent = "";
     const v = $("hsVorschau"); if (v) { const kw = hsFormKwh(hausForm), preis = (agState || soPrice).buy;
-      v.innerHTML = kw > 0 ? `= <b>${fmt(kw, 2)} kWh am Tag</b> · ${fmt(kw * 365, 0)} kWh im Jahr · ca. ${fmt(kw * 365 * preis, 0)} € im Jahr` : "Werte eintragen – das Ergebnis erscheint hier."; }
+      v.innerHTML = kw > 0 ? `= <b>${fmt(kw, 2)} kWh am Tag</b> · ${fmt(kw * 365, 0)} kWh im Jahr` : "Werte eintragen – das Ergebnis erscheint hier."; }
   });
   $("hsRooms").addEventListener("change", (e) => { const c = e.target.closest('[data-hs-f="label"]'); if (c && hausForm) { hausForm.label = c.checked; hausZeichnen(); return; }
     const rs = e.target.closest('[data-hs-f="raum_id"]'); if (rs && hausForm) { hausForm.raum_id = +rs.value; hausForm.fremd = +rs.value !== hausOffen; return; }
