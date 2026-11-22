@@ -561,6 +561,13 @@
     </div>
     <div id="lgBody"><div class="empty">Lade …</div></div>
   </div></div>
+  <div class="card bg-base-200 mb-4"><div class="card-body p-4 sm:p-5 gap-3">
+    <div class="flex flex-wrap items-center justify-between gap-2">
+      <div><h2 class="card-title text-base">📊 Vorher / Nachher – 2024 gegen 2026</h2><div class="text-sm opacity-70">Was hat sich seit Wärmepumpe und Solaranlage verändert? Verglichen werden dieselben Monate.</div></div>
+      <span id="vgPill" class="so-pill"></span>
+    </div>
+    <div id="vgBody"><div class="empty">Lade …</div></div>
+  </div></div>
   <div class="grid gap-4 xl:grid-cols-2 items-start">
     <div class="card bg-base-200"><div class="card-body p-4 sm:p-5">
       <h2 class="card-title text-base">Diagnose – letzte 7 Tage</h2>
@@ -646,6 +653,13 @@
       <span id="hsPill" class="so-pill"></span>
     </div>
     <div id="hsSum"><div class="empty">Lade …</div></div>
+  </div></div>
+  <div class="card bg-base-200"><div class="card-body p-4 gap-3">
+    <div class="flex flex-wrap items-center justify-between gap-2">
+      <div class="ctitle" style="opacity:1"><span class="font-semibold">📡 Geräte mit Live-Daten</span><span class="opacity-60">melden sich selbst – Status und Verbrauch direkt vom Hersteller</span></div>
+      <span id="hlPill" class="so-pill"></span>
+    </div>
+    <div id="hlBody"><div class="empty">Lade …</div></div>
   </div></div>
   <div class="flex flex-wrap gap-2 items-center">
     <div id="hsArtF" class="flex flex-wrap gap-1" role="group" aria-label="Geräte nach Art anzeigen">
@@ -755,7 +769,7 @@
   function setMsg(text, cls = "") { $("msg").className = cls; $("msg").textContent = text; }
 
   // ---------- Fehlerprotokoll: jeden Fehler nach Supabase (wagael_errors) ----------
-  const APP_VERSION = "2026-11-21r";
+  const APP_VERSION = "2026-11-22m";
   const erQueue = [], erSent = {};
   const erDevice = () => { const u = navigator.userAgent; const d = /iPad|Macintosh.*Mobile|Macintosh(?=.*Safari)(?!.*Chrome)/.test(u) && navigator.maxTouchPoints > 1 ? "iPad" : /iPhone/.test(u) ? "iPhone" : /Macintosh/.test(u) ? "Mac" : /Android/.test(u) ? "Android" : "anderes";
     return `${d} · ${/Edg\//.test(u) ? "Edge" : /Chrome\//.test(u) ? "Chrome" : /Firefox\//.test(u) ? "Firefox" : /Safari\//.test(u) ? "Safari" : "Browser"} · ${innerWidth}px`; };
@@ -3404,6 +3418,203 @@
     document.querySelectorAll("#simN [data-n]").forEach(x => x.classList.toggle("on", x === b)); loadSim().catch(err => logError("loadSim: " + err.message, "laden")); });
   $("simPreis").addEventListener("input", () => { try { localStorage.setItem("wagael_sim_preis", $("simPreis").value); } catch (e) {} drawSim(); });
 
+  // ---------- 📊 Vorher/Nachher: 2024 (Gas, ohne Solar) gegen 2026 (Wärmepumpe + Solar) – SQL 30 + 31 ----------
+  async function loadVergleich() {
+    const [vm, pvM, stamm] = await Promise.all([
+      rest("verbrauch_monat?select=jahr,monat,strom_kwh,gas_m3,temp_c&jahr=in.(2024,2026)").catch(e => { if (/42P01|verbrauch_monat/.test(e.message)) return null; throw e; }),
+      rest("rpc/wagael_pv_monat").catch(() => []),
+      rest("hp_stammdaten?select=key,value").catch(() => [])]);
+    if (!vm) { $("vgPill").textContent = ""; $("vgBody").innerHTML = `<div class="empty">Noch keine Vorjahreswerte – 30_verbrauch_historie.sql und 31_vergleich_2024.sql ausführen.</div>`; return; }
+    const sv = (k, d) => numIn(stamm.find(x => x.key === k)?.value) ?? d;
+    // Alle Preise, mit denen gerechnet wird (stehen unten in der Notiz)
+    const fak = sv("Gas kWh je m³", 11.006), gasAP = sv("Gas Arbeitspreis 2024 netto je m³", 0.862), gasGP = sv("Gas Grundpreis 2024 netto je Jahr", 127.68);
+    const p24 = sv("Strompreis 2024 je kWh", 0.3709), pKauf = sv("Strompreis Kauf", 0.3709), pVerk = sv("Strompreis Verkauf", 0.078), sGG = sv("Strom Grundgebühr je Monat", 11.11);
+    const mwst = (j, m) => j === 2024 && m <= 3 ? 1.07 : 1.19;   // Gas 2024 bis März 7 % MwSt.
+    const V = (j, m) => vm.find(x => x.jahr === j && x.monat === m) || {}, P = (m) => pvM.find(x => x.jahr === 2026 && x.monat === m);
+    const tageIm = (m) => new Date(2026, m, 0).getDate(), jetzt = new Date(), mNow = jetzt.getMonth() + 1;
+    const MN = ["", "Jan", "Feb", "Mär", "Apr", "Mai", "Jun", "Jul", "Aug", "Sep", "Okt", "Nov", "Dez"];
+    const gasEur = (m3, j, m) => m3 * gasAP * mwst(j, m), gasGrund = (j, m) => gasGP / 12 * mwst(j, m);
+    // Prognose: Tagesrate aus dem laufenden Monat; Dezember kälter und dunkler (×1,35 Kauf, ×0,3 Verkauf)
+    const pNow = P(mNow), rateK = pNow && pNow.tage ? pNow.grid_kwh / pNow.tage : null, rateV = pNow && pNow.tage ? (pNow.feedin_kwh || 0) / pNow.tage : 0;
+    const Z = [];
+    for (let m = 1; m <= 12; m++) {
+      const a = V(2024, m), b = V(2026, m), p = P(m);
+      if (a.strom_kwh == null) continue;
+      let kauf = null, verk = null, art = "echt";
+      if (m < mNow && p && p.tage >= tageIm(m) - 1) { kauf = +p.grid_kwh; verk = +p.feedin_kwh || 0; }
+      else if (m === mNow && p && rateK != null) { const rest = tageIm(m) - p.tage; kauf = +p.grid_kwh + rateK * 1.15 * rest; verk = (+p.feedin_kwh || 0) + rateV * rest; art = "teils"; }
+      else if (m > mNow && rateK != null && m === 12) { kauf = rateK * 1.35 * 31; verk = rateV * 0.3 * 31; art = "prognose"; }
+      else if (m < mNow && b.strom_kwh != null) { kauf = +b.strom_kwh; verk = null; art = "zaehler"; }   // FoxESS fehlt (z. B. vor dem Anschluss)
+      if (kauf == null) continue;
+      const gas26 = m <= 4 ? (+b.gas_m3 || 0) : 0, gasMonat26 = m <= 4;   // ab 1. Mai 2026 kein Gas mehr (auch kein Grundpreis)
+      const e24 = gasEur(+a.gas_m3 || 0, 2024, m) + gasGrund(2024, m) + (+a.strom_kwh) * p24 + sGG;
+      const e26 = gasEur(gas26, 2026, m) + (gasMonat26 ? gasGrund(2026, m) : 0) + kauf * pKauf + sGG;
+      const v26 = verk != null ? verk * pVerk : 0;
+      Z.push({ m, art, gas: gas26 > 0, e24, e26, kauf, verk, v26, netto: e26 - v26 });
+    }
+    if (!Z.length) { $("vgBody").innerHTML = `<div class="empty">Noch keine gemeinsamen Monate.</div>`; return; }
+    const S = (k) => Z.reduce((q, z) => q + (z[k] ?? 0), 0), pc = (alt, neu) => alt ? (alt - neu) / alt * 100 : 0;
+    const e24 = S("e24"), e26 = S("e26"), v26 = S("v26"), net = S("netto"), verkKwh = S("verk");
+    const pill = $("vgPill"); pill.className = `so-pill ${net < e24 ? "bg-success text-success-content" : "bg-warning text-warning-content"}`;
+    pill.textContent = `unterm Strich ${fmt(pc(e24, net), 0)} % besser`;
+    const tile = (l, v, sub, cls = "") => `<div class="ak-m ${cls}"><div class="text-xs opacity-70">${l}</div><div class="v">${v}</div><div class="text-xs opacity-70">${sub}</div></div>`;
+    const proz = (alt, neu) => { const x = pc(alt, neu); return `<span class="${x < 0 ? "text-error" : x > 0 ? "text-success" : ""}">${fmt(x, 0)} %</span>`; };
+    const eu = (v) => `${fmt(v, 0)} €`, pre = (z) => z.art === "prognose" || z.art === "teils" ? "≈ " : "";
+    $("vgBody").innerHTML = `
+      <div class="grid gap-3 grid-cols-1 sm:grid-cols-3">
+        ${tile("Einkauf (inkl. Grundgebühren)", `${eu(e24)} → ${eu(e26)}`, `${fmt(pc(e24, e26), 0)} % besser`)}
+        ${tile("Verkauft", `${fmt(verkKwh, 0)} kWh`, `<span class="text-success">+ ${eu(v26)} Einnahmen</span>`)}
+        ${tile("Unterm Strich", `${eu(e24)} → ${eu(net)}`, `${eu(e24 - net)} weniger · ${fmt(pc(e24, net), 0)} % besser`, "bg-success/15")}
+      </div>
+      <div class="overflow-x-auto mt-3"><table class="table table-sm">
+        <thead>
+          <tr class="text-xs"><th></th><th colspan="3" class="text-center border-b border-base-300">Einkauf (inkl. Grundgebühren)</th><th colspan="2" class="text-center border-b border-base-300">Verkauf</th><th colspan="2" class="text-center border-b border-base-300">Unterm Strich</th></tr>
+          <tr><th>Monat</th><th class="text-right">2024</th><th class="text-right">2026</th><th class="text-right">besser</th><th class="text-right">kWh</th><th class="text-right">€</th><th class="text-right">2026</th><th class="text-right">besser</th></tr>
+        </thead>
+        <tbody>${Z.map(z => `<tr class="${z.art === "prognose" || z.art === "teils" ? "opacity-70" : ""}">
+          <td class="whitespace-nowrap">${MN[z.m]}${z.art === "prognose" ? ' <span class="text-xs">Prognose</span>' : z.art === "teils" ? ' <span class="text-xs">bis heute + Prognose</span>' : (z.gas ? ' <span class="text-xs opacity-60">noch Gas</span>' : "") + (z.art === "zaehler" ? ' <span class="text-xs opacity-60">Ablesung</span>' : "")}</td>
+          <td class="text-right">${eu(z.e24)}</td><td class="text-right">${pre(z)}${eu(z.e26)}</td><td class="text-right">${proz(z.e24, z.e26)}</td>
+          <td class="text-right">${z.verk != null ? pre(z) + fmt(z.verk, 0) : "–"}</td><td class="text-right text-success">${z.verk != null ? "+" + eu(z.v26) : "–"}</td>
+          <td class="text-right font-semibold">${pre(z)}${eu(z.netto)}</td><td class="text-right font-semibold">${proz(z.e24, z.netto)}</td></tr>`).join("")}
+          <tr class="font-semibold border-t-2 border-base-300"><td>${Z.length === 12 ? "Jahr" : "Summe"}</td><td class="text-right">${eu(e24)}</td><td class="text-right">${eu(e26)}</td><td class="text-right">${proz(e24, e26)}</td><td class="text-right">${fmt(verkKwh, 0)}</td><td class="text-right text-success">+${eu(v26)}</td><td class="text-right">${eu(net)}</td><td class="text-right">${proz(e24, net)}</td></tr>
+        </tbody>
+      </table></div>
+      <div class="text-xs opacity-70 mt-2 leading-relaxed rounded-box bg-base-100/40 p-3">
+        <b>Gerechnet mit:</b>
+        Strom 2024 <b>${fmt(p24, 4)} €</b>/kWh · Strom 2026 <b>${fmt(pKauf, 4)} €</b>/kWh · Verkauf <b>${fmt(pVerk, 4)} €</b>/kWh ·
+        Strom-Grundgebühr <b>${fmt(sGG, 2)} €</b>/Monat (beide Jahre) ·
+        Gas <b>${fmt(gasAP, 3)} €</b>/m³ netto = <b>${fmt(gasAP * 1.19, 3)} €</b>/m³ mit 19 % MwSt. (≈ ${fmt(gasAP * 1.19 / fak, 3)} €/kWh; 2024 bis März 7 % MwSt.) ·
+        Gas-Grundpreis <b>${fmt(gasGP, 2)} €</b>/Jahr netto = <b>${fmt(gasGP * 1.19 / 12, 2)} €</b>/Monat brutto (2026 nur Jan–Apr, ab 1. Mai kein Gas mehr) ·
+        1 m³ Gas = <b>${fmt(fak, 3)} kWh</b>.<br>
+        2024 = deine Ablesung · 2026 = FoxESS (Gas 2026 und Monate ohne FoxESS-Daten aus deiner Ablesung) · Prognose aus dem Verbrauch des laufenden Monats (Dezember × 1,35) · über 100 % = mehr verdient als ausgegeben · Werte änderbar unter Anlage → Stammdaten</div>`;
+  }
+
+  // ---------- 📡 Haus: Geräte mit Live-Daten (Miele + Klimaanlage; TVs/Steckdosen/Lampen folgen mit capture) ----------
+  // Läufe werden aus miele_snapshots gesammelt: je Gerät + Programm + Tag ein Lauf (Endwerte = Maximum)
+  async function loadHausLive() {
+    const heute = new Date(), d60 = new Date(heute.getTime() - 60 * 864e5), tagS = (d) => d.toLocaleDateString("sv-SE");
+    const [ms, de] = await Promise.all([
+      restAll(`miele_snapshots?select=captured_at,device_id,device_type,model,status_raw,status,program,elapsed_min,remaining_min,energy_kwh,water_l&captured_at=gte.${d60.toISOString()}&order=captured_at.asc`).catch(() => []),
+      rest(`daily_energy?select=day,device_label,kwh_seit_vorher&day=eq.${tagS(heute)}`).catch(() => [])]);
+    const NAME = (t) => /dry|trock/i.test(t || "") ? ["🌀", "Trockner"] : /wash|wasch/i.test(t || "") ? ["🧺", "Waschmaschine"] : ["🔌", t || "Miele"];
+    const hm = (d) => new Date(d).toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit" });
+    const tagKurz = (d) => new Date(d).toLocaleDateString("de-DE", { weekday: "short", day: "2-digit", month: "2-digit" });
+    const istHeute = (d) => new Date(d).toDateString() === heute.toDateString();
+    // 1) Geräte und Läufe (Programm + Tag; Endwerte = Maximum)
+    const geraete = {};
+    ms.forEach(r => { (geraete[r.device_id] ||= { typ: r.device_type, model: r.model, rows: [] }).rows.push(r); });
+    const alle = [];
+    Object.values(geraete).forEach(g => {
+      const [ic, nm] = NAME(g.typ); g.ic = ic; g.nm = nm;
+      const L = {};
+      g.rows.filter(r => r.program && (r.status_raw === 5 || r.status_raw === 7)).forEach(r => {
+        const k = r.program + "|" + new Date(r.captured_at).toDateString();
+        const x = (L[k] ||= { program: r.program, start: r.captured_at, ende: r.captured_at, kwh: 0, l: 0, min: 0, n5: 0 });
+        x.ende = r.captured_at; x.kwh = Math.max(x.kwh, +r.energy_kwh || 0); x.l = Math.max(x.l, +r.water_l || 0); x.min = Math.max(x.min, +r.elapsed_min || 0);
+        if (r.status_raw === 5) x.n5++; else x.fertig = true;   // Status 7 = Programm zu Ende
+      });
+      // Gerät ohne eigene Messung (z. B. Trockner): Lauf behalten, Verbrauch später aus dem Hausverbrauch schätzen
+      g.laeufe = Object.values(L).filter(x => x.kwh > 0 || x.n5 >= 2).map(x => ({ ...x, geschaetzt: x.kwh === 0, wm: nm === "Waschmaschine", tr: nm === "Trockner", ic, nm }));
+      alle.push(...g.laeufe);
+    });
+    // 2) Für abgeschlossene Läufe: FoxESS (Haus, Sonne) + Wärmepumpe im selben Zeitraum
+    const fertigL = alle.filter(x => x.fertig || Date.now() - new Date(x.ende) > 20 * 60000);
+    const sonnig = new Set();
+    if (fertigL.length) {
+      const fenster = (x) => [new Date(new Date(x.start).getTime() - 10 * 60000), new Date(x.ende)];
+      const orPv = fertigL.map(x => { const [a, b] = fenster(x); return `and(fox_time.gte.${a.toISOString()},fox_time.lte.${b.toISOString()})`; }).join(",");
+      const orWp = fertigL.filter(x => x.geschaetzt).map(x => { const [a, b] = fenster(x); return `and(captured_at.gte.${a.toISOString()},captured_at.lte.${b.toISOString()})`; }).join(",");
+      const [pv, wp] = await Promise.all([
+        rest(`pv_snapshots?select=fox_time,pv_kw,load_kw&or=(${orPv})&order=fox_time.asc&limit=5000`).catch(() => []),
+        orWp ? rest(`snapshots?select=captured_at,energy_wh&hp_valve=not.is.null&or=(${orWp})&order=captured_at.asc&limit=5000`).catch(() => []) : []]);
+      const basisKw = haus.ref?.rest != null ? haus.ref.rest / 24 : 0.6;   // übriges Haus im Schnitt
+      fertigL.forEach(x => {
+        const [a, b] = fenster(x).map(d => d.getTime()), std = (b - a) / 36e5;
+        const w = pv.filter(p => { const t = new Date(p.fox_time).getTime(); return t >= a && t <= b; });
+        const sp = w.reduce((q, p) => q + (+p.pv_kw || 0), 0), sl = w.reduce((q, p) => q + (+p.load_kw || 0), 0);
+        if (w.length && sl > 0 && sp / sl >= 0.5) sonnig.add(x);
+        if (x.geschaetzt && w.length) {
+          const e = wp.filter(p => { const t = new Date(p.captured_at).getTime(); return t >= a && t <= b; }).map(p => +p.energy_wh).filter(v => !isNaN(v));
+          const wpKwh = e.length >= 2 ? (Math.max(...e) - Math.min(...e)) / 1000 : 0;
+          x.kwh = Math.max(0, sl / w.length * std - wpKwh - basisKw * std);
+        }
+      });
+    }
+    const kwhTxt = (x, n = 2) => (x.geschaetzt ? "≈ " : "") + fmt(x.kwh, n);
+    // 3) Anzeige je Gerät
+    let laufen = 0, heuteKwh = 0;
+    const karten = [], zeilen = [];
+    Object.values(geraete).forEach(g => {
+      const R = g.rows, last = R[R.length - 1], ic = g.ic, nm = g.nm;
+      const zaehlbar = g.laeufe.filter(x => !x.geschaetzt || fertigL.includes(x));
+      zaehlbar.filter(x => istHeute(x.start)).forEach(x => heuteKwh += x.kwh);
+      const prog = {};
+      zaehlbar.forEach(x => { const p = (prog[x.program] ||= { n: 0, kwh: 0, l: 0, min: 0, g: false }); p.n++; p.kwh += x.kwh; p.l += x.l; p.min += x.min; p.g ||= x.geschaetzt; });
+      const progTxt = Object.entries(prog).sort((a, b) => b[1].n - a[1].n).map(([n, p]) => `${hsEsc(n)} Ø ${p.g ? "≈ " : ""}${fmt(p.kwh / p.n, 2)} kWh${p.l ? ` · ${fmt(p.l / p.n, 0)} l` : ""}${p.min ? ` · ${fmt(p.min / p.n, 0)} Min.` : ""} (${p.n}×)`).join(" · ");
+      const ohneMessung = g.laeufe.length && g.laeufe.every(x => x.geschaetzt);
+      // läuft = letzte Meldung „in Betrieb“, nicht älter als 30 Min. und Restzeit noch nicht abgelaufen (+5 Min. Puffer)
+      const aktiv = last && last.status_raw === 5 && Date.now() - new Date(last.captured_at) < 30 * 60000
+        && !(last.remaining_min != null && Date.now() > new Date(last.captured_at).getTime() + (last.remaining_min + 5) * 60000);
+      if (aktiv) {
+        laufen++;
+        const vor = R.filter(r => r.status_raw === 5 && r.program === last.program).slice(-2);
+        const kw = vor.length === 2 && +vor[1].energy_kwh > +vor[0].energy_kwh ? (vor[1].energy_kwh - vor[0].energy_kwh) / ((new Date(vor[1].captured_at) - new Date(vor[0].captured_at)) / 36e5) : null;
+        const gesamt = (last.elapsed_min || 0) + (last.remaining_min || 0), pct = gesamt ? Math.round((last.elapsed_min || 0) / gesamt * 100) : null;
+        const fertig = last.remaining_min != null ? new Date(new Date(last.captured_at).getTime() + last.remaining_min * 60000) : null;
+        const rechts = ohneMessung ? `<div class="font-semibold">misst keinen Verbrauch</div><div class="opacity-70">wird nach dem Lauf geschätzt</div>`
+          : `<div class="font-semibold">bisher ${fmt(+last.energy_kwh || 0, 1)} kWh${last.water_l ? ` · ${fmt(+last.water_l, 0)} l` : ""}</div><div class="opacity-70">${kw != null ? `zuletzt Ø ${fmt(kw, 1)} kW` : "Leistung nach der 2. Messung"}</div>`;
+        karten.push(`<div class="rounded-box border-2 border-success p-3">
+          <div class="flex flex-wrap items-center gap-3"><span class="text-xl">${ic}</span>
+            <div class="grow min-w-0"><div class="font-semibold">${nm} <span class="badge badge-success badge-sm">läuft</span></div>
+              <div class="text-sm opacity-70">${hsEsc(last.program || "")}${fertig ? ` · fertig ca. ${hm(fertig)}` : ""}</div></div>
+            <div class="text-right text-sm">${rechts}</div></div>
+          ${pct != null ? `<progress class="progress progress-success w-full mt-2" value="${pct}" max="100"></progress>` : ""}
+          ${progTxt ? `<div class="text-xs opacity-70 mt-1">Programme bisher: ${progTxt}</div>` : ""}</div>`);
+      } else {
+        const lz = zaehlbar[zaehlbar.length - 1], hk = zaehlbar.filter(x => istHeute(x.start)).reduce((a, x) => a + x.kwh, 0);
+        zeilen.push(`<tr><td>${ic} ${nm}${g.model ? ` <span class="opacity-50 text-xs">${hsEsc(g.model)}</span>` : ""}</td>
+          <td class="opacity-70">${last?.status_raw === 7 ? "fertig" : "aus"}${lz ? ` · zuletzt ${tagKurz(lz.start)} ${hsEsc(lz.program)} ${kwhTxt(lz)} kWh${lz.l ? ` · ${fmt(lz.l, 0)} l` : ""}` : ""}</td>
+          <td class="text-right">${hk ? (zaehlbar.some(x => x.geschaetzt && istHeute(x.start)) ? "≈ " : "") + fmt(hk, 2) : "–"}</td><td class="text-right opacity-50 text-xs">Miele${ohneMessung ? " + FoxESS" : ""}</td></tr>
+          ${progTxt ? `<tr><td colspan="4" class="text-xs opacity-60 pt-0">Programme bisher: ${progTxt}</td></tr>` : ""}`);
+      }
+    });
+    // Klimaanlage aus SmartThings (Tageszähler)
+    de.filter(x => /klima|a\/c|air/i.test(x.device_label || "")).forEach(x => {
+      const k = +x.kwh_seit_vorher || 0; heuteKwh += k;
+      zeilen.push(`<tr><td>❄️ ${hsEsc(x.device_label)}</td><td class="opacity-70">Verbrauch bis jetzt</td><td class="text-right font-semibold">${fmt(k, 2)}</td><td class="text-right opacity-50 text-xs">Samsung</td></tr>`);
+    });
+    // 4) Monatstabelle
+    const M = {};
+    fertigL.forEach(x => { const k = new Date(x.start).toLocaleDateString("sv-SE").slice(0, 7);
+      const m = (M[k] ||= { wn: 0, wk: 0, wl: 0, tn: 0, tk: 0, tg: false, sonne: 0, n: 0, prog: {} });
+      if (x.wm) { m.wn++; m.wk += x.kwh; m.wl += x.l; } else if (x.tr) { m.tn++; m.tk += x.kwh; m.tg ||= x.geschaetzt; }
+      m.n++; if (sonnig.has(x)) m.sonne++; m.prog[x.program] = (m.prog[x.program] || 0) + 1; (m.laeufe ||= []).push(x); });
+    // Dauer: Miele „bisher gelaufen“, sonst aus Start/Ende (Messung alle 10 Min.)
+    const dauer = (x) => Math.max(x.min || 0, Math.round((new Date(x.ende) - new Date(x.start)) / 60000) + (x.fertig ? 0 : 10));
+    const mk = Object.keys(M).sort().reverse();
+    const mName = (k) => new Date(k + "-15").toLocaleDateString("de-DE", { month: "short", year: "numeric" });
+    const sum = mk.reduce((a, k) => { const m = M[k]; a.wn += m.wn; a.wk += m.wk; a.wl += m.wl; a.tn += m.tn; a.tk += m.tk; a.tg ||= m.tg; a.sonne += m.sonne; a.n += m.n; return a; }, { wn: 0, wk: 0, wl: 0, tn: 0, tk: 0, tg: false, sonne: 0, n: 0 });
+    const tk = (m) => (m.tg ? "≈ " : "") + fmt(m.tk, 1);
+    const monatHtml = mk.length ? `<div class="overflow-x-auto"><table class="table table-sm"><thead><tr><th>Monat</th><th class="text-right">🧺 Wäschen</th><th class="text-right">kWh</th><th class="text-right">Liter</th><th class="text-right">🌀 Trockner</th><th class="text-right">kWh</th><th class="text-right">☀️ mit Sonne</th></tr></thead><tbody>
+      ${mk.map(k => { const m = M[k]; return `<tr class="cursor-pointer hover" data-hl-monat="${k}"><td class="font-medium">▸ ${mName(k)}</td><td class="text-right">${m.wn}</td><td class="text-right">${fmt(m.wk, 1)}</td><td class="text-right">${m.wl ? fmt(m.wl, 0) : "–"}</td><td class="text-right">${m.tn}</td><td class="text-right">${tk(m)}</td><td class="text-right">${m.sonne} von ${m.n}</td></tr>
+        <tr class="hidden" data-hl-detail="${k}"><td colspan="7" class="p-0"><table class="table table-xs bg-base-100/40"><tbody>
+          ${m.laeufe.slice().sort((a, b) => new Date(b.start) - new Date(a.start)).map(x => `<tr><td class="whitespace-nowrap">${tagKurz(x.start)} ${hm(x.start)}</td><td>${x.ic} ${hsEsc(x.program)}</td><td class="text-right whitespace-nowrap">${dauer(x)} Min.</td><td class="text-right whitespace-nowrap">${kwhTxt(x)} kWh</td><td class="text-right">${x.l ? fmt(x.l, 0) + " l" : ""}</td><td class="text-right">${sonnig.has(x) ? "☀️" : ""}</td></tr>`).join("")}
+        </tbody></table></td></tr>`; }).join("")}
+      ${mk.length > 1 ? `<tr class="font-semibold"><td>Summe</td><td class="text-right">${sum.wn}</td><td class="text-right">${fmt(sum.wk, 1)}</td><td class="text-right">${sum.wl ? fmt(sum.wl, 0) : "–"}</td><td class="text-right">${sum.tn}</td><td class="text-right">${tk(sum)}</td><td class="text-right">${sum.sonne} von ${sum.n}</td></tr>` : ""}
+      </tbody></table></div><div class="text-xs opacity-50">Gesammelt seit 20.11.2026 · ☀️ = während des Laufs kam mindestens die Hälfte des Hausstroms von der Sonne · ≈ = Trockner misst selbst nicht: Hausverbrauch (FoxESS) minus Wärmepumpe minus Grundlast · Monat antippen für alle Läufe mit Programm und Dauer</div>` : "";
+    const pill = $("hlPill");
+    pill.className = `so-pill ${laufen ? "bg-success text-success-content" : ""}`;
+    pill.textContent = `${laufen ? laufen + " " + (laufen === 1 ? "läuft" : "laufen") + " gerade · " : ""}heute ${fmt(heuteKwh, 1)} kWh gemessen`;
+    $("hlBody").innerHTML = (karten.length || zeilen.length) ? `<div class="space-y-3">${karten.join("")}
+      ${zeilen.length ? `<div class="overflow-x-auto"><table class="table table-sm"><thead><tr><th>Gerät</th><th>Status</th><th class="text-right">heute kWh</th><th class="text-right">Quelle</th></tr></thead><tbody>${zeilen.join("")}</tbody></table></div>` : ""}
+      <div class="font-semibold text-sm pt-2">📅 Wäsche pro Monat</div>${monatHtml || `<div class="text-sm opacity-60">Erscheint, sobald der erste Lauf abgeschlossen ist – ab dann kommt jeder Waschgang und jede Trocknung automatisch dazu.</div>`}
+      <div class="text-xs opacity-50">Miele: Verbrauch und Wasser pro Programm werden bei jedem Lauf gesammelt (alle 10 Min.). TVs, Steckdosen und Lampen kommen dazu, sobald „capture“ ihren Status speichert.</div></div>`
+      : `<div class="empty">Noch keine Geräte-Daten.</div>`;
+  }
+  $("hlBody").addEventListener("click", (e) => { const r = e.target.closest("[data-hl-monat]"); if (!r) return;
+    const d = $("hlBody").querySelector(`[data-hl-detail="${r.dataset.hlMonat}"]`); if (!d) return;
+    d.classList.toggle("hidden"); r.firstElementChild.textContent = (d.classList.contains("hidden") ? "▸ " : "▾ ") + r.firstElementChild.textContent.slice(2); });
+
   // ---------- 🔧 Akku-Technik: Status, Reserve, Spannung/Strom, Zeitplan, Software (fox-1.4 + SQL 27) ----------
   const RUN_STATE = { 160: "Selbsttest", 161: "wartet", 162: "prüft", 163: "Normalbetrieb am Netz", 164: "Notstrom (Netz aus)", 165: "Störung", 166: "dauerhafte Störung", 167: "Standby", 168: "Software-Update", 169: "Werkstest" };
   async function loadAkkuTechnik() {
@@ -4175,7 +4386,7 @@
     applyPalette();
     // frische Anmeldung holen (nach Ruhezustand ist das alte Login-Token sonst abgelaufen → „JWT expired“)
     await frischesToken(false);
-    const L = { loadTiles, loadEnergy, loadHistory, loadAuto, loadDiagnose, loadMonth, loadCurve, loadBench, loadAnlage, loadState, loadKlima, loadDay, loadAlarms, loadCop, loadLive, loadErrors, loadModeCmp, loadOpt, loadSolar, loadAkku, loadAkkuTechnik, loadMiele, loadModule, loadHaus, loadTakt, loadLegio };
+    const L = { loadTiles, loadEnergy, loadHistory, loadAuto, loadDiagnose, loadMonth, loadCurve, loadBench, loadAnlage, loadState, loadKlima, loadDay, loadAlarms, loadCop, loadLive, loadErrors, loadModeCmp, loadOpt, loadSolar, loadAkku, loadAkkuTechnik, loadHausLive, loadMiele, loadModule, loadHaus, loadTakt, loadLegio, loadVergleich };
     await loadAnzeige();
     const skip = new Set(Object.entries(AN_SKIP).filter(([t]) => anOff.has(t)).flatMap(([, f]) => f));
     const names = Object.keys(L).filter(n => !skip.has(n)), res = await Promise.allSettled(names.map(n => L[n]()));
