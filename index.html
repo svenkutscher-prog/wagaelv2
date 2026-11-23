@@ -807,7 +807,7 @@
   function setMsg(text, cls = "") { $("msg").className = cls; $("msg").textContent = text; }
 
   // ---------- Fehlerprotokoll: jeden Fehler nach Supabase (wagael_errors) ----------
-  const APP_VERSION = "2026-11-23b";
+  const APP_VERSION = "2026-11-23c";
   const erQueue = [], erSent = {};
   const erDevice = () => { const u = navigator.userAgent; const d = /iPad|Macintosh.*Mobile|Macintosh(?=.*Safari)(?!.*Chrome)/.test(u) && navigator.maxTouchPoints > 1 ? "iPad" : /iPhone/.test(u) ? "iPhone" : /Macintosh/.test(u) ? "Mac" : /Android/.test(u) ? "Android" : "anderes";
     return `${d} · ${/Edg\//.test(u) ? "Edge" : /Chrome\//.test(u) ? "Chrome" : /Firefox\//.test(u) ? "Firefox" : /Safari\//.test(u) ? "Safari" : "Browser"} · ${innerWidth}px`; };
@@ -891,7 +891,7 @@
     // Zählerstand: einmal abgelesen, WAGAEL rechnet weiter (37_zaehlerstand.sql, Eingabe auf zaehler.html)
     const zj = await rest("wagael_zaehler_jetzt?select=zaehler,geschaetzt,abgelesen_at").catch(() => null);
     if (zj) {
-      const ZN = { wp: "WP", bezug: "Bezug", einspeisung: "Einsp." }, zw = zj.find(z => z.zaehler === "wp") || zj[0];
+      const ZN = { bezug: "Strom", einspeisung: "Einsp.", wp: "WP" }, zw = zj.find(z => z.zaehler === "bezug") || zj[0];
       t.push(tile("📟 Zählerstand (geschätzt)",
         zw ? `<a class="link link-hover" href="zaehler.html?z=${zw.zaehler}">${fmt(zw.geschaetzt, 1)} kWh</a>` : `<a class="link" href="zaehler.html">eintragen →</a>`,
         zj.length ? zj.map(z => `${ZN[z.zaehler]} ${fmt(z.geschaetzt, 0)}`).join(" · ") + ` · <a class="link" href="zaehler.html">ablesen</a>` : "einmal ablesen, dann rechnet WAGAEL weiter"));
