@@ -4,6 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="referrer" content="no-referrer">
 <title>WAGAEL – Zählerstand</title>
 <link href="https://cdn.jsdelivr.net/npm/daisyui@5" rel="stylesheet" type="text/css">
 <link href="https://cdn.jsdelivr.net/npm/daisyui@5/themes.css" rel="stylesheet" type="text/css">
@@ -19,7 +20,7 @@
   </div>
 
   <div id="noLogin" class="alert alert-warning hidden">
-    <span>Bitte zuerst in <a class="link" href="index.html">WAGAEL</a> anmelden – danach diese Seite neu öffnen.</span>
+    <span id="noLoginTxt">Bitte den Link aus der Telegram-Nachricht „Zählerstand ablesen“ öffnen – oder zuerst in <a class="link" href="index.html">WAGAEL</a> anmelden.</span>
   </div>
 
   <div id="app" class="space-y-4 hidden">
@@ -84,8 +85,14 @@
     einspeisung: "Weitergerechnet mit der Einspeisung laut FoxESS."
   };
   const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY, { auth: { persistSession: true, autoRefreshToken: true } });
-  let token = null, zaehler = "wp", jetzt = null;
+  let token = null, key = null, zaehler = "bezug", jetzt = null;
 
+  // Schlüssel aus dem Telegram-Link: merken und aus der Adresszeile entfernen
+  try {
+    const q = new URLSearchParams(location.search);
+    if (q.get("k")) { localStorage.setItem("wagael_zaehler_k", q.get("k")); q.delete("k"); history.replaceState(null, "", location.pathname + (q.toString() ? "?" + q : "")); }
+    key = localStorage.getItem("wagael_zaehler_k");
+  } catch (e) {}
   try { zaehler = new URLSearchParams(location.search).get("z") || localStorage.getItem("wagael_zaehler_sel") || "bezug"; } catch (e) {}
   if (!NAMES[zaehler]) zaehler = "bezug";
 
@@ -93,6 +100,16 @@
     const r = await fetch(`${SUPABASE_URL}/rest/v1/${path}`, { ...opt, headers: { apikey: SUPABASE_KEY, Authorization: `Bearer ${token}`, "Content-Type": "application/json", ...(opt.headers || {}) } });
     if (!r.ok) { const t = await r.text(); throw new Error(r.status === 404 ? "Tabelle fehlt – bitte 37_zaehlerstand.sql ausführen." : t || r.statusText); }
     return r.status === 204 ? null : r.json();
+  }
+  async function rpc(fn, args) {
+    const r = await fetch(`${SUPABASE_URL}/rest/v1/rpc/${fn}`, { method: "POST", headers: { apikey: SUPABASE_KEY, "Content-Type": "application/json" }, body: JSON.stringify({ p_k: key, ...args }) });
+    const t = await r.text(); let j = null; try { j = t ? JSON.parse(t) : null; } catch (e) {}
+    if (!r.ok) {
+      if (r.status === 404) throw new Error("Funktion fehlt – bitte 39_zaehler_link.sql ausführen.");
+      if (/Link ungültig/.test(j?.message || "")) { try { localStorage.removeItem("wagael_zaehler_k"); } catch (e) {} }
+      throw new Error(j?.message || t || r.statusText);
+    }
+    return j;
   }
   const parseNum = (s) => { s = String(s).trim().replace(/\s/g, ""); if (/,/.test(s)) s = s.replace(/\./g, "").replace(",", "."); return s === "" ? NaN : Number(s); };
   const localNow = () => { const d = new Date(); d.setMinutes(d.getMinutes() - d.getTimezoneOffset()); return d.toISOString().slice(0, 16); };
@@ -105,9 +122,10 @@
     showErr(""); $("inAt").value = localNow();
     let jt = [], vl = [];
     try {
-      [jt, vl] = await Promise.all([
+      if (token) [jt, vl] = await Promise.all([
         api(`wagael_zaehler_jetzt?zaehler=eq.${zaehler}`),
         api(`wagael_zaehler_verlauf?zaehler=eq.${zaehler}&order=abgelesen_at.desc&limit=12`)]);
+      else { const d = await rpc("wagael_zaehler_info", {}); jt = (d.jetzt || []).filter(r => r.zaehler === zaehler); vl = (d.verlauf || []).filter(r => r.zaehler === zaehler).slice(0, 12); }
     } catch (e) { showErr(e.message); }
     jetzt = jt[0] || null;
     if (jetzt) {
@@ -127,7 +145,7 @@
       return `<tr><td class="whitespace-nowrap">${when(r.abgelesen_at)}${r.notiz ? `<div class="text-xs opacity-60">${r.notiz.replace(/</g, "&lt;")}</div>` : ""}</td>
         <td class="text-right tabular-nums">${fmt(r.stand, 1)}</td>
         <td class="text-right tabular-nums ${cls}">${d == null ? "<span class='opacity-50'>Start</span>" : `${d > 0 ? "−" : "+"}${fmt(Math.abs(d), 1)} kWh${pct != null ? `<div class="text-xs">${fmt(Math.abs(pct), 1)} % ${d > 0 ? "zu wenig" : "zu viel"}</div>` : ""}`}</td>
-        <td class="text-right"><button class="btn btn-ghost btn-xs" data-del="${r.id}">✕</button></td></tr>`; }).join("")}</tbody></table>`
+        <td class="text-right">${token || r.ruecknehmbar ? `<button class="btn btn-ghost btn-xs" data-del="${r.id}" title="${token ? "löschen" : "zurücknehmen (15 Min. lang möglich)"}">✕</button>` : ""}</td></tr>`; }).join("")}</tbody></table>`
       : `<div class="opacity-60">noch keine</div>`;
   }
 
@@ -149,9 +167,12 @@
     }
     $("save").disabled = true;
     try {
-      const [neu] = await api("wagael_zaehler", { method: "POST", headers: { Prefer: "return=representation" },
-        body: JSON.stringify({ zaehler, stand: v, abgelesen_at: at.toISOString(), notiz: $("inNote").value.trim() || null }) });
-      const [vl] = await api(`wagael_zaehler_verlauf?id=eq.${neu.id}`);
+      let vl;
+      if (token) {
+        const [neu] = await api("wagael_zaehler", { method: "POST", headers: { Prefer: "return=representation" },
+          body: JSON.stringify({ zaehler, stand: v, abgelesen_at: at.toISOString(), notiz: $("inNote").value.trim() || null }) });
+        [vl] = await api(`wagael_zaehler_verlauf?id=eq.${neu.id}`);
+      } else vl = await rpc("wagael_zaehler_eintragen", { p_zaehler: zaehler, p_stand: v, p_at: at.toISOString(), p_notiz: $("inNote").value.trim() || null });
       let msg = "Gespeichert. Ab jetzt rechnet WAGAEL ab diesem Stand weiter.";
       if (vl?.geschaetzt != null) {
         const d = vl.stand - vl.geschaetzt, pct = vl.echt_seit_vorher > 0 ? Math.abs(d) / vl.echt_seit_vorher * 100 : null;
@@ -167,18 +188,24 @@
   $("hist").addEventListener("click", async (e) => {
     const b = e.target.closest("[data-del]"); if (!b) return;
     if (b.dataset.sure !== "1") { b.dataset.sure = "1"; b.textContent = "löschen?"; b.classList.add("btn-error"); return; }
-    try { await api(`wagael_zaehler?id=eq.${b.dataset.del}`, { method: "DELETE" }); $("ok").classList.add("hidden"); await load(); }
+    try {
+      if (token) await api(`wagael_zaehler?id=eq.${b.dataset.del}`, { method: "DELETE" });
+      else await rpc("wagael_zaehler_ruecknehmen", { p_id: +b.dataset.del });
+      $("ok").classList.add("hidden"); await load(); }
     catch (er) { showErr(er.message); }
   });
 
   (async () => {
-    const { data } = await sb.auth.getSession();
-    let s = data?.session;
-    if (s && (s.expires_at || 0) * 1000 - Date.now() < 120000) { const r = await sb.auth.refreshSession(); s = r.data?.session || s; }
-    token = s?.access_token || null;
-    $("noLogin").classList.toggle("hidden", !!token);
-    $("app").classList.toggle("hidden", !token);
-    if (token) load();
+    try {
+      const { data } = await sb.auth.getSession();
+      let s = data?.session;
+      if (s && (s.expires_at || 0) * 1000 - Date.now() < 120000) { const r = await sb.auth.refreshSession(); s = r.data?.session || null; }
+      token = s?.access_token || null;
+    } catch (e) { token = null; }
+    const ok = !!(token || key);
+    $("noLogin").classList.toggle("hidden", ok);
+    $("app").classList.toggle("hidden", !ok);
+    if (ok) load();
   })();
 </script>
 </body>
