@@ -1,0 +1,186 @@
+<!DOCTYPE html>
+<html lang="de" data-theme="night">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<title>WAGAEL – Zählerstand</title>
+<link href="https://cdn.jsdelivr.net/npm/daisyui@5" rel="stylesheet" type="text/css">
+<link href="https://cdn.jsdelivr.net/npm/daisyui@5/themes.css" rel="stylesheet" type="text/css">
+<script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4" crossorigin="anonymous"></script>
+<script>try { document.documentElement.dataset.theme = localStorage.getItem("wagael_theme") || "night"; } catch (e) {}</script>
+</head>
+<body class="min-h-screen bg-base-200">
+<div class="max-w-lg mx-auto p-4 space-y-4">
+
+  <div class="flex items-center justify-between">
+    <h1 class="text-xl font-semibold">📟 Zählerstand</h1>
+    <a href="index.html" class="btn btn-sm btn-ghost">← WAGAEL</a>
+  </div>
+
+  <div id="noLogin" class="alert alert-warning hidden">
+    <span>Bitte zuerst in <a class="link" href="index.html">WAGAEL</a> anmelden – danach diese Seite neu öffnen.</span>
+  </div>
+
+  <div id="app" class="space-y-4 hidden">
+    <div class="join w-full" id="zSel">
+      <button class="btn join-item flex-1" data-z="wp">Wärmepumpe</button>
+      <button class="btn join-item flex-1" data-z="bezug">Netzbezug</button>
+      <button class="btn join-item flex-1" data-z="einspeisung">Einspeisung</button>
+    </div>
+
+    <div class="card bg-base-100 border border-base-300">
+      <div class="card-body p-4 gap-1">
+        <div class="flex items-center justify-between">
+          <span class="text-sm opacity-70" id="zName">Zähler</span>
+          <span class="badge badge-info badge-sm" id="zBadge">geschätzt</span>
+        </div>
+        <div class="text-3xl font-semibold tabular-nums" id="zNow">–</div>
+        <div class="text-sm opacity-70" id="zSub">noch nicht abgelesen</div>
+      </div>
+    </div>
+
+    <div class="card bg-base-100 border border-base-300">
+      <div class="card-body p-4 gap-3">
+        <div class="font-semibold">Ablesen</div>
+        <label class="form-control">
+          <span class="text-sm opacity-70 mb-1">Stand am Zähler (kWh)</span>
+          <input id="inStand" type="text" inputmode="decimal" autocomplete="off" class="input input-bordered input-lg w-full tabular-nums" placeholder="12480,0">
+        </label>
+        <label class="form-control">
+          <span class="text-sm opacity-70 mb-1">abgelesen am</span>
+          <input id="inAt" type="datetime-local" class="input input-bordered w-full">
+        </label>
+        <label class="form-control">
+          <span class="text-sm opacity-70 mb-1">Notiz (optional)</span>
+          <input id="inNote" type="text" class="input input-bordered w-full" placeholder="Zähler im Keller">
+        </label>
+        <div id="err" class="text-sm text-error hidden"></div>
+        <button id="save" class="btn btn-primary">Ablesen speichern</button>
+        <div id="ok" class="alert alert-success hidden"></div>
+      </div>
+    </div>
+
+    <div class="card bg-base-100 border border-base-300">
+      <div class="card-body p-4 gap-2">
+        <div class="font-semibold">Bisherige Ablesungen</div>
+        <div id="hist" class="text-sm"></div>
+        <div class="text-xs opacity-60" id="hint"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js" crossorigin="anonymous"></script>
+<script>
+  const SUPABASE_URL = "https://umkiprxcwqwhbudmvaci.supabase.co";
+  const SUPABASE_KEY = "sb_publishable_kvmQTcpqL1AqEdIx51z47A_qjzOUZqu";
+  const $ = (id) => document.getElementById(id);
+  const fmt = (v, d = 1) => v == null || isNaN(v) ? "–" : Number(v).toLocaleString("de-DE", { minimumFractionDigits: d, maximumFractionDigits: d });
+  const when = (t) => new Date(t).toLocaleString("de-DE", { day: "2-digit", month: "2-digit", year: "2-digit", hour: "2-digit", minute: "2-digit" });
+  const NAMES = { wp: "Wärmepumpe (Samsung-Zähler)", bezug: "Hauszähler – Bezug aus dem Netz", einspeisung: "Hauszähler – Einspeisung" };
+  const HINTS = {
+    wp: "Weitergerechnet mit dem Energiezähler der Wärmepumpe. Ob der Heizstab dort mitgezählt wird, zeigt die Abweichung beim nächsten Ablesen.",
+    bezug: "Weitergerechnet mit dem Netzbezug laut FoxESS.",
+    einspeisung: "Weitergerechnet mit der Einspeisung laut FoxESS."
+  };
+  const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY, { auth: { persistSession: true, autoRefreshToken: true } });
+  let token = null, zaehler = "wp", jetzt = null;
+
+  try { zaehler = new URLSearchParams(location.search).get("z") || localStorage.getItem("wagael_zaehler_sel") || "wp"; } catch (e) {}
+  if (!NAMES[zaehler]) zaehler = "wp";
+
+  async function api(path, opt = {}) {
+    const r = await fetch(`${SUPABASE_URL}/rest/v1/${path}`, { ...opt, headers: { apikey: SUPABASE_KEY, Authorization: `Bearer ${token}`, "Content-Type": "application/json", ...(opt.headers || {}) } });
+    if (!r.ok) { const t = await r.text(); throw new Error(r.status === 404 ? "Tabelle fehlt – bitte 37_zaehlerstand.sql ausführen." : t || r.statusText); }
+    return r.status === 204 ? null : r.json();
+  }
+  const parseNum = (s) => { s = String(s).trim().replace(/\s/g, ""); if (/,/.test(s)) s = s.replace(/\./g, "").replace(",", "."); return s === "" ? NaN : Number(s); };
+  const localNow = () => { const d = new Date(); d.setMinutes(d.getMinutes() - d.getTimezoneOffset()); return d.toISOString().slice(0, 16); };
+
+  function showErr(m) { $("err").textContent = m; $("err").classList.toggle("hidden", !m); }
+
+  async function load() {
+    document.querySelectorAll("#zSel .btn").forEach(b => b.classList.toggle("btn-primary", b.dataset.z === zaehler));
+    $("zName").textContent = NAMES[zaehler]; $("hint").textContent = HINTS[zaehler];
+    showErr(""); $("inAt").value = localNow();
+    let jt = [], vl = [];
+    try {
+      [jt, vl] = await Promise.all([
+        api(`wagael_zaehler_jetzt?zaehler=eq.${zaehler}`),
+        api(`wagael_zaehler_verlauf?zaehler=eq.${zaehler}&order=abgelesen_at.desc&limit=12`)]);
+    } catch (e) { showErr(e.message); }
+    jetzt = jt[0] || null;
+    if (jetzt) {
+      $("zNow").innerHTML = `${fmt(jetzt.geschaetzt, 1)} <span class="text-base opacity-60">kWh</span>`;
+      $("zSub").textContent = jetzt.quelle_ok
+        ? `abgelesen ${when(jetzt.abgelesen_at)}: ${fmt(jetzt.stand, 1)} · seitdem +${fmt(jetzt.seitdem, 1)} kWh`
+        : `abgelesen ${when(jetzt.abgelesen_at)}: ${fmt(jetzt.stand, 1)} · keine Messwerte zum Weiterrechnen`;
+      $("zBadge").classList.remove("hidden");
+      $("inStand").placeholder = fmt(jetzt.geschaetzt, 1);
+    } else {
+      $("zNow").textContent = "–"; $("zSub").textContent = "noch nicht abgelesen – einmal eintragen, dann rechnet WAGAEL weiter";
+      $("zBadge").classList.add("hidden");
+    }
+    $("hist").innerHTML = vl.length ? `<table class="table table-sm"><thead><tr><th>abgelesen</th><th class="text-right">Stand</th><th class="text-right">WAGAEL lag</th><th></th></tr></thead><tbody>${vl.map(r => {
+      const d = r.geschaetzt != null ? r.stand - r.geschaetzt : null, pct = d != null && r.echt_seit_vorher > 0 ? d / r.echt_seit_vorher * 100 : null;
+      const cls = pct == null ? "" : Math.abs(pct) < 3 ? "text-success" : Math.abs(pct) < 10 ? "text-warning" : "text-error";
+      return `<tr><td class="whitespace-nowrap">${when(r.abgelesen_at)}${r.notiz ? `<div class="text-xs opacity-60">${r.notiz.replace(/</g, "&lt;")}</div>` : ""}</td>
+        <td class="text-right tabular-nums">${fmt(r.stand, 1)}</td>
+        <td class="text-right tabular-nums ${cls}">${d == null ? "<span class='opacity-50'>Start</span>" : `${d > 0 ? "−" : "+"}${fmt(Math.abs(d), 1)} kWh${pct != null ? `<div class="text-xs">${fmt(Math.abs(pct), 1)} % ${d > 0 ? "zu wenig" : "zu viel"}</div>` : ""}`}</td>
+        <td class="text-right"><button class="btn btn-ghost btn-xs" data-del="${r.id}">✕</button></td></tr>`; }).join("")}</tbody></table>`
+      : `<div class="opacity-60">noch keine</div>`;
+  }
+
+  $("zSel").addEventListener("click", (e) => {
+    const z = e.target.closest("[data-z]")?.dataset.z; if (!z) return;
+    zaehler = z; try { localStorage.setItem("wagael_zaehler_sel", z); } catch (er) {}
+    $("ok").classList.add("hidden"); load();
+  });
+
+  $("inStand").addEventListener("input", () => { showErr(""); $("save").dataset.trotz = ""; $("save").textContent = "Ablesen speichern"; });
+
+  $("save").addEventListener("click", async () => {
+    const v = parseNum($("inStand").value), at = $("inAt").value ? new Date($("inAt").value) : new Date();
+    if (isNaN(v) || v < 0) return showErr("Bitte den Zählerstand als Zahl eingeben, z. B. 12480,5");
+    if (at > new Date(Date.now() + 5 * 60000)) return showErr("Der Zeitpunkt liegt in der Zukunft.");
+    if (jetzt && v < jetzt.stand && new Date(jetzt.abgelesen_at) < at && $("save").dataset.trotz !== "1") {
+      $("save").dataset.trotz = "1"; $("save").textContent = "Trotzdem speichern (Zähler getauscht?)";
+      return showErr(`Kleiner als die letzte Ablesung (${fmt(jetzt.stand, 1)}). Vertippt?`);
+    }
+    $("save").disabled = true;
+    try {
+      const [neu] = await api("wagael_zaehler", { method: "POST", headers: { Prefer: "return=representation" },
+        body: JSON.stringify({ zaehler, stand: v, abgelesen_at: at.toISOString(), notiz: $("inNote").value.trim() || null }) });
+      const [vl] = await api(`wagael_zaehler_verlauf?id=eq.${neu.id}`);
+      let msg = "Gespeichert. Ab jetzt rechnet WAGAEL ab diesem Stand weiter.";
+      if (vl?.geschaetzt != null) {
+        const d = vl.stand - vl.geschaetzt, pct = vl.echt_seit_vorher > 0 ? Math.abs(d) / vl.echt_seit_vorher * 100 : null;
+        msg = `Gespeichert. WAGAEL lag ${fmt(Math.abs(d), 1)} kWh ${d > 0 ? "zu niedrig" : "zu hoch"}${pct != null ? ` (${fmt(pct, 1)} %)` : ""}. Ab jetzt wird ab ${fmt(v, 1)} weitergerechnet.`;
+      }
+      $("ok").textContent = msg; $("ok").classList.remove("hidden");
+      $("inStand").value = ""; $("inNote").value = "";
+      await load();
+    } catch (e) { showErr(e.message); }
+    finally { $("save").disabled = false; $("save").dataset.trotz = ""; $("save").textContent = "Ablesen speichern"; }
+  });
+
+  $("hist").addEventListener("click", async (e) => {
+    const b = e.target.closest("[data-del]"); if (!b) return;
+    if (b.dataset.sure !== "1") { b.dataset.sure = "1"; b.textContent = "löschen?"; b.classList.add("btn-error"); return; }
+    try { await api(`wagael_zaehler?id=eq.${b.dataset.del}`, { method: "DELETE" }); $("ok").classList.add("hidden"); await load(); }
+    catch (er) { showErr(er.message); }
+  });
+
+  (async () => {
+    const { data } = await sb.auth.getSession();
+    let s = data?.session;
+    if (s && (s.expires_at || 0) * 1000 - Date.now() < 120000) { const r = await sb.auth.refreshSession(); s = r.data?.session || s; }
+    token = s?.access_token || null;
+    $("noLogin").classList.toggle("hidden", !!token);
+    $("app").classList.toggle("hidden", !token);
+    if (token) load();
+  })();
+</script>
+</body>
+</html>
