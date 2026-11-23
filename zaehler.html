@@ -24,8 +24,7 @@
 
   <div id="app" class="space-y-4 hidden">
     <div class="join w-full" id="zSel">
-      <button class="btn join-item flex-1" data-z="wp">Wärmepumpe</button>
-      <button class="btn join-item flex-1" data-z="bezug">Netzbezug</button>
+      <button class="btn join-item flex-1" data-z="bezug">Stromzähler</button>
       <button class="btn join-item flex-1" data-z="einspeisung">Einspeisung</button>
     </div>
 
@@ -78,17 +77,17 @@
   const $ = (id) => document.getElementById(id);
   const fmt = (v, d = 1) => v == null || isNaN(v) ? "–" : Number(v).toLocaleString("de-DE", { minimumFractionDigits: d, maximumFractionDigits: d });
   const when = (t) => new Date(t).toLocaleString("de-DE", { day: "2-digit", month: "2-digit", year: "2-digit", hour: "2-digit", minute: "2-digit" });
-  const NAMES = { wp: "Wärmepumpe (Samsung-Zähler)", bezug: "Hauszähler – Bezug aus dem Netz", einspeisung: "Hauszähler – Einspeisung" };
+  const NAMES = { bezug: "Stromzähler – Bezug aus dem Netz", einspeisung: "Stromzähler – Einspeisung", wp: "Wärmepumpe (Samsung-Zähler)" };
   const HINTS = {
     wp: "Weitergerechnet mit dem Energiezähler der Wärmepumpe. Ob der Heizstab dort mitgezählt wird, zeigt die Abweichung beim nächsten Ablesen.",
-    bezug: "Weitergerechnet mit dem Netzbezug laut FoxESS.",
+    bezug: "Weitergerechnet mit dem Netzbezug laut FoxESS. Beim nächsten Ablesen siehst du, wie genau das ist.",
     einspeisung: "Weitergerechnet mit der Einspeisung laut FoxESS."
   };
   const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY, { auth: { persistSession: true, autoRefreshToken: true } });
   let token = null, zaehler = "wp", jetzt = null;
 
-  try { zaehler = new URLSearchParams(location.search).get("z") || localStorage.getItem("wagael_zaehler_sel") || "wp"; } catch (e) {}
-  if (!NAMES[zaehler]) zaehler = "wp";
+  try { zaehler = new URLSearchParams(location.search).get("z") || localStorage.getItem("wagael_zaehler_sel") || "bezug"; } catch (e) {}
+  if (!NAMES[zaehler]) zaehler = "bezug";
 
   async function api(path, opt = {}) {
     const r = await fetch(`${SUPABASE_URL}/rest/v1/${path}`, { ...opt, headers: { apikey: SUPABASE_KEY, Authorization: `Bearer ${token}`, "Content-Type": "application/json", ...(opt.headers || {}) } });
