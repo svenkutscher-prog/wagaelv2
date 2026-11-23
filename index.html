@@ -117,6 +117,11 @@
     #cfgOut { position: absolute; left: 0; top: 0; width: 100%; }
     .cfgcard { background: #fff; border-color: #999; }
   }
+  /* Anlage: zuklappbare Karten */
+  .klapp .klapp-kopf h2 { cursor: pointer; user-select: none; -webkit-user-select: none; }
+  .klapp.zu > .card-body > :not(.klapp-kopf), .klapp.zu .klapp-kopf > :not(h2) { display: none; }
+  .klapp-pfeil { display: inline-block; width: 1em; transition: transform .15s; opacity: .6; }
+  .klapp:not(.zu) .klapp-pfeil { transform: rotate(90deg); }
 </style>
 </head>
 <body class="min-h-screen bg-base-100 text-base-content">
@@ -670,6 +675,7 @@
 </section>
 
 <section data-panel="plant" class="space-y-4 lg:space-y-6 hidden">
+  <div class="flex justify-end gap-2"><button class="btn btn-xs" data-klapp-alle="1">Alle aufklappen</button><button class="btn btn-xs" data-klapp-alle="0">Alle zuklappen</button></div>
   <div class="grid gap-4 lg:grid-cols-2 items-start">
     <div class="card bg-base-200"><div class="card-body p-4 sm:p-5">
       <h2 class="card-title text-base">Stammdaten</h2>
@@ -684,6 +690,7 @@
   <div class="grid gap-4 xl:grid-cols-2 items-start">
     <div class="card bg-base-200"><div class="card-body p-4 sm:p-5">
       <h2 class="card-title text-base">Änderungsprotokoll</h2>
+      <div id="slogF" class="flex gap-1"><button class="btn btn-xs btn-primary" data-slog="7">7 Tage</button><button class="btn btn-xs" data-slog="30">30 Tage</button><button class="btn btn-xs" data-slog="0">Alle</button></div>
       <div class="overflow-x-auto"><table class="table table-sm">
         <thead><tr><th>Zeitpunkt</th><th>Einstellung</th><th>vorher</th><th>nachher</th></tr></thead>
         <tbody id="slog"><tr><td colspan="4" class="empty">Lade …</td></tr></tbody>
@@ -712,17 +719,48 @@
   <div class="card bg-base-200"><div class="card-body p-4 sm:p-5 gap-3">
     <div class="flex flex-wrap items-center gap-2 justify-between">
       <h2 class="card-title text-base">🔔 Alarme – Soll-Zustand festlegen</h2>
-      <div class="flex flex-wrap gap-2"><button id="alTest" class="btn btn-sm">Testnachricht senden</button><button id="alSave" class="btn btn-sm btn-primary">Speichern</button></div>
+      <div class="flex flex-wrap gap-2"><button id="alTest" class="btn btn-sm">📨 Telegram-Test senden</button><button id="alSave" class="btn btn-sm btn-primary">Speichern</button></div>
     </div>
     <div id="alInfo" class="text-sm"></div>
     <div class="text-sm font-semibold mt-1">Allgemeine Alarme</div>
     <div id="alFlags" class="grid gap-2 sm:grid-cols-2"></div>
-    <div class="text-sm font-semibold mt-2">Soll-Werte der Einstellungen</div>
+    <details id="alSollBox"><summary class="text-sm font-semibold mt-2 cursor-pointer">Soll-Werte der Einstellungen <span id="alSollSum" class="font-normal opacity-70"></span></summary>
     <div class="overflow-x-auto"><table class="table table-sm">
       <thead><tr><th>Alarm</th><th>Einstellung</th><th>aktuell</th><th>Soll</th><th>Zustand</th></tr></thead>
-      <tbody id="alRows"><tr><td colspan="5" class="empty">Lade …</td></tr></tbody></table></div>
+      <tbody id="alRows"><tr><td colspan="5" class="empty">Lade …</td></tr></tbody></table></div></details>
     <div id="alMsg" class="text-sm"></div>
-    <div class="dx">Weicht die Anlage vom Soll ab, kommt sofort eine Push-Nachricht (App „ntfy“) – und noch eine, wenn sie wieder stimmt. Soll leer lassen = keine Überwachung. Einrichtung: 08_alarme.sql.</div>
+    <div class="dx">Weicht die Anlage vom Soll ab, kommt sofort eine Telegram-Nachricht von @wagael_bot – und noch eine, wenn sie wieder stimmt. Soll leer lassen = keine Überwachung. Einrichtung: 08_alarme.sql.</div>
+  </div></div>
+  <div class="card bg-base-200"><div class="card-body p-4 sm:p-5 gap-3">
+    <div class="flex flex-wrap items-center gap-2 justify-between">
+      <h2 class="card-title text-base">🎯 Eigene Alarme</h2>
+      <button id="eaNeu" class="btn btn-sm">+ Neue Regel</button>
+    </div>
+    <div id="eaListe" class="text-sm">Lade …</div>
+    <div id="eaForm" class="hidden rounded-box bg-base-100 border-2 border-primary p-3 sm:p-4 flex flex-col gap-3">
+      <div id="eaFormTitel" class="font-semibold">Neue Regel</div>
+      <div class="grid gap-3 sm:grid-cols-2">
+        <label class="flex flex-col gap-1"><span class="text-xs opacity-70">Name</span><input id="eaName" class="input input-bordered input-sm w-full" placeholder="Viel Strom gekauft"></label>
+        <label class="flex flex-col gap-1"><span class="text-xs opacity-70">Wert</span><select id="eaWert" class="select select-bordered select-sm w-full"></select></label>
+        <label class="flex flex-col gap-1"><span class="text-xs opacity-70">Bedingung</span><select id="eaVgl" class="select select-bordered select-sm w-full"></select></label>
+        <label class="flex flex-col gap-1"><span class="text-xs opacity-70">Grenze <span id="eaEinheit"></span></span><input id="eaGrenze" type="number" step="any" class="input input-bordered input-sm w-full" placeholder="30"></label>
+      </div>
+      <div class="flex flex-col gap-1"><span class="text-xs opacity-70">Wie oft melden?</span>
+        <label class="flex items-start gap-2 text-sm whitespace-normal"><input type="radio" name="eaWdh" value="einmal" class="radio radio-sm radio-primary mt-0.5"><span>Einmal – bis es wieder normal ist, dann Entwarnung</span></label>
+        <label class="flex items-start gap-2 text-sm whitespace-normal"><input type="radio" name="eaWdh" value="tag" class="radio radio-sm radio-primary mt-0.5" checked><span>Höchstens 1× am Tag, solange es zutrifft</span></label>
+        <label class="flex items-start gap-2 text-sm whitespace-normal"><input type="radio" name="eaWdh" value="immer" class="radio radio-sm radio-primary mt-0.5"><span>Jedes Mal (alle 10 Min. geprüft – nur zum Testen)</span></label>
+      </div>
+      <div class="flex flex-col gap-1"><span class="text-xs opacity-70">An wen?</span><div id="eaEmpf" class="flex flex-wrap gap-4"></div></div>
+      <div id="eaTestErg" class="text-sm"></div>
+      <div class="flex flex-wrap gap-2">
+        <button id="eaSpeichern" class="btn btn-sm btn-primary">Speichern</button>
+        <button id="eaTest" class="btn btn-sm">Jetzt testen</button>
+        <button id="eaLoeschen" class="btn btn-sm btn-ghost text-error">Löschen</button>
+        <button id="eaAbbr" class="btn btn-sm btn-ghost">Abbrechen</button>
+      </div>
+    </div>
+    <div id="eaMsg" class="text-sm"></div>
+    <div class="dx">Geprüft wird alle 10 Minuten. „Älter als“ in Tagen – 0,5 = 12 Stunden. „Jetzt testen“ zeigt nur den aktuellen Wert, es wird nichts gesendet. Einrichtung: 35_eigene_alarme.sql.</div>
   </div></div>
 </section>
 
@@ -769,7 +807,7 @@
   function setMsg(text, cls = "") { $("msg").className = cls; $("msg").textContent = text; }
 
   // ---------- Fehlerprotokoll: jeden Fehler nach Supabase (wagael_errors) ----------
-  const APP_VERSION = "2026-11-22m";
+  const APP_VERSION = "2026-11-23b";
   const erQueue = [], erSent = {};
   const erDevice = () => { const u = navigator.userAgent; const d = /iPad|Macintosh.*Mobile|Macintosh(?=.*Safari)(?!.*Chrome)/.test(u) && navigator.maxTouchPoints > 1 ? "iPad" : /iPhone/.test(u) ? "iPhone" : /Macintosh/.test(u) ? "Mac" : /Android/.test(u) ? "Android" : "anderes";
     return `${d} · ${/Edg\//.test(u) ? "Edge" : /Chrome\//.test(u) ? "Chrome" : /Firefox\//.test(u) ? "Firefox" : /Safari\//.test(u) ? "Safari" : "Browser"} · ${innerWidth}px`; };
@@ -849,6 +887,14 @@
       t.push(tile("Heizkreis 1", `${fmt(hp.hp_flow_temp)} °C`, hp.hp_valve === "room" ? "heizt Räume" : (hp.hp_valve === "tank" ? "macht Warmwasser" : hp.hp_valve)));
       t.push(tile("WP Zähler", `${fmt(hp.energy_wh / 1000, 1)} kWh`, `Leistung ${fmt(hp.power_kw, 2)} kW`));
       t.push(tile("Heizstab / Abtauen", `${hp.hp_booster ?? "–"} / ${hp.hp_defrost ?? "–"}`, `Stand ${when}`));
+    }
+    // Zählerstand: einmal abgelesen, WAGAEL rechnet weiter (37_zaehlerstand.sql, Eingabe auf zaehler.html)
+    const zj = await rest("wagael_zaehler_jetzt?select=zaehler,geschaetzt,abgelesen_at").catch(() => null);
+    if (zj) {
+      const ZN = { wp: "WP", bezug: "Bezug", einspeisung: "Einsp." }, zw = zj.find(z => z.zaehler === "wp") || zj[0];
+      t.push(tile("📟 Zählerstand (geschätzt)",
+        zw ? `<a class="link link-hover" href="zaehler.html?z=${zw.zaehler}">${fmt(zw.geschaetzt, 1)} kWh</a>` : `<a class="link" href="zaehler.html">eintragen →</a>`,
+        zj.length ? zj.map(z => `${ZN[z.zaehler]} ${fmt(z.geschaetzt, 0)}`).join(" · ") + ` · <a class="link" href="zaehler.html">ablesen</a>` : "einmal ablesen, dann rechnet WAGAEL weiter"));
     }
     if (ac) {
       t.push(tile("Klima Raum", `${fmt(ac.temperature)} °C`, `Luftfeuchte ${fmt(ac.humidity, 0)} % · ${ac.switch_state ?? ""}`));
@@ -1593,6 +1639,8 @@
     $("fsvTable").innerHTML = `<thead><tr><th>FSV</th><th>Wert</th><th>Bereich</th><th>Bedeutung</th></tr></thead><tbody>` +
       list.map(f => `<tr><td>${f.id}</td><td>${f.value}${f.temperatureUnit ? " °" + f.temperatureUnit : ""}</td>
         <td>${f.minValue} – ${f.maxValue}</td><td>${FSV_INFO[f.id] ?? "–"}</td></tr>`).join("") + `</tbody>`;
+    const fsvNeu = new Set(slogRows.filter(r => /^FSV/.test(r.setting) && new Date(r.ts).getTime() >= Date.now() - 7 * 864e5).map(r => r.setting)).size;
+    klappSum("fsv", `${list.length} Werte${fsvNeu ? ` · ${fsvNeu} in 7 Tagen geändert` : ""}`);
   }
 
   // ---------- Richtwert-Check (Benchmark aus Gasverbrauch) ----------
@@ -1703,10 +1751,44 @@
   }
   const numIn = (s) => { const m = String(s ?? "").replace(",", ".").match(/-?\d+(\.\d+)?/); return m ? parseFloat(m[0]) : null; };
 
+  // Änderungsprotokoll: Filter 7 / 30 Tage / alle
+  let slogRows = [], slogTage = 7;
+  function slogZeig() {
+    const ab = slogTage ? Date.now() - slogTage * 864e5 : 0, rr = slogRows.filter(r => new Date(r.ts).getTime() >= ab), n7 = slogRows.filter(r => new Date(r.ts).getTime() >= Date.now() - 7 * 864e5).length;
+    $("slog").innerHTML = rr.length ? rr.map(r => `<tr><td>${new Date(r.ts).toLocaleString("de-DE", { dateStyle: "short", timeStyle: "short" })}</td>
+      <td>${r.setting}</td><td>${r.old_value ?? "–"}</td><td><b>${r.new_value ?? "–"}</b></td></tr>`).join("")
+      : `<tr><td colspan="4" class="empty">${slogRows.length ? `Keine Änderungen in ${slogTage} Tagen – „30 Tage“ oder „Alle“ wählen.` : "Noch keine Einträge (05_anlage.sql ausführen)."}</td></tr>`;
+    document.querySelectorAll("#slogF [data-slog]").forEach(b => b.classList.toggle("btn-primary", +b.dataset.slog === slogTage));
+    klappSum("slog", `${n7} ${n7 === 1 ? "Änderung" : "Änderungen"} in 7 Tagen`);
+  }
+  document.querySelectorAll("#slogF [data-slog]").forEach(b => b.addEventListener("click", () => { slogTage = +b.dataset.slog; slogZeig(); }));
+
+  // Anlage: Karten zuklappbar, Zustand je Gerät gemerkt
+  const KLAPP = [["stamm", "stamm", false], ["ist", "ist", true], ["slog", "slog", true], ["fsv", "fsvTable", false], ["fehler", "erDays", false], ["alarme", "alTest", true], ["eigene", "eaNeu", true]];
+  let klappZust = {};
+  try { klappZust = JSON.parse(localStorage.getItem("wagael_klapp") || "{}"); } catch (e) {}
+  function klappSetz(card, offen) {
+    card.classList.toggle("zu", !offen); klappZust[card.dataset.klapp] = offen;
+    try { localStorage.setItem("wagael_klapp", JSON.stringify(klappZust)); } catch (e) {}
+  }
+  function klappSum(key, html) { const el = document.querySelector(`.klapp[data-klapp="${key}"] .klapp-sum`); if (el) el.innerHTML = html; }
+  KLAPP.forEach(([key, id, offen]) => {
+    const card = $(id)?.closest(".card"); if (!card) return;
+    const body = card.querySelector(".card-body"), h2 = card.querySelector("h2.card-title"); if (!body || !h2) return;
+    let kopf = h2; while (kopf.parentElement && kopf.parentElement !== body) kopf = kopf.parentElement;
+    kopf.classList.add("klapp-kopf"); card.classList.add("klapp"); card.dataset.klapp = key;
+    h2.insertAdjacentHTML("afterbegin", '<span class="klapp-pfeil">▸</span>');
+    h2.insertAdjacentHTML("beforeend", '<span class="klapp-sum ml-auto pl-2 font-normal text-xs opacity-70 text-right"></span>');
+    h2.addEventListener("click", () => klappSetz(card, card.classList.contains("zu")));
+    card.classList.toggle("zu", !(klappZust[key] ?? offen));
+  });
+  document.querySelectorAll("[data-klapp-alle]").forEach(b => b.addEventListener("click", () =>
+    document.querySelectorAll(".klapp").forEach(c => klappSetz(c, b.dataset.klappAlle === "1"))));
+
   async function loadAnlage() {
     const [stamm, logRows, [hp], lc] = await Promise.all([
       rest("hp_stammdaten?select=key,value,sort&order=sort.asc").catch(() => []),
-      rest("hp_settings_log?select=ts,setting,old_value,new_value&order=ts.desc,id.desc&limit=60").catch(() => []),
+      rest("hp_settings_log?select=ts,setting,old_value,new_value&order=ts.desc,id.desc&limit=1000").catch(() => []),
       rest("snapshots?select=raw,captured_at,outdoor_temp,hp_flow_temp&hp_valve=not.is.null&order=captured_at.desc&limit=1"),
       rest("hp_cycle?select=out_air,ts&order=ts.desc&limit=1").catch(() => []),
     ]);
@@ -1761,9 +1843,9 @@
     ];
     $("ist").innerHTML = rows.map(([k, v]) => `<tr><td>${k}</td><td>${v}</td></tr>`).join("");
 
-    $("slog").innerHTML = logRows.length ? logRows.map(r => `<tr><td>${new Date(r.ts).toLocaleString("de-DE", { dateStyle: "short", timeStyle: "short" })}</td>
-      <td>${r.setting}</td><td>${r.old_value ?? "–"}</td><td><b>${r.new_value ?? "–"}</b></td></tr>`).join("")
-      : `<tr><td colspan="4" class="empty">Noch keine Einträge (05_anlage.sql ausführen).</td></tr>`;
+    slogRows = logRows; slogZeig();
+    klappSum("stamm", (ident.description?.value ? hsEsc(ident.description.value) : `${stamm.length + auto.length} Einträge`) + (fwUpd ? ' · <span class="badge badge-warning badge-sm">Update</span>' : ""));
+    klappSum("ist", `Warmwasser ${valDE(LIVE.dhwMode)} · Heizkreis 1 ${valDE(i1.switch?.switch?.value)}`);
 
     renderCfg();
   }
@@ -2339,7 +2421,7 @@
     const cs = getComputedStyle(document.documentElement);
     const ink = C.tick, grid = C.grid, red = P.hs, sunC = "#eda100", nightC = C.dark ? "#000000" : "#1e293b";
     // Spuren
-    const y = { sun: 4, set: 36, op: 62, hs: 92, pu: 114, hz: 140, hzH: 46, tTop: 206, tBot: 374 }, H = 400;
+    const y = { sun: 4, set: 36, op: 62, hs: 92, pu: 114, hz: 140, hzH: 46, fan: 194, fanH: 26, tTop: 236, tBot: 404 }, H = 430;
     let s = "";
     const r = (x1, x2, yy, h, fill, extra = "") => x2 - x1 > 0.3 ? `<rect x="${x1.toFixed(1)}" y="${yy}" width="${(x2 - x1).toFixed(1)}" height="${h}" fill="${fill}" ${extra}/>` : "";
     // Hintergrund: Nacht / Dämmerung / PV-Zeit
@@ -2362,7 +2444,7 @@
     if (tOn("sun") && pvD.length) s += `<text x="${W - R - 2}" y="${y.sun + 10}" font-size="${fs}" fill="${ink}" opacity=".7" text-anchor="end">PV max ${fmt(pvPeak, 1)} kW</text>`;
     [[sun.rise, "↑"], [sun.set, "↓"]].forEach(([t, k]) => { if (t && tOn("sun")) { s += `<line x1="${X(t)}" x2="${X(t)}" y1="0" y2="${y.tBot}" stroke="${sunC}" stroke-dasharray="3 3"/><text x="${X(t) + 3}" y="${y.sun + 10}" font-size="${fs}" fill="${ink}">${k} ${hhmm(t)}</text>`; } });
     // Beschriftung links
-    [[pvD.length ? "PV" : "Sonne", y.sun + 18], ["Einstellung", y.set + 13], ["Betrieb", y.op + 15], ["Heizstab", y.hs + 12], ["Pumpe", y.pu + 12], ["Verdichter", y.hz + 20], ["°C", (y.tTop + y.tBot) / 2]].forEach(([n, yy]) => s += `<text x="0" y="${yy}" font-size="${fs + 1}" fill="${ink}">${n}</text>`);
+    [[pvD.length ? "PV" : "Sonne", y.sun + 18], ["Einstellung", y.set + 13], ["Betrieb", y.op + 15], ["Heizstab", y.hs + 12], ["Pumpe", y.pu + 12], ["Verdichter", y.hz + 20], ["Lüfter", y.fan + 16], ["°C", (y.tTop + y.tBot) / 2]].forEach(([n, yy]) => s += `<text x="0" y="${yy}" font-size="${fs + 1}" fill="${ink}">${n}</text>`);
     // Betrieb / Heizstab
     if (tOn("bhk")) sHK.forEach(x => s += r(X(x.start), X(x.end) - 1, y.op, 20, P.hk, 'rx="3"'));
     if (tOn("bww")) sWW.forEach(x => s += r(X(x.start), X(x.end) - 1, y.op, 20, P.ww, 'rx="3"'));
@@ -2389,6 +2471,14 @@
     s += `<line x1="${L}" x2="${W - R}" y1="${yHz(0)}" y2="${yHz(0)}" stroke="${grid}"/><text x="${W - R - 2}" y="${yHz(hzMax) + 8}" font-size="${fs}" fill="${ink}" opacity=".6" text-anchor="end">${fmt(hzMax, 0)} Hz</text>`;
     let hp = "", prevT = null;
     cyc.forEach(c => { const gap = prevT == null || c.t - prevT > 7.5 * 60000; hp += `${gap ? "M" : "L"}${X(c.t).toFixed(1)},${yHz(c.comp_hz ?? 0).toFixed(1)}`; prevT = c.t; });
+    // Lüfter Außengerät (U/min) – eigene Spur, eigene Skala
+    if (tOn("fan")) {
+      const fanMax = Math.max(400, ...cyc.map(c => c.fan_rpm ?? 0)), yF = (v) => y.fan + y.fanH - v / fanMax * y.fanH;
+      s += `<line x1="${L}" x2="${W - R}" y1="${yF(0)}" y2="${yF(0)}" stroke="${grid}"/><text x="${W - R - 2}" y="${yF(fanMax) + 8}" font-size="${fs}" fill="${ink}" opacity=".6" text-anchor="end">${fmt(fanMax, 0)} U/min</text>`;
+      let fp = "", pt = null;
+      cyc.forEach(c => { if (c.fan_rpm == null) { pt = null; return; } fp += `${pt == null || c.t - pt > 7.5 * 60000 ? "M" : "L"}${X(c.t).toFixed(1)},${yF(c.fan_rpm).toFixed(1)}`; pt = c.t; });
+      if (fp) s += `<path d="${fp}" fill="none" stroke="${P.out}" stroke-width="1.5" stroke-linejoin="round"/>`;
+    }
     if (hp && tOn("hz")) s += `<path d="${hp}" fill="none" stroke="${P.hz}" stroke-width="1.5" stroke-linejoin="round"/>`;
     // Temperaturen
     const flowOf = (rw) => { const c = nearest(cyc, rw.t); return c?.flow ?? rw.hp_flow_temp; };
@@ -2445,7 +2535,7 @@
     $("tLegend").innerHTML =
       `<div class="w-full flex flex-wrap items-center gap-1.5"><span class="text-xs opacity-60 w-24">Spuren</span>` +
         chip("bhk", "Heizen", box(P.hk)) + chip("bww", "Warmwasser", box(P.ww)) + chip("bab", "Abtauen", box(ink, .6)) + chip("hs", "Heizstab", box(P.hs)) +
-        chip("pu", "Pumpe (rot = ohne Verdichter)", `<svg width="12" height="10" aria-hidden="true"><rect x="1" y="1" width="10" height="8" rx="2" fill="${red}" opacity=".8"/></svg>`) + chip("hz", "Verdichter Hz", ln(P.hz, 1.5)) + chip("set", "Einstellungen", box(ink, .3)) + chip("sun", pvD.length ? "PV-Leistung" : "Sonne", box(sunC, .6)) + chip("bg", "Nacht / PV-Zeit", box(nightC, C.dark ? .6 : .25)) + `</div>` +
+        chip("pu", "Pumpe (rot = ohne Verdichter)", `<svg width="12" height="10" aria-hidden="true"><rect x="1" y="1" width="10" height="8" rx="2" fill="${red}" opacity=".8"/></svg>`) + chip("hz", "Verdichter Hz", ln(P.hz, 1.5)) + chip("fan", "Lüfter U/min", ln(P.out, 1.5)) + chip("set", "Einstellungen", box(ink, .3)) + chip("sun", pvD.length ? "PV-Leistung" : "Sonne", box(sunC, .6)) + chip("bg", "Nacht / PV-Zeit", box(nightC, C.dark ? .6 : .25)) + `</div>` +
       `<div class="w-full flex flex-wrap items-center gap-1.5"><span class="text-xs opacity-60 w-24">Ist (dünn)</span>` +
         chip("ww", "Speicher", ln(P.ww)) + chip("hk", "Vorlauf Heizen", ln(P.hk)) + chip("hw", "Vorlauf bei Warmwasser", ln(P.hw, 2, "2 2")) + chip("rt", "Rücklauf", ln(P.rt)) + chip("out", "Außen", ln(P.out, 2, "5 3")) + chip("zyk", "Speicher-Zyklen ⊓", ln(ink, 1, "4 4")) + `</div>` +
       `<div class="w-full flex flex-wrap items-center gap-1.5"><span class="text-xs opacity-60 w-24">Soll (dick)</span>` +
@@ -2463,7 +2553,7 @@
       let best = rows[0]; rows.forEach(rw => { if (Math.abs(rw.t - t) < Math.abs(best.t - t)) best = rw; });
       if (Math.abs(best.t - t) > 15 * 60000) { tip.classList.add("hidden"); return; }
       const c = nearest(cyc, best.t), a = sunAlt(best.t);
-      tip.innerHTML = `<b>${hhmm(best.t)}</b> · ${ST[best.st] || ""}${best.hp_booster === "on" ? " · 🔌 Heizstab" : ""}<br>Verdichter ${c ? fmt(c.comp_hz, 0) + " Hz" : "–"}${c?.flow_lpm != null ? ` · Durchfluss ${fmt(c.flow_lpm, 1)} l/min · Pumpe ${fmt(c.pump_pct, 0)} %` : ""}${heatKW(c) ? ` · Wärme ≈ ${fmt(heatKW(c), 1)} kW` : ""}<br>Speicher ${fmt(best.temperature)} °C · Vorlauf ${fmt(c?.flow ?? best.hp_flow_temp)} °C${c?.ret != null ? ` · Rücklauf ${fmt(c.ret)} °C` : ""} · außen ${fmt(c?.out_air ?? best.outdoor_temp)} °C<br>Sonne ${a < -0.833 ? "🌙 unter Horizont" : fmt(a, 0) + "°" + (a >= 10 ? " ☀️ PV" : "")}${pvTip(best.t)}` +
+      tip.innerHTML = `<b>${hhmm(best.t)}</b> · ${ST[best.st] || ""}${best.hp_booster === "on" ? " · 🔌 Heizstab" : ""}<br>Verdichter ${c ? fmt(c.comp_hz, 0) + " Hz" : "–"}${c?.fan_rpm != null ? ` · Lüfter ${fmt(c.fan_rpm, 0)} U/min` : ""}${c?.flow_lpm != null ? ` · Durchfluss ${fmt(c.flow_lpm, 1)} l/min · Pumpe ${fmt(c.pump_pct, 0)} %` : ""}${heatKW(c) ? ` · Wärme ≈ ${fmt(heatKW(c), 1)} kW` : ""}<br>Speicher ${fmt(best.temperature)} °C · Vorlauf ${fmt(c?.flow ?? best.hp_flow_temp)} °C${c?.ret != null ? ` · Rücklauf ${fmt(c.ret)} °C` : ""} · außen ${fmt(c?.out_air ?? best.outdoor_temp)} °C<br>Sonne ${a < -0.833 ? "🌙 unter Horizont" : fmt(a, 0) + "°" + (a >= 10 ? " ☀️ PV" : "")}${pvTip(best.t)}` +
         `<br>⚙️ Soll Warmwasser ${fmt(wwSoll(best.t), 0)} °C · Soll Vorlauf ${fmt(hkSoll(best.t))} °C · Modus ${String(settingsAt(slog, best.t)["Warmwasser-Modus"] ?? "–").replace(/"/g, "").toUpperCase()}`;
       showSettings(best.t);
       tip.classList.remove("hidden");
@@ -3890,7 +3980,7 @@
         : `Der Zähler zeigt beim Heizstab <b>keinen</b> Mehrverbrauch (Ø ${fmt(pWith, 2)} kW mit, ${fmt(pWithout, 2)} kW ohne) – entweder hat er nicht wirklich geheizt, oder er hängt an einem eigenen Stromkreis. Er ist hier geschätzt <b>zusätzlich</b> eingerechnet.`) : "Heizstab lief an diesem Tag nicht.");
   }
 
-  // ---------- Alarme (Soll-Zustand, Push über ntfy) ----------
+  // ---------- Alarme (Soll-Zustand, Nachricht per Telegram) ----------
   async function restWrite(method, path, body, prefer = "") {
     const go = () => { const headers = { apikey: SUPABASE_KEY, "Content-Type": "application/json" };
       if (accessToken) headers.Authorization = `Bearer ${accessToken}`;
@@ -3923,8 +4013,8 @@
       const info = FAULTS.find(x => x.c === codes[0]); $("faultBadge").title = info ? `${info.c}: ${info.m} – ${info.a}` : "Fehlercode der Anlage"; }
     const fl = [
       { key: "eco", icon: "🌿", label: "ECO nicht aktiv", sub: "Warmwasser-Modus weicht von ECO ab – und Entwarnung", on: !!eco && eco.enabled && valDE(eco.expected) === "ECO" },
-      ...(flags || []).map(f => ({ key: f.key, icon: { heizstab: "🔌", erfassung: "⏸", token: "🔑", fehler: "🚨", wagael: "🧯" }[f.key] || "🔔", label: f.label, on: f.enabled,
-        sub: { heizstab: "Ein- und Ausschalten mit Laufzeit und ≈ kWh", erfassung: "20 Min. keine neue Abfrage – und wenn es wieder läuft", token: "2 Std. vor Ablauf und bei Ablauf", fehler: "sofort bei jedem Fehlercode – falls SmartThings ihn liefert", wagael: "neuer Fehler der Seite oder Automatik (je Meldung höchstens 1× am Tag)" }[f.key] || "" })),
+      ...(flags || []).map(f => ({ key: f.key, icon: { heizstab: "🔌", erfassung: "⏸", token: "🔑", fehler: "🚨", wagael: "🧯", abtauen: "⚠️", frostinfo: "❄️" }[f.key] || "🔔", label: f.label, on: f.enabled,
+        sub: { heizstab: "Ein- und Ausschalten mit Laufzeit und ≈ kWh", erfassung: "20 Min. keine neue Abfrage – und wenn es wieder läuft", token: "2 Std. vor Ablauf und bei Ablauf", fehler: "sofort bei jedem Fehlercode – falls SmartThings ihn liefert", wagael: "neuer Fehler der Seite oder Automatik (je Meldung höchstens 1× am Tag)", abtauen: "bei Frost 3 Std. kein Abtauen trotz Lauf – oder 4× in einer Stunde (36_frost_alarm.sql)", frostinfo: "an Frosttagen morgens kurzer Hinweis: Reif ist normal, nicht abkratzen" }[f.key] || "" })),
     ];
     $("alFlags").innerHTML = fl.map(f => `<label class="flex items-start gap-3 rounded-box bg-base-100 border border-base-300 p-3 cursor-pointer">
         <input type="checkbox" class="checkbox checkbox-primary mt-0.5" data-flag="${f.key}" ${f.on ? "checked" : ""}>
@@ -3939,10 +4029,13 @@
         await loadAlarms();
       } catch (e) { msg.className = "text-sm err"; msg.textContent = "✗ " + e.message; cb.checked = !cb.checked; }
     });
+    // Empfänger: Telegram (ntfy ist abgeschaltet, Hinweis nur falls noch an)
     const n = notify?.[0];
-    $("alInfo").innerHTML = n && n.topic !== "DEIN_NTFY_KANAL"
-      ? `Nachrichten gehen an den ntfy-Kanal <code class="font-mono">${n.topic}</code>${n.enabled ? "" : ' <span class="pill warn">ausgeschaltet</span>'} – in der ntfy-App abonnieren.`
-      : `<span class="warn">Noch kein ntfy-Kanal eingetragen</span> – im SQL Editor ausführen: update public.wagael_notify set topic = 'DEIN-KANAL' where id = 1;`;
+    rest("wagael_telegram?select=name,themen,aktiv&order=name").then(t => {
+      const TH = { haus: "Haus", technik: "Technik", foto: "fotoArtisan" };
+      $("alInfo").innerHTML = (t.length ? `Nachrichten gehen per Telegram (@wagael_bot) an: ${t.map(x => `<b>${hsEsc(x.name)}</b> <span class="opacity-60">(${(x.themen || []).map(k => TH[k] || k).join(", ")})</span>${x.aktiv ? "" : ' <span class="pill warn">aus</span>'}`).join(" · ")}. Alarme zählen als „Technik“.`
+        : `<span class="warn">Noch kein Telegram-Empfänger eingetragen</span> (Tabelle wagael_telegram).`) + (n?.enabled ? ` <span class="opacity-60">· ntfy läuft zusätzlich noch</span>` : "");
+    }).catch(() => { $("alInfo").textContent = "Telegram-Empfänger konnten nicht geladen werden."; });
     const cur = settingsFromRaw(hp?.raw);
     const fsv = Object.fromEntries((hp?.raw?.components?.main?.["samsungce.ehsFsvSettings"]?.fsvSettings?.value || []).map(f => ["FSV " + f.id, f]));
     const keys = [...new Set([...Object.keys(cur), ...Object.keys(alRules)])].sort((a, b) => (a.startsWith("FSV") - b.startsWith("FSV")) || a.localeCompare(b, "de", { numeric: true }));
@@ -3955,6 +4048,10 @@
       return `<tr><td><input type="checkbox" class="toggle toggle-xs toggle-primary" data-on="${k}" ${!r || r.enabled ? "checked" : ""}></td>
         <td>${setName(k)}</td><td class="font-semibold">${valDE(cur[k])}</td><td>${input}</td><td>${st}</td></tr>`;
     }).join("");
+    const mitSoll = keys.filter(k => alRules[k]?.expected), abw = mitSoll.filter(k => alRules[k].enabled !== false && valDE(cur[k]) !== valDE(alRules[k].expected)).length;
+    $("alSollSum").textContent = `(${keys.length} Zeilen, ${mitSoll.length} mit Soll${abw ? `, ${abw} weicht ab` : ""})`;
+    const an = fl.filter(f => f.on).length, prob = abw + (codes.length ? 1 : 0);
+    klappSum("alarme", `<span class="pill ${prob ? "warn" : "ok"}">${an} an · ${prob ? (codes.length ? "Fehlercode " + codes[0] : abw + " weicht ab") : "alles passt"}</span>`);
   }
   $("alSave").addEventListener("click", async () => {
     const msg = $("alMsg"); msg.className = "text-sm"; msg.textContent = "Speichere …";
@@ -3971,10 +4068,128 @@
       await loadAlarms();
     } catch (e) { msg.className = "text-sm err"; msg.textContent = "✗ " + e.message; }
   });
+  // Testnachricht per Telegram (SQL 34) – nach ein paar Sekunden wird die Zustellung je Empfänger geprüft
   $("alTest").addEventListener("click", async () => {
-    const msg = $("alMsg"); msg.className = "text-sm"; msg.textContent = "Sende …";
-    try { const r = await restWrite("POST", "rpc/wagael_notify_test", {}); msg.className = "text-sm " + (String(r).includes("gesendet") ? "ok" : "warn"); msg.textContent = String(r).includes("gesendet") ? "✓ Testnachricht gesendet – kommt sie in der ntfy-App an?" : String(r); }
-    catch (e) { msg.className = "text-sm err"; msg.textContent = "✗ " + e.message; }
+    const msg = $("alMsg"), btn = $("alTest"); msg.className = "text-sm"; msg.textContent = "Sende per Telegram …"; btn.disabled = true;
+    try {
+      const r = await restWrite("POST", "rpc/wagael_telegram_test", {});
+      if (!r?.anzahl) { msg.className = "text-sm warn"; msg.textContent = "Kein Telegram-Empfänger eingetragen (Tabelle wagael_telegram)."; return; }
+      msg.textContent = `Gesendet an ${r.anzahl} ${r.anzahl === 1 ? "Empfänger" : "Empfänger"} – prüfe Zustellung …`;
+      let erg = [];
+      for (let i = 0; i < 4; i++) {   // bis ca. 12 Sek. auf die Antwort von Telegram warten
+        await new Promise(res => setTimeout(res, 3000));
+        erg = await restWrite("POST", "rpc/wagael_telegram_pruefen", { p_ids: r.ids });
+        if (erg.every(x => x.status !== "unterwegs")) break;
+      }
+      const ok = erg.filter(x => x.status === "ok").length;
+      msg.className = "text-sm " + (ok === erg.length ? "ok" : "warn");
+      msg.innerHTML = (ok === erg.length ? "✓ " : "⚠️ ") + erg.map(x => `${hsEsc(x.name || "?")}: ${x.status === "ok" ? "angekommen ✓" : x.status === "unterwegs" ? "noch unterwegs …" : "Fehler – " + hsEsc(x.info || "")}`).join(" · ")
+        + (ok < erg.length && erg.some(x => x.status === "fehler") ? " <span class=\"opacity-70\">(kurze Verbindungsfehler werden automatisch noch 2× wiederholt)</span>" : "");
+    } catch (e) {
+      msg.className = "text-sm err";
+      msg.textContent = /wagael_telegram_test|PGRST202|42883/.test(e.message) ? "✗ 34_telegram_test.sql fehlt noch" : "✗ " + e.message;
+    } finally { btn.disabled = false; }
+  });
+
+  // ---------- Eigene Alarme (SQL 35): Wert > / < Grenze oder „älter als x Tage“ ----------
+  let eaWerte = [], eaEmpfL = [], eaRegeln = [], eaEdit = null;   // eaEdit: null = Formular zu, 0 = neue Regel, sonst id
+  const EA_VGL = { gt: "größer als", lt: "kleiner als", alt: "älter als" };
+  const EA_WDH = { einmal: "einmal, mit Entwarnung", tag: "höchstens 1× am Tag", immer: "jedes Mal (Test)" };
+  const eaZahl = (v) => v == null ? "–" : Number(v).toLocaleString("de-DE", { maximumFractionDigits: 1 });
+  async function loadEigeneAlarme() {
+    if (eaEdit !== null) return;   // Formular offen → nicht neu zeichnen
+    let r;
+    try {
+      [eaWerte, eaEmpfL, r] = await Promise.all([
+        restWrite("POST", "rpc/wagael_alarm_werte", {}),
+        rest("wagael_telegram?select=chat_id,name,aktiv&order=name").catch(() => []),
+        rest("wagael_alarm_regeln?select=*&order=id"),
+      ]);
+    } catch (e) {
+      if (/wagael_alarm|PGRST202|PGRST205|42P01|42883/.test(e.message)) { $("eaListe").innerHTML = `<span class="warn">35_eigene_alarme.sql fehlt noch.</span>`; $("eaNeu").disabled = true; return; }
+      throw e;
+    }
+    eaRegeln = r; $("eaNeu").disabled = false;
+    const nT = r.filter(x => x.aktiv && x.ausgeloest).length;
+    klappSum("eigene", (nT ? `<span class="pill warn">${nT} trifft zu</span> · ` : "") + `${r.length} ${r.length === 1 ? "Regel" : "Regeln"}`);
+    const W = Object.fromEntries(eaWerte.map(w => [w.key, w])), N = Object.fromEntries(eaEmpfL.map(e => [String(e.chat_id), e.name]));
+    $("eaListe").innerHTML = r.length ? r.map(x => {
+      const w = W[x.wert] || { label: x.wert, einheit: "" }, wer = x.empfaenger?.length ? x.empfaenger.map(id => N[String(id)] || id) : ["alle"];
+      const st = x.letzter_wert == null ? `<span class="pill">${x.geprueft ? "gerade kein Wert" : "noch nicht geprüft"}</span>`
+        : `<span class="pill ${x.ausgeloest ? "warn" : "ok"}">${x.ausgeloest ? "⚠ trifft zu" : "✓ passt"} · ${eaZahl(x.letzter_wert)} ${w.einheit}</span>`;
+      const zul = x.letzter_alarm ? `<span class="opacity-60 text-xs">zuletzt gemeldet ${new Date(x.letzter_alarm).toLocaleString("de-DE", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" })}</span>` : "";
+      return `<div class="flex items-start gap-3 py-2 border-t border-base-300 first:border-t-0">
+        <input type="checkbox" class="toggle toggle-sm toggle-primary mt-1" data-ea-on="${x.id}" ${x.aktiv ? "checked" : ""}>
+        <div class="flex-1 min-w-0"><div class="font-semibold">${hsEsc(x.name)}</div>
+          <div class="text-xs opacity-70">${hsEsc(w.label)} · ${EA_VGL[x.vergleich]} ${eaZahl(x.grenze)} ${w.einheit}</div>
+          <div class="flex flex-wrap gap-1 mt-1 items-center"><span class="pill">${EA_WDH[x.wiederholung]}</span>${wer.map(n => `<span class="pill">${hsEsc(String(n))}</span>`).join("")}${st} ${zul}</div></div>
+        <button class="btn btn-xs" data-ea-edit="${x.id}">Bearbeiten</button></div>`;
+    }).join("") : `<span class="opacity-70">Noch keine eigene Regel – mit „+ Neue Regel“ anlegen.</span>`;
+    $("eaListe").querySelectorAll("[data-ea-edit]").forEach(b => b.onclick = () => eaOeffnen(+b.dataset.eaEdit));
+    $("eaListe").querySelectorAll("[data-ea-on]").forEach(cb => cb.onchange = async () => {
+      try { await restWrite("PATCH", `wagael_alarm_regeln?id=eq.${cb.dataset.eaOn}`, { aktiv: cb.checked, ausgeloest: false }, "return=minimal");
+        $("eaMsg").className = "text-sm ok"; $("eaMsg").textContent = `✓ Regel ${cb.checked ? "eingeschaltet" : "ausgeschaltet"}.`; }
+      catch (e) { cb.checked = !cb.checked; $("eaMsg").className = "text-sm err"; $("eaMsg").textContent = "✗ " + e.message; }
+    });
+  }
+  function eaVglFuellen(sel) {
+    const w = eaWerte.find(x => x.key === $("eaWert").value), alt = w?.art === "alt";
+    $("eaVgl").innerHTML = (alt ? ["alt"] : ["gt", "lt"]).map(k => `<option value="${k}">${EA_VGL[k]}${k === "alt" ? " (Tage)" : ""}</option>`).join("");
+    if (sel && (alt ? sel === "alt" : sel !== "alt")) $("eaVgl").value = sel;
+    $("eaEinheit").textContent = w ? `(${w.einheit})` : "";
+    $("eaTestErg").textContent = "";
+  }
+  function eaOeffnen(id) {
+    const x = id ? eaRegeln.find(r => r.id === id) : null;
+    eaEdit = id || 0;
+    $("eaFormTitel").textContent = x ? "Regel bearbeiten" : "Neue Regel";
+    $("eaName").value = x?.name ?? "";
+    $("eaWert").innerHTML = eaWerte.map(w => `<option value="${w.key}">${hsEsc(w.label)} (${w.einheit})</option>`).join("");
+    $("eaWert").value = x?.wert ?? eaWerte[0]?.key; eaVglFuellen(x?.vergleich);
+    $("eaGrenze").value = x?.grenze ?? "";
+    document.querySelectorAll('[name="eaWdh"]').forEach(rb => rb.checked = rb.value === (x?.wiederholung ?? "tag"));
+    $("eaEmpf").innerHTML = eaEmpfL.map(e => `<label class="flex items-center gap-2 text-sm"><input type="checkbox" class="checkbox checkbox-sm checkbox-primary" data-ea-empf="${e.chat_id}"
+      ${!x?.empfaenger?.length || x.empfaenger.map(String).includes(String(e.chat_id)) ? "checked" : ""}>${hsEsc(e.name || String(e.chat_id))}${e.aktiv ? "" : ' <span class="opacity-60">(aus)</span>'}</label>`).join("") || `<span class="text-sm warn">Kein Telegram-Empfänger eingetragen.</span>`;
+    $("eaLoeschen").classList.toggle("hidden", !x);
+    $("eaTestErg").textContent = ""; $("eaMsg").textContent = "";
+    $("eaForm").classList.remove("hidden"); $("eaName").focus();
+  }
+  function eaSchliessen() { eaEdit = null; $("eaForm").classList.add("hidden"); }
+  $("eaNeu").addEventListener("click", () => eaOeffnen(0));
+  $("eaAbbr").addEventListener("click", () => { eaSchliessen(); loadEigeneAlarme(); });
+  $("eaWert").addEventListener("change", () => eaVglFuellen());
+  $("eaTest").addEventListener("click", async () => {
+    const out = $("eaTestErg"), g = $("eaGrenze").value.trim();
+    out.className = "text-sm"; out.textContent = "Prüfe …";
+    try {
+      const t = await restWrite("POST", "rpc/wagael_alarm_regel_test", { p_wert: $("eaWert").value, p_vergleich: $("eaVgl").value, p_grenze: g === "" ? null : +g });
+      out.className = "text-sm " + (t.trifft ? "warn" : t.trifft === false ? "ok" : "");
+      out.textContent = (t.trifft ? "⚠ Würde jetzt melden – " : t.trifft === false ? "✓ Würde jetzt nicht melden – " : "") + (t.text || "kein Wert");
+    } catch (e) { out.className = "text-sm err"; out.textContent = "✗ " + e.message; }
+  });
+  $("eaSpeichern").addEventListener("click", async () => {
+    const msg = $("eaMsg"), name = $("eaName").value.trim(), g = $("eaGrenze").value.trim();
+    const box = [...document.querySelectorAll("[data-ea-empf]")], an = box.filter(b => b.checked).map(b => +b.dataset.eaEmpf);
+    const wdh = document.querySelector('[name="eaWdh"]:checked')?.value || "tag";
+    msg.className = "text-sm err";
+    if (!name) { msg.textContent = "Bitte einen Namen eingeben."; $("eaName").focus(); return; }
+    if (g === "" || isNaN(+g)) { msg.textContent = "Bitte eine Grenze als Zahl eingeben."; $("eaGrenze").focus(); return; }
+    if (box.length && !an.length) { msg.textContent = "Bitte mindestens eine Person auswählen."; return; }
+    const body = { name, wert: $("eaWert").value, vergleich: $("eaVgl").value, grenze: +g, wiederholung: wdh,
+      empfaenger: an.length === box.length ? null : an, ausgeloest: false };
+    msg.className = "text-sm"; msg.textContent = "Speichere …";
+    try {
+      if (eaEdit) await restWrite("PATCH", `wagael_alarm_regeln?id=eq.${eaEdit}`, body, "return=minimal");
+      else await restWrite("POST", "wagael_alarm_regeln", body, "return=minimal");
+      eaSchliessen(); await loadEigeneAlarme();
+      msg.className = "text-sm ok"; msg.textContent = `✓ Regel „${name}“ gespeichert. Sie wird ab jetzt alle 10 Minuten geprüft.`;
+    } catch (e) { msg.className = "text-sm err"; msg.textContent = "✗ " + e.message; }
+  });
+  $("eaLoeschen").addEventListener("click", async () => {
+    const x = eaRegeln.find(r => r.id === eaEdit); if (!x || !confirm(`Regel „${x.name}“ löschen?`)) return;
+    try { await restWrite("DELETE", `wagael_alarm_regeln?id=eq.${x.id}`, null, "return=minimal");
+      eaSchliessen(); await loadEigeneAlarme(); $("eaMsg").className = "text-sm ok"; $("eaMsg").textContent = `✓ Regel „${x.name}“ gelöscht.`; }
+    catch (e) { $("eaMsg").className = "text-sm err"; $("eaMsg").textContent = "✗ " + e.message; }
   });
 
   const FAULTS = [{"c": "E101", "g": "Kommunikation", "m": "Innengerät empfängt keine Daten vom Außengerät", "a": "Kabel beschädigt oder Platine defekt – Verbindungskabel prüfen", "p": 0}, {"c": "E102", "g": "Kommunikation", "m": "Außengerät kann nicht kommunizieren", "a": "Kabel- oder Platinenfehler – Verkabelung zwischen den Geräten prüfen", "p": 0}, {"c": "E108", "g": "Kommunikation", "m": "Wiederholter Adresskonflikt", "a": "Doppelte Adressen der Innengeräte – neu einstellen", "p": 0}, {"c": "E185", "g": "Kommunikation", "m": "Kommunikations- und Stromkabel vertauscht", "a": "Installationsfehler – Verkabelung korrigieren", "p": 0}, {"c": "E186", "g": "Kommunikation", "m": "SPi-Verbindungsfehler", "a": "SPi-Modul – Anschlüsse prüfen", "p": 0}, {"c": "E201", "g": "Kommunikation", "m": "Adress- oder Kommunikationsfehler Innengerät", "a": "DIP-Schalter falsch – Adressen und Verkabelung prüfen", "p": 0}, {"c": "E202", "g": "Kommunikation", "m": "Kommunikationsfehler Innen-/Außengerät", "a": "Kabelfehler oder Störung – Kabel prüfen", "p": 0}, {"c": "E203", "g": "Kommunikation", "m": "Kommunikationsfehler Haupt-/Nebenplatine außen", "a": "Platinenfehler – Anschlüsse prüfen", "p": 0}, {"c": "E205", "g": "Kommunikation", "m": "Kommunikationsfehler aller Außenplatinen", "a": "Mehrere Platinen betroffen – Fachbetrieb", "p": 1}, {"c": "E210", "g": "Kommunikation", "m": "Kommunikationsfehler Außengerät/MCU", "a": "Verkabelung oder MCU – MCU-Verkabelung prüfen", "p": 0}, {"c": "E601", "g": "Kommunikation", "m": "Kommunikationsfehler Bedienteil/Innengerät", "a": "Thermostat-Kabel lose – Kabel prüfen, 5 Min. stromlos schalten", "p": 0}, {"c": "E602", "g": "Kommunikation", "m": "Kommunikationsfehler Haupt-/Nebenbedienteil", "a": "Verbindungskabel prüfen", "p": 0}, {"c": "E603", "g": "Kommunikation", "m": "Kommunikationsfehler Wochenprogramm", "a": "Verbindung des Zeitprogramms prüfen", "p": 0}, {"c": "E604", "g": "Kommunikation", "m": "Zuordnungsfehler Bedienteil/Hydraulik", "a": "Konfiguration oder Verkabelung – Zuordnung neu einrichten", "p": 0}, {"c": "E121", "g": "Sensoren innen", "m": "Raumtemperaturfühler offen/Kurzschluss", "a": "Fühler tauschen", "p": 0}, {"c": "E122", "g": "Sensoren innen", "m": "Verdampfer-Eintrittsfühler offen/Kurzschluss", "a": "Fühler tauschen", "p": 0}, {"c": "E123", "g": "Sensoren innen", "m": "Verdampfer-Austrittsfühler offen/Kurzschluss", "a": "Fühler tauschen", "p": 0}, {"c": "E128", "g": "Sensoren innen", "m": "Verdampfer-Eintrittsfühler gelöst", "a": "Fühler wieder anbringen", "p": 0}, {"c": "E129", "g": "Sensoren innen", "m": "Verdampfer-Austrittsfühler gelöst", "a": "Fühler wieder anbringen", "p": 0}, {"c": "E130", "g": "Sensoren innen", "m": "Beide Verdampferfühler gelöst", "a": "Beide Fühler wieder anbringen", "p": 0}, {"c": "E131", "g": "Sensoren innen", "m": "Fühler Zusatzheizung 1 defekt", "a": "Fühler tauschen", "p": 0}, {"c": "E132", "g": "Sensoren innen", "m": "Fühler Zusatzheizung 2 defekt", "a": "Fühler tauschen", "p": 0}, {"c": "E133", "g": "Sensoren innen", "m": "Fühler Zusatzheizung 3 defekt", "a": "Fühler tauschen", "p": 0}, {"c": "E134", "g": "Sensoren innen", "m": "Klappenfühler defekt", "a": "Fühler tauschen", "p": 0}, {"c": "E135", "g": "Sensoren innen", "m": "Lüfterfühler/Drehzahlrückmeldung defekt", "a": "Lüfterfühler prüfen", "p": 0}, {"c": "E140", "g": "Sensoren innen", "m": "Temperaturfühler der Steuerung offen/Kurzschluss", "a": "Fühler tauschen", "p": 0}, {"c": "E151", "g": "Betrieb innen", "m": "Expansionsventil öffnet nicht", "a": "Ventil klemmt oder elektrischer Fehler – Verkabelung prüfen, Ventil tauschen", "p": 0}, {"c": "E152", "g": "Betrieb innen", "m": "Expansionsventil schließt nicht", "a": "Ventil klemmt – prüfen, tauschen", "p": 0}, {"c": "E153", "g": "Betrieb innen", "m": "Schwimmerschalter ausgelöst", "a": "Kondensat läuft über – Ablauf prüfen, Schwimmer reinigen", "p": 0}, {"c": "E154", "g": "Betrieb innen", "m": "Innenlüfter dreht nicht", "a": "Motor defekt oder blockiert – prüfen, Motor tauschen", "p": 0}, {"c": "E161", "g": "Betrieb innen", "m": "Gemischter Heiz-/Kühlbetrieb", "a": "Steuerungsfehler – zurücksetzen, Konfiguration prüfen", "p": 0}, {"c": "E162", "g": "Betrieb innen", "m": "EEPROM-Fehler", "a": "Speicher defekt – Innenplatine tauschen", "p": 0}, {"c": "E163", "g": "Betrieb innen", "m": "Optionscode falsch eingestellt", "a": "DIP-Schalter korrigieren", "p": 0}, {"c": "E165", "g": "Betrieb innen", "m": "Überhitzungsschutz Elektroheizung", "a": "Überhitzung – Heizung und Luftstrom prüfen", "p": 0}, {"c": "E166", "g": "Betrieb innen", "m": "Lüfter läuft nicht bei Heizstabbetrieb", "a": "Lüfter prüfen", "p": 0}, {"c": "E198", "g": "Betrieb innen", "m": "Thermosicherung innen ausgelöst", "a": "Überhitzungsschutz – Ursache suchen, Sicherung tauschen", "p": 0}, {"c": "E221", "g": "Sensoren außen", "m": "Außentemperaturfühler offen/Kurzschluss", "a": "Fühler tauschen", "p": 0}, {"c": "E226", "g": "Sensoren außen", "m": "Außentemperaturfühler getrennt", "a": "Fühler anschließen oder tauschen", "p": 0}, {"c": "E231", "g": "Sensoren außen", "m": "Fühler Verflüssigeraustritt (Haupt) offen/Kurzschluss", "a": "Fühler tauschen", "p": 0}, {"c": "E236", "g": "Sensoren außen", "m": "Fühler Verflüssigeraustritt 1 offen/Kurzschluss", "a": "Fühler tauschen", "p": 0}, {"c": "E251", "g": "Sensoren außen", "m": "Heißgasfühler Verdichter offen/Kurzschluss", "a": "Fühler tauschen", "p": 0}, {"c": "E271", "g": "Sensoren außen", "m": "Sumpftemperaturfühler offen/Kurzschluss", "a": "Fühler tauschen", "p": 0}, {"c": "E291", "g": "Sensoren außen", "m": "Hochdruckfühler defekt / mögliches Leck", "a": "Fühler und Dichtheit prüfen", "p": 0}, {"c": "E296", "g": "Sensoren außen", "m": "Niederdruckfühler defekt / mögliches Leck", "a": "Fühler und Dichtheit prüfen", "p": 0}, {"c": "E301", "g": "Sensoren außen", "m": "Hochdruckfühler getrennt", "a": "Fühler anschließen", "p": 0}, {"c": "E306", "g": "Sensoren außen", "m": "Niederdruckfühler getrennt", "a": "Fühler anschließen", "p": 0}, {"c": "E308", "g": "Sensoren außen", "m": "Sauggasfühler offen/Kurzschluss", "a": "Fühler tauschen", "p": 0}, {"c": "E311", "g": "Sensoren außen", "m": "Flüssigkeitsleitungsfühler offen/Kurzschluss", "a": "Fühler tauschen", "p": 0}, {"c": "E474", "g": "Sensoren außen", "m": "Kühlkörperfühler Inverter defekt", "a": "Fühler tauschen", "p": 0}, {"c": "E461", "g": "Verdichter/Inverter", "m": "Anlauffehler Inverter-Verdichter", "a": "Mechanischer oder elektrischer Fehler – Fachbetrieb", "p": 1}, {"c": "E462", "g": "Verdichter/Inverter", "m": "Gesamtstromfehler, Verdichter gestoppt", "a": "Überstrom – Stromversorgung prüfen", "p": 0}, {"c": "E464", "g": "Verdichter/Inverter", "m": "Überstrom Leistungsmodul (IPM)", "a": "Kurzschluss oder Verdichterschaden – Fachbetrieb", "p": 1}, {"c": "E465", "g": "Verdichter/Inverter", "m": "Spannungs-/Stromgrenze Verdichter überschritten", "a": "Stromversorgung prüfen", "p": 0}, {"c": "E466", "g": "Verdichter/Inverter", "m": "Zwischenkreisspannung außerhalb des Bereichs", "a": "Netzschwankung – Netzanschluss prüfen", "p": 0}, {"c": "E467", "g": "Verdichter/Inverter", "m": "Verdichterkabel fehlt oder gelöst", "a": "Verdichterkabel prüfen", "p": 0}, {"c": "E468", "g": "Verdichter/Inverter", "m": "Stromsensor Inverter-Ausgang defekt", "a": "Platine tauschen", "p": 0}, {"c": "E469", "g": "Verdichter/Inverter", "m": "Gleichspannungssensor Inverter defekt", "a": "Platine tauschen", "p": 0}, {"c": "E470", "g": "Verdichter/Inverter", "m": "Daten der Außenplatine fehlen", "a": "Außenplatine tauschen", "p": 0}, {"c": "E483", "g": "Verdichter/Inverter", "m": "Überspannungsschutz", "a": "Spannungsspitze – Stromversorgung prüfen", "p": 0}, {"c": "E500", "g": "Verdichter/Inverter", "m": "Kühlkörper überhitzt", "a": "Luftstrom behindert – Kühlkörper reinigen, Belüftung prüfen", "p": 0}, {"c": "E504", "g": "Verdichter/Inverter", "m": "Selbstdiagnose Verdichter fehlerhaft", "a": "Verdichterfehler – Fachbetrieb", "p": 1}, {"c": "E446", "g": "Lüfter außen", "m": "Lüfter 1 Funktionsfehler", "a": "Motor defekt – Lüftermotor tauschen", "p": 0}, {"c": "E447", "g": "Lüfter außen", "m": "Lüfter 1 Kabel nicht angeschlossen", "a": "Lüfterkabel anschließen", "p": 0}, {"c": "E448", "g": "Lüfter außen", "m": "Lüfter 1 blockiert", "a": "Hindernis oder Motor fest – frei machen oder Motor tauschen", "p": 0}, {"c": "E452", "g": "Lüfter außen", "m": "Kurzer Stromausfall", "a": "Stabilität der Stromversorgung prüfen", "p": 0}, {"c": "E453", "g": "Lüfter außen", "m": "Lüfter 1 überhitzt", "a": "Hohe Last oder Lagerschaden – abkühlen lassen, Motor tauschen", "p": 0}, {"c": "E458", "g": "Lüfter außen", "m": "Allgemeiner Fehler Außenlüfter", "a": "Motor defekt – Lüftermotor tauschen", "p": 0}, {"c": "E915", "g": "Lüfter außen", "m": "Gleichstromlüfter läuft nicht", "a": "Lüfter tauschen", "p": 0}, {"c": "E401", "g": "Kältekreis/Druck", "m": "Einfrierschutz 1", "a": "Zu wenig Kältemittel, schlechter Luftstrom oder verschmutzter Wärmetauscher – Füllmenge prüfen, Wärmetauscher reinigen", "p": 0}, {"c": "E402", "g": "Kältekreis/Druck", "m": "Einfrierschutz 2", "a": "Zu wenig Kältemittel, schlechter Luftstrom oder verschmutzter Wärmetauscher – Füllmenge prüfen, Wärmetauscher reinigen", "p": 0}, {"c": "E403", "g": "Kältekreis/Druck", "m": "Einfrierschutz 3", "a": "Zu wenig Kältemittel, schlechter Luftstrom oder verschmutzter Wärmetauscher – Füllmenge prüfen, Wärmetauscher reinigen", "p": 0}, {"c": "E407", "g": "Kältekreis/Druck", "m": "Hochdruckschutz 1", "a": "Verflüssiger blockiert, Überfüllung oder Lüfterausfall – Luftstrom und Füllmenge prüfen", "p": 0}, {"c": "E408", "g": "Kältekreis/Druck", "m": "Hochdruckschutz 2", "a": "Verflüssiger blockiert, Überfüllung oder Lüfterausfall – Luftstrom und Füllmenge prüfen", "p": 0}, {"c": "E409", "g": "Kältekreis/Druck", "m": "Hochdruckschutz 3", "a": "Verflüssiger blockiert, Überfüllung oder Lüfterausfall – Luftstrom und Füllmenge prüfen", "p": 0}, {"c": "E410", "g": "Kältekreis/Druck", "m": "Niederdruckschutz 1", "a": "Leck oder Filtertrockner verstopft – Dichtheit und Trockner prüfen", "p": 0}, {"c": "E411", "g": "Kältekreis/Druck", "m": "Niederdruckschutz 2", "a": "Leck oder Filtertrockner verstopft – Dichtheit und Trockner prüfen", "p": 0}, {"c": "E412", "g": "Kältekreis/Druck", "m": "Niederdruckschutz 3", "a": "Leck oder Filtertrockner verstopft – Dichtheit und Trockner prüfen", "p": 0}, {"c": "E413", "g": "Kältekreis/Druck", "m": "Sumpfschutz 1", "a": "Flüssiges Kältemittel im Verdichtersumpf – Expansionsventil und Überhitzung prüfen", "p": 0}, {"c": "E414", "g": "Kältekreis/Druck", "m": "Sumpfschutz 2", "a": "Flüssiges Kältemittel im Verdichtersumpf – Expansionsventil und Überhitzung prüfen", "p": 0}, {"c": "E415", "g": "Kältekreis/Druck", "m": "Sumpfschutz 3", "a": "Flüssiges Kältemittel im Verdichtersumpf – Expansionsventil und Überhitzung prüfen", "p": 0}, {"c": "E416", "g": "Kältekreis/Druck", "m": "Heißgastemperatur-Schutz 1", "a": "Zu wenig Kältemittel oder hohes Druckverhältnis – Füllmenge prüfen", "p": 0}, {"c": "E417", "g": "Kältekreis/Druck", "m": "Heißgastemperatur-Schutz 2", "a": "Zu wenig Kältemittel oder hohes Druckverhältnis – Füllmenge prüfen", "p": 0}, {"c": "E418", "g": "Kältekreis/Druck", "m": "Heißgastemperatur-Schutz 3", "a": "Zu wenig Kältemittel oder hohes Druckverhältnis – Füllmenge prüfen", "p": 0}, {"c": "E419", "g": "Kältekreis/Druck", "m": "Selbstdiagnose Expansionsventil 1", "a": "Expansionsventil prüfen oder tauschen", "p": 0}, {"c": "E420", "g": "Kältekreis/Druck", "m": "Selbstdiagnose Expansionsventil 2", "a": "Expansionsventil prüfen oder tauschen", "p": 0}, {"c": "E421", "g": "Kältekreis/Druck", "m": "Selbstdiagnose Expansionsventil 3", "a": "Expansionsventil prüfen oder tauschen", "p": 0}, {"c": "E422", "g": "Kältekreis/Druck", "m": "Selbstdiagnose Expansionsventil 4", "a": "Expansionsventil prüfen oder tauschen", "p": 0}, {"c": "E423", "g": "Kältekreis/Druck", "m": "Selbstdiagnose Expansionsventil 5", "a": "Expansionsventil prüfen oder tauschen", "p": 0}, {"c": "E424", "g": "Kältekreis/Druck", "m": "Selbstdiagnose Expansionsventil 6", "a": "Expansionsventil prüfen oder tauschen", "p": 0}, {"c": "E425", "g": "Kältekreis/Druck", "m": "Phasenfolge falsch 1", "a": "Anschlussfehler – zwei Phasen tauschen (Elektriker)", "p": 0}, {"c": "E426", "g": "Kältekreis/Druck", "m": "Phasenfolge falsch 2", "a": "Anschlussfehler – zwei Phasen tauschen (Elektriker)", "p": 0}, {"c": "E427", "g": "Kältekreis/Druck", "m": "Phasenfolge falsch 3", "a": "Anschlussfehler – zwei Phasen tauschen (Elektriker)", "p": 0}, {"c": "E428", "g": "Kältekreis/Druck", "m": "Druckverhältnis-Fehler 1", "a": "Ungewöhnlicher Druckunterschied – Kreislauf und Ventile prüfen", "p": 0}, {"c": "E429", "g": "Kältekreis/Druck", "m": "Druckverhältnis-Fehler 2", "a": "Ungewöhnlicher Druckunterschied – Kreislauf und Ventile prüfen", "p": 0}, {"c": "E430", "g": "Kältekreis/Druck", "m": "Druckverhältnis-Fehler 3", "a": "Ungewöhnlicher Druckunterschied – Kreislauf und Ventile prüfen", "p": 0}, {"c": "E439", "g": "Kältekreis/Druck", "m": "Kältemittelleck erkannt", "a": "Dichtheitsprüfung, Reparatur, neu befüllen", "p": 1}, {"c": "E442", "g": "Kältekreis/Druck", "m": "Füllfehler im Heizbetrieb", "a": "Füllmenge korrigieren", "p": 0}, {"c": "E503", "g": "Kältekreis/Druck", "m": "Serviceventil geschlossen", "a": "Nach Wartung nicht geöffnet – Ventil öffnen", "p": 0}, {"c": "E554", "g": "Kältekreis/Druck", "m": "Kompletter Kältemittelverlust", "a": "NOTFALL – sofort Fachbetrieb", "p": 1}, {"c": "E901", "g": "Wasser/Hydraulik", "m": "Fühler Wassereintritt Kurzschluss/offen", "a": "Fühler tauschen", "p": 0}, {"c": "E902", "g": "Wasser/Hydraulik", "m": "Fühler Wasseraustritt Kurzschluss/offen", "a": "Fühler tauschen", "p": 0}, {"c": "E904", "g": "Wasser/Hydraulik", "m": "Speicherfühler Kurzschluss/offen", "a": "Fühler tauschen", "p": 0}, {"c": "E907", "g": "Wasser/Hydraulik", "m": "Rohrbruchschutz", "a": "Ungewöhnlicher Druck oder Durchfluss – Leitungen prüfen", "p": 0}, {"c": "E908", "g": "Wasser/Hydraulik", "m": "Frostschutz (behebbar)", "a": "Frostschutzmittel und Dämmung prüfen", "p": 0}, {"c": "E909", "g": "Wasser/Hydraulik", "m": "Frostschutz (nicht behebbar)", "a": "Kritischer Frostfall – Fachbetrieb", "p": 1}, {"c": "E910", "g": "Wasser/Hydraulik", "m": "Fühler Wasseraustritt gelöst", "a": "Fühler wieder in die Tauchhülse stecken", "p": 0}, {"c": "E911", "g": "Wasser/Hydraulik", "m": "Durchflussschalter: Pumpe aus oder zu wenig Durchfluss", "a": "Filter reinigen, entlüften, Ventile prüfen, Pumpendrehzahl prüfen, ggf. Überströmventil", "p": 0}, {"c": "E912", "g": "Wasser/Hydraulik", "m": "Durchfluss ohne Anforderung", "a": "Relais/Ventil klemmt, Platine oder Schwerkraftzirkulation – Ventile prüfen, Rückschlagventil", "p": 0}, {"c": "E913", "g": "Wasser/Hydraulik", "m": "6 Durchflussfehler – Sperre", "a": "Durchflussproblem beheben, dann Gerät zurücksetzen", "p": 0}, {"c": "E914", "g": "Wasser/Hydraulik", "m": "Thermostat falsch angeschlossen", "a": "Nach Installationsanleitung neu verdrahten", "p": 0}, {"c": "E917", "g": "Wasser/Hydraulik", "m": "Speicherfühler falsch konfiguriert", "a": "Fühler richtig konfigurieren", "p": 0}, {"c": "E919", "g": "Wasser/Hydraulik", "m": "Legionellen-Schaltung erreichte 60 °C nicht in 8 Std.", "a": "Heizstab, Fühlerposition und Einstellung prüfen", "p": 0}, {"c": "Ch", "g": "Hinweise (normal)", "m": "Verdichter-Startverzögerung / Kurbelwannenheizung", "a": "Normal – nichts tun", "p": 0}, {"c": "CF", "g": "Hinweise (normal)", "m": "Erinnerung Filterreinigung", "a": "Filter reinigen", "p": 0}, {"c": "CI", "g": "Hinweise (normal)", "m": "Automatische Reinigung", "a": "Normal – nichts tun", "p": 0}, {"c": "dF", "g": "Hinweise (normal)", "m": "Abtauen läuft", "a": "Normal – nichts tun", "p": 0}, {"c": "E551", "g": "Hinweise (normal)", "m": "Abtaubetrieb", "a": "Normal – nichts tun", "p": 0}, {"c": "E553", "g": "Hinweise (normal)", "m": "Ausgleichsbetrieb", "a": "Normal – nichts tun", "p": 0}];
@@ -4057,7 +4272,7 @@
     if (w) kw = w.wh / ((w.e - w.s) / 3600e3) / 1000;
     let a = null; lv.ac.forEach(x => { if (!a || Math.abs(x.t - r.t) < Math.abs(a.t - r.t)) a = x; });
     const out = c?.out_air ?? r.outdoor_temp;
-    return { t: r.t, run, hz: c?.comp_hz ?? null, kw, heat: heatKW(c), lpm: c?.flow_lpm ?? null, pump: c?.pump_pct ?? null,
+    return { t: r.t, run, hz: c?.comp_hz ?? null, fan: c?.fan_rpm ?? null, kw, heat: heatKW(c), lpm: c?.flow_lpm ?? null, pump: c?.pump_pct ?? null,
       vl: c?.flow ?? r.hp_flow_temp, rl: c?.ret ?? null, valve: r.hp_valve, ww: r.temperature, wwSoll: r.setpoint ?? lv.wwSoll,
       hs: r.hp_booster === "on", ab: r.hp_defrost === "on", out, puffer: lv.curve && out != null ? curveAt(lv.curve, out) : null,
       halle: a && Math.abs(a.t - r.t) < 3600e3 ? a.temperature : null, hum: a && Math.abs(a.t - r.t) < 3600e3 ? a.humidity : null,
@@ -4110,9 +4325,9 @@
       `<path d="M530 316 h96 q14 0 14 -12 t-14 -12 h-96 q-14 0 -14 -12 t14 -12 h96 q14 0 14 -12 t-14 -12 h-96" fill="none" stroke="${HOT}" stroke-width="4" class="lv-on"/>` + pp("M530 244 H500 V266 H392", RET, true, 5);
     // Wärmepumpe
     g += `<rect x="20" y="70" width="130" height="210" rx="14" fill="${card}" stroke="${edge}" stroke-width="1.5"/><circle cx="85" cy="128" r="38" fill="none" stroke="${edge}" stroke-width="1.5"/>` +
-      `<g class="${s.run ? "lv-spin" : ""}" style="animation-duration:${s.run ? Math.max(.4, 2.4 - (s.hz || 20) / 25) : 1}s">${[0, 120, 240].map(a => `<path d="M85 128 q14 -30 0 -34 q-10 4 0 34" fill="${mut}" transform="rotate(${a} 85 128)"/>`).join("")}</g><circle cx="85" cy="128" r="5" fill="${ink}"/>` +
+      `<g class="${(s.fan ?? (s.run ? 1 : 0)) > 0 ? "lv-spin" : ""}" style="animation-duration:${s.fan ? Math.max(.25, 300 / s.fan) : s.run ? Math.max(.4, 2.4 - (s.hz || 20) / 25) : 1}s">${[0, 120, 240].map(a => `<path d="M85 128 q14 -30 0 -34 q-10 4 0 34" fill="${mut}" transform="rotate(${a} 85 128)"/>`).join("")}</g><circle cx="85" cy="128" r="5" fill="${ink}"/>` +
       T(85, 190, `${icon} ${s.hz != null ? f1(s.hz, 0) + " Hz" : ""}`, { c: ink, fs: 14, b: true }) + T(85, 208, `Wärme ${s.run && s.heat ? "≈ " + f1(s.heat) + " kW" : "–"}`) +
-      T(85, 225, `COP ${cop ? "≈ " + f1(cop) : "–"}`, { c: cop ? ink : mut }) + T(85, 242, `außen ${f1(s.out, 0)} °C`) + T(85, 266, "Wärmepumpe", { c: ink, fs: 12 });
+      T(85, 225, `COP ${cop ? "≈ " + f1(cop) : "–"}`, { c: cop ? ink : mut }) + T(85, 242, `außen ${f1(s.out, 0)} °C · Lüfter ${s.fan != null ? f1(s.fan, 0) : "–"}`) + T(85, 266, "Wärmepumpe", { c: ink, fs: 12 });
     g += pump(190, 246, pumpOn) + T(190, 274, `Pumpe ${s.pump != null ? f1(s.pump, 0) + " %" : "–"}${s.lpm != null ? " · " + f1(s.lpm, 0) + " l/min" : ""}`, { c: pumpOn && !s.run ? RED : mut });
     g += `<rect x="160" y="106" width="54" height="22" rx="11" fill="${card}" stroke="${edge}"/>` + T(187, 121, `${f1(s.vl, 0)} °C`, { c: ink }) +
       `<rect x="148" y="214" width="54" height="22" rx="11" fill="${card}" stroke="${edge}"/>` + T(175, 229, `${f1(s.rl, 0)} °C`, { c: ink });
@@ -4153,6 +4368,7 @@
       stateTile("📥", "Laden", `${cnt("laden")}`, "Bereich ohne Daten", cnt("laden") ? "warn" : "ok"),
       stateTile("⏱️", "Automatik", `${cnt("automatik")}`, "SmartThings-Abfrage", cnt("automatik") ? "warn" : "ok"),
     ].join("");
+    klappSum("fehler", `<span class="pill ${rows.length ? "warn" : "ok"}">${days === 1 ? "24 Std." : days + " Tage"}: ${rows.length} ${rows.length === 1 ? "Meldung" : "Meldungen"}</span>`);
     const SRC = { seite: "🖥️ Seite", laden: "📥 Laden", automatik: "⏱️ Automatik", pv: "☀️ PV (FoxESS)", miele: "🧺 Miele" };
     $("erRows").innerHTML = erGroups.length ? erGroups.map(x => `<tr><td class="whitespace-nowrap">${SRC[x.source] || x.source}</td><td class="text-xs break-all">${x.message.replace(/</g, "&lt;")}${x.tabs.size ? `<br><span class="opacity-60">Reiter: ${[...x.tabs].join(", ")}</span>` : ""}</td>
       <td class="text-right tabular-nums">${x.n}×</td><td class="whitespace-nowrap">${dt(x.first)}</td><td class="whitespace-nowrap">${dt(x.last)}</td><td class="text-xs">${[...x.dev].join(", ") || "–"}<br><span class="opacity-60">${[...x.ver].join(", ")}</span></td></tr>`).join("")
@@ -4386,7 +4602,7 @@
     applyPalette();
     // frische Anmeldung holen (nach Ruhezustand ist das alte Login-Token sonst abgelaufen → „JWT expired“)
     await frischesToken(false);
-    const L = { loadTiles, loadEnergy, loadHistory, loadAuto, loadDiagnose, loadMonth, loadCurve, loadBench, loadAnlage, loadState, loadKlima, loadDay, loadAlarms, loadCop, loadLive, loadErrors, loadModeCmp, loadOpt, loadSolar, loadAkku, loadAkkuTechnik, loadHausLive, loadMiele, loadModule, loadHaus, loadTakt, loadLegio, loadVergleich };
+    const L = { loadTiles, loadEnergy, loadHistory, loadAuto, loadDiagnose, loadMonth, loadCurve, loadBench, loadAnlage, loadState, loadKlima, loadDay, loadAlarms, loadCop, loadLive, loadErrors, loadModeCmp, loadOpt, loadSolar, loadAkku, loadAkkuTechnik, loadHausLive, loadMiele, loadModule, loadHaus, loadTakt, loadLegio, loadVergleich, loadEigeneAlarme };
     await loadAnzeige();
     const skip = new Set(Object.entries(AN_SKIP).filter(([t]) => anOff.has(t)).flatMap(([, f]) => f));
     const names = Object.keys(L).filter(n => !skip.has(n)), res = await Promise.allSettled(names.map(n => L[n]()));
@@ -4481,7 +4697,7 @@
     diagnose: [["tkBody", "Taktet die Wärmepumpe?"], ["lgBody", "Legionellenschutz"], ["diag", "Diagnose – letzte 7 Tage"], ["cCurve", "Heizkurven-Check"], ["copRows", "Effizienz je Tag"], ["mcDays", "Warmwasser: ECO gegen STD"], ["fcSearch", "Fehlercode nachschlagen"]],
     config: [["goals", "Was muss ich wo einstellen?"], ["curveText", "Heizkurve – einfach erklärt"]],
     haus: [["hsSum", "Wohin geht der Hausstrom?"]],
-    plant: [["stamm", "Stammdaten"], ["ist", "IST-Einstellungen"], ["slog", "Änderungsprotokoll"], ["fsvTable", "Alle Einstellwerte (FSV)"], ["erDays", "Fehlerprotokoll"], ["alTest", "Alarme"]],
+    plant: [["stamm", "Stammdaten"], ["ist", "IST-Einstellungen"], ["slog", "Änderungsprotokoll"], ["fsvTable", "Alle Einstellwerte (FSV)"], ["erDays", "Fehlerprotokoll"], ["alTest", "Alarme"], ["eaNeu", "Eigene Alarme"]],
   };
   const AN_SKIP = { haus: ["loadHaus"], solar: ["loadSolar", "loadAkku", "loadModule"], klima: ["loadKlima"], opt: ["loadOpt"] };
   let anOff = new Set(), anLoaded = false, anOpen = new Set(), anDb = true;
