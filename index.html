@@ -807,7 +807,7 @@
   function setMsg(text, cls = "") { $("msg").className = cls; $("msg").textContent = text; }
 
   // ---------- Fehlerprotokoll: jeden Fehler nach Supabase (wagael_errors) ----------
-  const APP_VERSION = "2026-11-23c";
+  const APP_VERSION = "2026-11-23d";
   const erQueue = [], erSent = {};
   const erDevice = () => { const u = navigator.userAgent; const d = /iPad|Macintosh.*Mobile|Macintosh(?=.*Safari)(?!.*Chrome)/.test(u) && navigator.maxTouchPoints > 1 ? "iPad" : /iPhone/.test(u) ? "iPhone" : /Macintosh/.test(u) ? "Mac" : /Android/.test(u) ? "Android" : "anderes";
     return `${d} · ${/Edg\//.test(u) ? "Edge" : /Chrome\//.test(u) ? "Chrome" : /Firefox\//.test(u) ? "Firefox" : /Safari\//.test(u) ? "Safari" : "Browser"} · ${innerWidth}px`; };
@@ -4005,7 +4005,17 @@
     if (rules == null) { $("alRows").innerHTML = `<tr><td colspan="5" class="empty">Noch nicht eingerichtet – 08_alarme.sql im SQL Editor ausführen.</td></tr>`; $("alInfo").textContent = ""; return; }
     alRules = Object.fromEntries(rules.map(r => [r.setting, r]));
     // feste Alarme (09_alarme_extra.sql) + ECO-Regel
-    const flags = await rest("wagael_alarm_flags?select=key,label,enabled,state&order=key").catch(() => null);
+    const [flags, tgNamen, empf] = await Promise.all([
+      rest("wagael_alarm_flags?select=key,label,enabled,state&order=key").catch(() => null),
+      rest("wagael_telegram?select=name,aktiv&order=name").catch(() => []),
+      rest("wagael_alarm_empfaenger?select=alarm,namen").catch(() => null)]);   // 40_alarm_empfaenger.sql
+    const empfMap = Object.fromEntries((empf || []).map(e => [e.alarm, e.namen || []]));
+    const namen = [...new Set((tgNamen || []).filter(t => t.aktiv).map(t => t.name).filter(Boolean))];
+    const empfKey = (k) => k === "eco" ? "regel:Warmwasser-Modus" : k;
+    const chips = (k) => empf == null || !namen.length ? "" : `<div class="flex flex-wrap items-center gap-1 mt-2 pl-9 text-xs"><span class="opacity-60 mr-1">an:</span>${namen.map(nm => {
+        const sel = (empfMap[k] || []).includes(nm);
+        return `<button type="button" class="btn btn-xs ${sel ? "btn-primary" : "btn-ghost border border-base-300"}" data-empf="${hsEsc(k)}" data-name="${hsEsc(nm)}">${sel ? "✓ " : ""}${hsEsc(nm)}</button>`; }).join("")}
+        <span class="opacity-50 ml-1">${(empfMap[k] || []).length ? "" : "alle mit „Technik“"}</span></div>`;
     const eco = alRules["Warmwasser-Modus"];
     const fe = (flags || []).find(f => f.key === "fehler"), codes = fe?.state?.codes || [];
     $("faultBadge").classList.toggle("hidden", !codes.length);
@@ -4013,12 +4023,13 @@
       const info = FAULTS.find(x => x.c === codes[0]); $("faultBadge").title = info ? `${info.c}: ${info.m} – ${info.a}` : "Fehlercode der Anlage"; }
     const fl = [
       { key: "eco", icon: "🌿", label: "ECO nicht aktiv", sub: "Warmwasser-Modus weicht von ECO ab – und Entwarnung", on: !!eco && eco.enabled && valDE(eco.expected) === "ECO" },
-      ...(flags || []).map(f => ({ key: f.key, icon: { heizstab: "🔌", erfassung: "⏸", token: "🔑", fehler: "🚨", wagael: "🧯", abtauen: "⚠️", frostinfo: "❄️" }[f.key] || "🔔", label: f.label, on: f.enabled,
-        sub: { heizstab: "Ein- und Ausschalten mit Laufzeit und ≈ kWh", erfassung: "20 Min. keine neue Abfrage – und wenn es wieder läuft", token: "2 Std. vor Ablauf und bei Ablauf", fehler: "sofort bei jedem Fehlercode – falls SmartThings ihn liefert", wagael: "neuer Fehler der Seite oder Automatik (je Meldung höchstens 1× am Tag)", abtauen: "bei Frost 3 Std. kein Abtauen trotz Lauf – oder 4× in einer Stunde (36_frost_alarm.sql)", frostinfo: "an Frosttagen morgens kurzer Hinweis: Reif ist normal, nicht abkratzen" }[f.key] || "" })),
+      ...(flags || []).map(f => ({ key: f.key, icon: { heizstab: "🔌", erfassung: "⏸", token: "🔑", fehler: "🚨", wagael: "🧯", abtauen: "⚠️", frostinfo: "❄️", zaehler: "📟" }[f.key] || "🔔", label: f.label, on: f.enabled,
+        sub: { heizstab: "Ein- und Ausschalten mit Laufzeit und ≈ kWh", erfassung: "20 Min. keine neue Abfrage – und wenn es wieder läuft", token: "2 Std. vor Ablauf und bei Ablauf", fehler: "sofort bei jedem Fehlercode – falls SmartThings ihn liefert", wagael: "neuer Fehler der Seite oder Automatik (je Meldung höchstens 1× am Tag)", abtauen: "bei Frost 3 Std. kein Abtauen trotz Lauf – oder 4× in einer Stunde (36_frost_alarm.sql)", frostinfo: "an Frosttagen morgens kurzer Hinweis: Reif ist normal, nicht abkratzen", zaehler: "am 1. des Monats um 9 Uhr, mit Link zur Eingabe" }[f.key] || "" })),
     ];
-    $("alFlags").innerHTML = fl.map(f => `<label class="flex items-start gap-3 rounded-box bg-base-100 border border-base-300 p-3 cursor-pointer">
+    $("alFlags").innerHTML = fl.map(f => `<div class="rounded-box bg-base-100 border border-base-300 p-3"><label class="flex items-start gap-3 cursor-pointer">
         <input type="checkbox" class="checkbox checkbox-primary mt-0.5" data-flag="${f.key}" ${f.on ? "checked" : ""}>
-        <span><span class="font-semibold">${f.icon} ${f.label}</span><br><span class="text-xs opacity-70">${f.sub}</span></span></label>`).join("") +
+        <span><span class="font-semibold">${f.icon} ${f.label}</span><br><span class="text-xs opacity-70">${f.sub}</span></span></label>${chips(empfKey(f.key))}</div>`).join("") +
+      (empf != null && namen.length ? `<div class="rounded-box bg-base-100 border border-base-300 p-3"><span class="font-semibold">⚙️ Einstellung weicht vom Soll ab</span><br><span class="text-xs opacity-70">alle Zeilen der Soll-Tabelle unten (außer ECO)</span>${chips("regeln")}</div>` : "") +
       (flags == null ? `<div class="text-xs warn sm:col-span-2">Heizstab-, Erfassungs- und Token-Alarm: 09_alarme_extra.sql im SQL Editor ausführen.</div>` : "");
     $("alFlags").querySelectorAll("[data-flag]").forEach(cb => cb.onchange = async () => {
       const msg = $("alMsg"); msg.className = "text-sm"; msg.textContent = "Speichere …";
@@ -4029,11 +4040,22 @@
         await loadAlarms();
       } catch (e) { msg.className = "text-sm err"; msg.textContent = "✗ " + e.message; cb.checked = !cb.checked; }
     });
+    // Empfänger pro Alarm antippen (40_alarm_empfaenger.sql)
+    $("alFlags").querySelectorAll("[data-empf]").forEach(b => b.onclick = async () => {
+      const k = b.dataset.empf, nm = b.dataset.name, cur = new Set(empfMap[k] || []), msg = $("alMsg");
+      cur.has(nm) ? cur.delete(nm) : cur.add(nm);
+      msg.className = "text-sm"; msg.textContent = "Speichere …";
+      try {
+        await restWrite("POST", "wagael_alarm_empfaenger?on_conflict=alarm", [{ alarm: k, namen: [...cur], updated_at: new Date().toISOString() }], "resolution=merge-duplicates,return=minimal");
+        msg.className = "text-sm ok"; msg.textContent = `✓ Empfänger gespeichert: ${cur.size ? [...cur].join(", ") : "alle mit „Technik“"}.`;
+        await loadAlarms();
+      } catch (e) { msg.className = "text-sm err"; msg.textContent = "✗ " + e.message; }
+    });
     // Empfänger: Telegram (ntfy ist abgeschaltet, Hinweis nur falls noch an)
     const n = notify?.[0];
     rest("wagael_telegram?select=name,themen,aktiv&order=name").then(t => {
       const TH = { haus: "Haus", technik: "Technik", foto: "fotoArtisan" };
-      $("alInfo").innerHTML = (t.length ? `Nachrichten gehen per Telegram (@wagael_bot) an: ${t.map(x => `<b>${hsEsc(x.name)}</b> <span class="opacity-60">(${(x.themen || []).map(k => TH[k] || k).join(", ")})</span>${x.aktiv ? "" : ' <span class="pill warn">aus</span>'}`).join(" · ")}. Alarme zählen als „Technik“.`
+      $("alInfo").innerHTML = (t.length ? `Nachrichten gehen per Telegram (@wagael_bot) an: ${t.map(x => `<b>${hsEsc(x.name)}</b> <span class="opacity-60">(${(x.themen || []).map(k => TH[k] || k).join(", ")})</span>${x.aktiv ? "" : ' <span class="pill warn">aus</span>'}`).join(" · ")}. Alarme zählen als „Technik“ – außer du wählst beim Alarm Namen aus.`
         : `<span class="warn">Noch kein Telegram-Empfänger eingetragen</span> (Tabelle wagael_telegram).`) + (n?.enabled ? ` <span class="opacity-60">· ntfy läuft zusätzlich noch</span>` : "");
     }).catch(() => { $("alInfo").textContent = "Telegram-Empfänger konnten nicht geladen werden."; });
     const cur = settingsFromRaw(hp?.raw);
