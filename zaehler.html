@@ -20,52 +20,23 @@
   </div>
 
   <div id="noLogin" class="alert alert-warning hidden">
-    <span id="noLoginTxt">Bitte den Link aus der Telegram-Nachricht „Zählerstand ablesen“ öffnen – oder zuerst in <a class="link" href="index.html">WAGAEL</a> anmelden.</span>
+    <span id="noLoginTxt">Bitte den Link aus der Telegram-Nachricht „Zählerstand prüfen“ öffnen – oder zuerst in <a class="link" href="index.html">WAGAEL</a> anmelden.</span>
   </div>
 
   <div id="app" class="space-y-4 hidden">
-    <div class="join w-full" id="zSel">
-      <button class="btn join-item flex-1" data-z="bezug">Stromzähler</button>
-      <button class="btn join-item flex-1" data-z="einspeisung">Einspeisung</button>
-    </div>
-
     <div class="card bg-base-100 border border-base-300">
-      <div class="card-body p-4 gap-1">
-        <div class="flex items-center justify-between">
-          <span class="text-sm opacity-70" id="zName">Zähler</span>
-          <span class="badge badge-info badge-sm" id="zBadge">geschätzt</span>
-        </div>
-        <div class="text-3xl font-semibold tabular-nums" id="zNow">–</div>
-        <div class="text-sm opacity-70" id="zSub">noch nicht abgelesen</div>
+      <div class="card-body p-4 gap-0">
+        <div class="font-semibold">Stromzähler</div>
+        <div class="text-sm opacity-70 mb-2">Bitte am Zähler vergleichen: stimmt die Zahl?</div>
+        <div id="regs"></div>
       </div>
     </div>
-
-    <div class="card bg-base-100 border border-base-300">
-      <div class="card-body p-4 gap-3">
-        <div class="font-semibold">Ablesen</div>
-        <label class="form-control">
-          <span class="text-sm opacity-70 mb-1">Stand am Zähler (kWh)</span>
-          <input id="inStand" type="text" inputmode="decimal" autocomplete="off" class="input input-bordered input-lg w-full tabular-nums" placeholder="12480,0">
-        </label>
-        <label class="form-control">
-          <span class="text-sm opacity-70 mb-1">abgelesen am</span>
-          <input id="inAt" type="datetime-local" class="input input-bordered w-full">
-        </label>
-        <label class="form-control">
-          <span class="text-sm opacity-70 mb-1">Notiz (optional)</span>
-          <input id="inNote" type="text" class="input input-bordered w-full" placeholder="Zähler im Keller">
-        </label>
-        <div id="err" class="text-sm text-error hidden"></div>
-        <button id="save" class="btn btn-primary">Ablesen speichern</button>
-        <div id="ok" class="alert alert-success hidden"></div>
-      </div>
-    </div>
-
+    <div id="err" class="alert alert-error hidden"></div>
     <div class="card bg-base-100 border border-base-300">
       <div class="card-body p-4 gap-2">
         <div class="font-semibold">Bisherige Ablesungen</div>
         <div id="hist" class="text-sm"></div>
-        <div class="text-xs opacity-60" id="hint"></div>
+        <div class="text-xs opacity-60">Hochgerechnet mit Netzbezug und Einspeisung laut FoxESS. „Passt“ zählt als Ablesung – ab dort wird weitergerechnet.</div>
       </div>
     </div>
   </div>
@@ -78,14 +49,10 @@
   const $ = (id) => document.getElementById(id);
   const fmt = (v, d = 1) => v == null || isNaN(v) ? "–" : Number(v).toLocaleString("de-DE", { minimumFractionDigits: d, maximumFractionDigits: d });
   const when = (t) => new Date(t).toLocaleString("de-DE", { day: "2-digit", month: "2-digit", year: "2-digit", hour: "2-digit", minute: "2-digit" });
-  const NAMES = { bezug: "Stromzähler – Bezug aus dem Netz", einspeisung: "Stromzähler – Einspeisung", wp: "Wärmepumpe (Samsung-Zähler)" };
-  const HINTS = {
-    wp: "Weitergerechnet mit dem Energiezähler der Wärmepumpe. Ob der Heizstab dort mitgezählt wird, zeigt die Abweichung beim nächsten Ablesen.",
-    bezug: "Weitergerechnet mit dem Netzbezug laut FoxESS. Beim nächsten Ablesen siehst du, wie genau das ist.",
-    einspeisung: "Weitergerechnet mit der Einspeisung laut FoxESS."
-  };
+  const REGS = ["bezug", "einspeisung"];
+  const LBL = { bezug: { t: "Gekauft", obis: "1.8.0", i: "⬇️" }, einspeisung: { t: "Verkauft", obis: "2.8.0", i: "⬆️" } };
   const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY, { auth: { persistSession: true, autoRefreshToken: true } });
-  let token = null, key = null, zaehler = "bezug", jetzt = null;
+  let token = null, key = null, jetzt = {}, ui = { bezug: { mode: "view" }, einspeisung: { mode: "view" } };
 
   // Schlüssel aus dem Telegram-Link: merken und aus der Adresszeile entfernen
   try {
@@ -93,19 +60,16 @@
     if (q.get("k")) { localStorage.setItem("wagael_zaehler_k", q.get("k")); q.delete("k"); history.replaceState(null, "", location.pathname + (q.toString() ? "?" + q : "")); }
     key = localStorage.getItem("wagael_zaehler_k");
   } catch (e) {}
-  try { zaehler = new URLSearchParams(location.search).get("z") || localStorage.getItem("wagael_zaehler_sel") || "bezug"; } catch (e) {}
-  if (!NAMES[zaehler]) zaehler = "bezug";
-
   async function api(path, opt = {}) {
     const r = await fetch(`${SUPABASE_URL}/rest/v1/${path}`, { ...opt, headers: { apikey: SUPABASE_KEY, Authorization: `Bearer ${token}`, "Content-Type": "application/json", ...(opt.headers || {}) } });
-    if (!r.ok) { const t = await r.text(); throw new Error(r.status === 404 ? "Tabelle fehlt – bitte 37_zaehlerstand.sql ausführen." : t || r.statusText); }
+    if (!r.ok) { const t = await r.text(); throw new Error(r.status === 404 ? "Tabelle fehlt – bitte 37_zaehlerstand.sql und 41_zaehler_bestaetigen.sql ausführen." : t || r.statusText); }
     return r.status === 204 ? null : r.json();
   }
   async function rpc(fn, args) {
     const r = await fetch(`${SUPABASE_URL}/rest/v1/rpc/${fn}`, { method: "POST", headers: { apikey: SUPABASE_KEY, "Content-Type": "application/json" }, body: JSON.stringify({ p_k: key, ...args }) });
     const t = await r.text(); let j = null; try { j = t ? JSON.parse(t) : null; } catch (e) {}
     if (!r.ok) {
-      if (r.status === 404) throw new Error("Funktion fehlt – bitte 39_zaehler_link.sql ausführen.");
+      if (r.status === 404) throw new Error("Funktion fehlt – bitte 39_zaehler_link.sql und 41_zaehler_bestaetigen.sql ausführen.");
       if (/Link ungültig/.test(j?.message || "")) { try { localStorage.removeItem("wagael_zaehler_k"); } catch (e) {} }
       throw new Error(j?.message || t || r.statusText);
     }
@@ -114,75 +78,79 @@
   const parseNum = (s) => { s = String(s).trim().replace(/\s/g, ""); if (/,/.test(s)) s = s.replace(/\./g, "").replace(",", "."); return s === "" ? NaN : Number(s); };
   const localNow = () => { const d = new Date(); d.setMinutes(d.getMinutes() - d.getTimezoneOffset()); return d.toISOString().slice(0, 16); };
 
-  function showErr(m) { $("err").textContent = m; $("err").classList.toggle("hidden", !m); }
+  function showErr(m) { $("err").textContent = m || ""; $("err").classList.toggle("hidden", !m); }
+  const esc = (t) => String(t ?? "").replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+  const datum = (t) => new Date(t).toLocaleDateString("de-DE", { day: "2-digit", month: "2-digit" });
 
   async function load() {
-    document.querySelectorAll("#zSel .btn").forEach(b => b.classList.toggle("btn-primary", b.dataset.z === zaehler));
-    $("zName").textContent = NAMES[zaehler]; $("hint").textContent = HINTS[zaehler];
-    showErr(""); $("inAt").value = localNow();
+    showErr("");
     let jt = [], vl = [];
     try {
       if (token) [jt, vl] = await Promise.all([
-        api(`wagael_zaehler_jetzt?zaehler=eq.${zaehler}`),
-        api(`wagael_zaehler_verlauf?zaehler=eq.${zaehler}&order=abgelesen_at.desc&limit=12`)]);
-      else { const d = await rpc("wagael_zaehler_info", {}); jt = (d.jetzt || []).filter(r => r.zaehler === zaehler); vl = (d.verlauf || []).filter(r => r.zaehler === zaehler).slice(0, 12); }
+        api("wagael_zaehler_jetzt?zaehler=in.(bezug,einspeisung)"),
+        api("wagael_zaehler_verlauf?zaehler=in.(bezug,einspeisung)&order=abgelesen_at.desc&limit=16")]);
+      else { const d = await rpc("wagael_zaehler_info", {}); jt = d.jetzt || []; vl = (d.verlauf || []).filter(r => REGS.includes(r.zaehler)).slice(0, 16); }
     } catch (e) { showErr(e.message); }
-    jetzt = jt[0] || null;
-    if (jetzt) {
-      $("zNow").innerHTML = `${fmt(jetzt.geschaetzt, 1)} <span class="text-base opacity-60">kWh</span>`;
-      $("zSub").textContent = jetzt.quelle_ok
-        ? `abgelesen ${when(jetzt.abgelesen_at)}: ${fmt(jetzt.stand, 1)} · seitdem +${fmt(jetzt.seitdem, 1)} kWh`
-        : `abgelesen ${when(jetzt.abgelesen_at)}: ${fmt(jetzt.stand, 1)} · keine Messwerte zum Weiterrechnen`;
-      $("zBadge").classList.remove("hidden");
-      $("inStand").placeholder = fmt(jetzt.geschaetzt, 1);
-    } else {
-      $("zNow").textContent = "–"; $("zSub").textContent = "noch nicht abgelesen – einmal eintragen, dann rechnet WAGAEL weiter";
-      $("zBadge").classList.add("hidden");
-    }
-    $("hist").innerHTML = vl.length ? `<table class="table table-sm"><thead><tr><th>abgelesen</th><th class="text-right">Stand</th><th class="text-right">WAGAEL lag</th><th></th></tr></thead><tbody>${vl.map(r => {
+    jetzt = Object.fromEntries(jt.map(r => [r.zaehler, r]));
+    render();
+    $("hist").innerHTML = vl.length ? `<table class="table table-xs"><thead><tr><th>wann</th><th></th><th class="text-right">Stand</th><th class="text-right">Hochrechnung</th><th></th></tr></thead><tbody>${vl.map(r => {
       const d = r.geschaetzt != null ? r.stand - r.geschaetzt : null, pct = d != null && r.echt_seit_vorher > 0 ? d / r.echt_seit_vorher * 100 : null;
       const cls = pct == null ? "" : Math.abs(pct) < 3 ? "text-success" : Math.abs(pct) < 10 ? "text-warning" : "text-error";
-      return `<tr><td class="whitespace-nowrap">${when(r.abgelesen_at)}${r.notiz ? `<div class="text-xs opacity-60">${r.notiz.replace(/</g, "&lt;")}</div>` : ""}</td>
-        <td class="text-right tabular-nums">${fmt(r.stand, 1)}</td>
-        <td class="text-right tabular-nums ${cls}">${d == null ? "<span class='opacity-50'>Start</span>" : `${d > 0 ? "−" : "+"}${fmt(Math.abs(d), 1)} kWh${pct != null ? `<div class="text-xs">${fmt(Math.abs(pct), 1)} % ${d > 0 ? "zu wenig" : "zu viel"}</div>` : ""}`}</td>
+      const art = r.art === "bestaetigt" ? `<span class="text-success">✓ passt</span>` : d == null ? `<span class="opacity-50">Start</span>`
+        : `<span class="${cls}">${Math.abs(d) < 0.05 ? "genau" : `${fmt(Math.abs(d), 1)} zu ${d > 0 ? "niedrig" : "hoch"}`}</span>${pct != null && Math.abs(d) >= 0.05 ? `<div class="text-xs ${cls}">${fmt(Math.abs(pct), 1)} %</div>` : ""}`;
+      return `<tr><td class="whitespace-nowrap">${datum(r.abgelesen_at)}</td><td class="whitespace-nowrap">${LBL[r.zaehler].i} ${LBL[r.zaehler].t}</td>
+        <td class="text-right tabular-nums">${fmt(r.stand, 1)}</td><td class="text-right tabular-nums">${art}</td>
         <td class="text-right">${token || r.ruecknehmbar ? `<button class="btn btn-ghost btn-xs" data-del="${r.id}" title="${token ? "löschen" : "zurücknehmen (15 Min. lang möglich)"}">✕</button>` : ""}</td></tr>`; }).join("")}</tbody></table>`
       : `<div class="opacity-60">noch keine</div>`;
   }
 
-  $("zSel").addEventListener("click", (e) => {
-    const z = e.target.closest("[data-z]")?.dataset.z; if (!z) return;
-    zaehler = z; try { localStorage.setItem("wagael_zaehler_sel", z); } catch (er) {}
-    $("ok").classList.add("hidden"); load();
-  });
+  function render() {
+    $("regs").innerHTML = REGS.map((z, idx) => {
+      const j = jetzt[z], u = ui[z], L = LBL[z], edit = u.mode === "edit" || !j;
+      const kopf = `<div class="flex justify-between text-sm opacity-70"><span>${L.i} ${L.t} <span class="opacity-60">(${L.obis})</span></span>${j ? `<span>${j.quelle_ok ? `seit ${datum(j.abgelesen_at)} +${fmt(j.seitdem, 1)}` : "keine FoxESS-Werte"}</span>` : ""}</div>`;
+      const wert = j ? `<div class="text-3xl font-semibold tabular-nums">${fmt(j.geschaetzt, 1)} <span class="text-base opacity-60">kWh</span></div>` : `<div class="text-sm opacity-70 mt-1">Noch keine Ablesung – bitte einmal den Stand vom Zähler eintragen.</div>`;
+      const knoepfe = edit
+        ? `<div class="flex gap-2 mt-2"><input class="input input-bordered flex-1 tabular-nums" inputmode="decimal" autocomplete="off" data-in="${z}" placeholder="${j ? fmt(j.geschaetzt, 1) : "Stand in kWh"}" value="${esc(u.val || "")}">
+             <button class="btn btn-primary" data-save="${z}">${u.trotz ? "Trotzdem" : "Speichern"}</button>${j ? `<button class="btn btn-ghost" data-cancel="${z}">✕</button>` : ""}</div>`
+        : `<div class="flex gap-2 mt-2"><button class="btn btn-success btn-outline flex-1" data-ok="${z}">✓ Passt</button><button class="btn flex-1" data-edit="${z}">✎ Anderer Wert</button></div>`;
+      const m = u.msg ? `<div class="text-sm mt-2 ${u.msgCls || ""}">${esc(u.msg)}</div>` : "";
+      return `<div class="${idx ? "border-t border-base-300 mt-3 pt-3" : ""}">${kopf}${wert}${knoepfe}${m}</div>`;
+    }).join("");
+    const inp = document.querySelector("#regs [data-in]"); if (inp && document.activeElement === document.body) inp.focus({ preventScroll: true });
+  }
 
-  $("inStand").addEventListener("input", () => { showErr(""); $("save").dataset.trotz = ""; $("save").textContent = "Ablesen speichern"; });
-
-  $("save").addEventListener("click", async () => {
-    const v = parseNum($("inStand").value), at = $("inAt").value ? new Date($("inAt").value) : new Date();
-    if (isNaN(v) || v < 0) return showErr("Bitte den Zählerstand als Zahl eingeben, z. B. 12480,5");
-    if (at > new Date(Date.now() + 5 * 60000)) return showErr("Der Zeitpunkt liegt in der Zukunft.");
-    if (jetzt && v < jetzt.stand && new Date(jetzt.abgelesen_at) < at && $("save").dataset.trotz !== "1") {
-      $("save").dataset.trotz = "1"; $("save").textContent = "Trotzdem speichern (Zähler getauscht?)";
-      return showErr(`Kleiner als die letzte Ablesung (${fmt(jetzt.stand, 1)}). Vertippt?`);
-    }
-    $("save").disabled = true;
+  async function speichern(z, v, art) {
+    const u = ui[z], j = jetzt[z];
+    if (isNaN(v) || v < 0) { u.msg = "Bitte den Zählerstand als Zahl eingeben, z. B. 23418,5"; u.msgCls = "text-error"; return render(); }
+    if (j && v < j.stand && !u.trotz) { u.trotz = true; u.msg = `Kleiner als die letzte Ablesung (${fmt(j.stand, 1)}). Vertippt? Sonst „Trotzdem“.`; u.msgCls = "text-warning"; return render(); }
+    const at = new Date().toISOString();
     try {
       let vl;
       if (token) {
-        const [neu] = await api("wagael_zaehler", { method: "POST", headers: { Prefer: "return=representation" },
-          body: JSON.stringify({ zaehler, stand: v, abgelesen_at: at.toISOString(), notiz: $("inNote").value.trim() || null }) });
+        const [neu] = await api("wagael_zaehler", { method: "POST", headers: { Prefer: "return=representation" }, body: JSON.stringify({ zaehler: z, stand: v, abgelesen_at: at, art }) });
         [vl] = await api(`wagael_zaehler_verlauf?id=eq.${neu.id}`);
-      } else vl = await rpc("wagael_zaehler_eintragen", { p_zaehler: zaehler, p_stand: v, p_at: at.toISOString(), p_notiz: $("inNote").value.trim() || null });
-      let msg = "Gespeichert. Ab jetzt rechnet WAGAEL ab diesem Stand weiter.";
-      if (vl?.geschaetzt != null) {
+      } else vl = await rpc("wagael_zaehler_eintragen", { p_zaehler: z, p_stand: v, p_at: at, p_art: art });
+      let msg = art === "bestaetigt" ? `✓ Bestätigt: ${fmt(v, 1)} kWh. Ab hier wird weitergerechnet.` : `✓ Gespeichert: ${fmt(v, 1)} kWh.`;
+      if (art !== "bestaetigt" && vl?.geschaetzt != null) {
         const d = vl.stand - vl.geschaetzt, pct = vl.echt_seit_vorher > 0 ? Math.abs(d) / vl.echt_seit_vorher * 100 : null;
-        msg = `Gespeichert. WAGAEL lag ${fmt(Math.abs(d), 1)} kWh ${d > 0 ? "zu niedrig" : "zu hoch"}${pct != null ? ` (${fmt(pct, 1)} %)` : ""}. Ab jetzt wird ab ${fmt(v, 1)} weitergerechnet.`;
+        msg += ` Die Hochrechnung lag ${fmt(Math.abs(d), 1)} kWh zu ${d > 0 ? "niedrig" : "hoch"}${pct != null ? ` (${fmt(pct, 1)} %)` : ""}.`;
       }
-      $("ok").textContent = msg; $("ok").classList.remove("hidden");
-      $("inStand").value = ""; $("inNote").value = "";
+      ui[z] = { mode: "view", msg, msgCls: "text-success" };
       await load();
-    } catch (e) { showErr(e.message); }
-    finally { $("save").disabled = false; $("save").dataset.trotz = ""; $("save").textContent = "Ablesen speichern"; }
+    } catch (e) { u.msg = e.message; u.msgCls = "text-error"; render(); }
+  }
+
+  $("regs").addEventListener("input", (e) => { const z = e.target.dataset.in; if (z) { ui[z].val = e.target.value; if (ui[z].trotz) { ui[z].trotz = false; ui[z].msg = ""; e.target.closest("div").querySelector("[data-save]").textContent = "Speichern"; } } });
+  $("regs").addEventListener("keydown", (e) => { if (e.key === "Enter" && e.target.dataset.in) speichern(e.target.dataset.in, parseNum(e.target.value), jetzt[e.target.dataset.in] ? "korrigiert" : "abgelesen"); });
+  $("regs").addEventListener("click", async (e) => {
+    const t = e.target.closest("button"); if (!t || t.disabled) return;
+    const d = t.dataset;
+    if (d.edit) { ui[d.edit] = { mode: "edit" }; render(); return; }
+    if (d.cancel) { ui[d.cancel] = { mode: "view" }; render(); return; }
+    t.disabled = true;
+    if (d.ok) await speichern(d.ok, Math.round(jetzt[d.ok].geschaetzt * 10) / 10, "bestaetigt");
+    if (d.save) await speichern(d.save, parseNum(ui[d.save].val ?? ""), jetzt[d.save] ? "korrigiert" : "abgelesen");
+    t.disabled = false;
   });
 
   $("hist").addEventListener("click", async (e) => {
@@ -191,7 +159,7 @@
     try {
       if (token) await api(`wagael_zaehler?id=eq.${b.dataset.del}`, { method: "DELETE" });
       else await rpc("wagael_zaehler_ruecknehmen", { p_id: +b.dataset.del });
-      $("ok").classList.add("hidden"); await load(); }
+      REGS.forEach(z => ui[z] = { mode: "view" }); await load(); }
     catch (er) { showErr(er.message); }
   });
 
